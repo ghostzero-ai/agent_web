@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Study Companion",
-  description: "Your Personal AI Learning Partner",
+  title: "AI 学习伴侣",
+  description: "你的专属 AI 学习伙伴",
 };
 
 export default function RootLayout({
