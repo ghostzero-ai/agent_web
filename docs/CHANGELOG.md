@@ -60,6 +60,57 @@ UI (React) → subscribe/notify → Backend (runTask) → chatService (executeSe
 
 ---
 
+## Phase 9.3 — 执行隔离 + Abort + Session 级 loading
+
+**Commit**: `(待提交)`
+
+### 修改文件
+- `web/lib/runtime/backend.ts`
+- `web/lib/ai/chatService.ts`
+- `web/app/chat/page.tsx`
+
+### 变更内容
+| 功能 | 说明 |
+|------|------|
+| Abort 支持 | `runTask(id, sessionId, fn)` → fn 接收 `AbortSignal`，传入 `fetch(url, { signal })` |
+| 停止生成按钮 | loading 时 "发送" 变为红色 "停止生成"，调 `abortTask(id)` |
+| aborted vs error | `TaskStatus` 新增 `"aborted"`，`AbortError` 单独处理，不显示错误 |
+| Session 级 loading | `getTasksBySession(sessionId)` 替代全局 `getAllTasks()`，不串台 |
+| API/LocalStorage 分离 | `sendChatMessage(messages, signal)` + `applySendReply` / `applyRetryReply` |
+
+---
+
+## Phase 9.4 — 状态一致性收敛（Event Log 架构）
+
+**Commit**: `(待提交)`
+
+### 修改文件
+- `web/lib/runtime/backend.ts`
+- `web/lib/ai/chatService.ts`
+- `web/app/chat/page.tsx`
+
+### 变更内容
+| 功能 | 说明 |
+|------|------|
+| Event Log 架构 | `BackendEvent = task_update \| session_update`，`emit(event)` 替代 `notify()` |
+| sessionStore | Backend 拥有 `Map<string, Session>` 缓存，`saveSessions` 仅 backend 调用 |
+| signal.aborted 守卫 | `runTask.then/catch` 中 `if (signal.aborted) return`，真正终止控制流 |
+| chatService 纯函数 | `applySendReply/Retry(session, reply)` 只算不写，入参变为 Session |
+| UI 事件消费 | `subscribe(event)` → 增量 merge：`session_update` 更新 sessions，`task_update` 更新 tasks |
+| loading 事件驱动 | `Object.values(tasks).some(t => t.status === "running" && sessionId)` |
+| 消除三份真相源 | backend 单写 → 事件单向流动 → React state 只读 |
+
+### 架构
+```
+Backend (唯一写入者)
+  ├─ taskStore
+  ├─ sessionStore
+  └─ emit(event) → UI subscribe → 增量 merge
+       ↑ 事件单向流动，无漂移
+```
+
+---
+
 ## Sprint 8 — Chat State Reliability Layer
 
 **Commit**: `39157b2 step7`

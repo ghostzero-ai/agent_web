@@ -3,17 +3,17 @@ import {
   getApiBaseUrl,
   getApiModel,
   validateConfig,
-  getSessions,
-  saveSessions,
   type ChatMessage,
   type Session,
 } from "@/lib/config";
 
 /**
- * 发送消息到 AI API，返回 assistant 回复内容。
- * 纯函数，不依赖 React，不处理 UI state。
+ * 纯 API 调用。signal 直接传入 fetch，支持 AbortController。
  */
-export async function sendChatMessage(messages: ChatMessage[]): Promise<string> {
+export async function sendChatMessage(
+  messages: ChatMessage[],
+  signal?: AbortSignal,
+): Promise<string> {
   const config = validateConfig();
   if (!config.valid) {
     throw new Error(`请先配置：${config.missing.join("、")}`);
@@ -30,6 +30,7 @@ export async function sendChatMessage(messages: ChatMessage[]): Promise<string> 
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({ model, messages }),
+    signal,
   });
 
   if (!response.ok) {
@@ -40,81 +41,54 @@ export async function sendChatMessage(messages: ChatMessage[]): Promise<string> 
   return data.choices?.[0]?.message?.content || "（AI 未返回内容）";
 }
 
-// ── 领域 Action（独立函数，不共享 mode 参数）──
+// ── 领域 Action（纯计算，只算不写）──
 
 /**
- * Send Action：调 API → localStorage 追加新 assistant → 返回 updatedSession
+ * 纯函数：将 AI 回复追加为新 assistant 消息，返回新 Session。
+ * 不写 localStorage，不产生副作用。
  */
-export async function executeSend(
-  sessionId: string,
-  messages: ChatMessage[],
-): Promise<Session> {
-  const reply = await sendChatMessage(messages);
+export function applySendReply(session: Session, reply: string): Session {
+  const assistant: ChatMessage = {
+    id: crypto.randomUUID(),
+    role: "assistant",
+    content: reply,
+    createdAt: Date.now(),
+    versions: [reply],
+    activeVersion: 0,
+  };
 
-  const sessions = getSessions();
-  let updatedSession: Session | null = null;
-
-  const updated = sessions.map((s) => {
-    if (s.id !== sessionId) return s;
-
-    const assistant: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: reply,
-      createdAt: Date.now(),
-      versions: [reply],
-      activeVersion: 0,
-    };
-    updatedSession = {
-      ...s,
-      messages: [...s.messages, assistant],
-      updatedAt: Date.now(),
-    };
-    return updatedSession;
-  });
-
-  saveSessions(updated);
-  return updatedSession!;
+  return {
+    ...session,
+    messages: [...session.messages, assistant],
+    updatedAt: Date.now(),
+  };
 }
 
 /**
- * Retry Action：调 API → localStorage 更新指定 assistant 的 versions → 返回 updatedSession
+ * 纯函数：将 AI 回复更新到指定 assistant 的 versions，返回新 Session。
+ * 不写 localStorage，不产生副作用。
  */
-export async function executeRetry(
-  sessionId: string,
-  messages: ChatMessage[],
+export function applyRetryReply(
+  session: Session,
+  reply: string,
   targetMsgIndex: number,
-): Promise<Session> {
-  const reply = await sendChatMessage(messages);
+): Session {
+  const msgs = [...session.messages];
+  const target = msgs[targetMsgIndex];
+  if (!target || target.role !== "assistant") {
+    return session;
+  }
 
-  const sessions = getSessions();
-  let updatedSession: Session | null = null;
+  const versions = target.versions ?? [target.content];
+  const newVersionIndex = versions.length;
 
-  const updated = sessions.map((s) => {
-    if (s.id !== sessionId) return s;
+  msgs[targetMsgIndex] = {
+    ...target,
+    content: reply,
+    versions: [...versions, reply],
+    activeVersion: newVersionIndex,
+    createdAt: Date.now(),
+  };
 
-    const msgs = [...s.messages];
-    const target = msgs[targetMsgIndex];
-    if (!target || target.role !== "assistant") {
-      updatedSession = s;
-      return s;
-    }
-
-    const versions = target.versions ?? [target.content];
-    const newVersionIndex = versions.length;
-
-    msgs[targetMsgIndex] = {
-      ...target,
-      content: reply,
-      versions: [...versions, reply],
-      activeVersion: newVersionIndex,
-      createdAt: Date.now(),
-    };
-
-    updatedSession = { ...s, messages: msgs, updatedAt: Date.now() };
-    return updatedSession;
-  });
-
-  saveSessions(updated);
-  return updatedSession!;
+  return { ...session, messages: msgs, updatedAt: Date.now() };
 }

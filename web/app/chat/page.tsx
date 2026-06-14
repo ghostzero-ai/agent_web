@@ -10,31 +10,46 @@ import {
   type ChatMessage,
   type Session,
 } from "@/lib/config";
-import { executeSend, executeRetry } from "@/lib/ai/chatService";
-import { runTask, subscribe, getAllTasks } from "@/lib/runtime/backend";
+import { sendChatMessage, applySendReply, applyRetryReply } from "@/lib/ai/chatService";
+import {
+  runTask,
+  abortTask,
+  subscribe,
+  loadSessions,
+  type TaskState,
+  type BackendEvent,
+} from "@/lib/runtime/backend";
 
 export default function ChatPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<Record<string, TaskState>>({});
 
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // ── 初始化 ──
   useEffect(() => {
     const loaded = migrateOnce();
+    loadSessions(loaded);
     setSessions(loaded);
     if (loaded.length > 0) {
       setActiveSessionId(loaded[0].id);
     }
   }, []);
 
-  // ── 订阅 Backend ──
+  // ── 订阅 Backend 事件 ──
   useEffect(() => {
-    return subscribe(() => {
-      setSessions(getSessions());
-      setLoading(getAllTasks().some((t) => t.status === "running"));
+    return subscribe((event: BackendEvent) => {
+      if (event.type === "session_update") {
+        const updated = event.payload;
+        setSessions((prev) =>
+          prev.map((s) => (s.id === updated.id ? updated : s)),
+        );
+      }
+      if (event.type === "task_update") {
+        setTasks((prev) => ({ ...prev, [event.payload.id]: event.payload }));
+      }
     });
   }, []);
 
@@ -51,6 +66,15 @@ export default function ChatPage() {
     : null;
 
   const messages: ChatMessage[] = activeSession?.messages ?? [];
+
+  // loading 从 tasks state 派生（事件驱动，非 snapshot recompute）
+  const loading = Object.values(tasks).some(
+    (t) => t.status === "running" && t.sessionId === activeSessionId,
+  );
+
+  const runningTaskId = Object.values(tasks).find(
+    (t) => t.status === "running" && t.sessionId === activeSessionId,
+  )?.id ?? null;
 
   // ── 新建 Session ──
   const handleNewSession = () => {
@@ -76,7 +100,7 @@ export default function ChatPage() {
     });
   };
 
-  // ── 发送消息（dispatch to Backend）──
+  // ── 发送消息 ──
   const sendMessage = () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
@@ -87,7 +111,7 @@ export default function ChatPage() {
       return;
     }
 
-    if (!activeSessionId) return;
+    if (!activeSessionId || !activeSession) return;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -98,31 +122,36 @@ export default function ChatPage() {
 
     const shouldUpdateTitle = messages.length === 0;
 
-    const updatedMessages = [...messages, userMessage];
+    // Optimistic update：用户消息立即渲染
+    const optimisticSession: Session = {
+      ...activeSession,
+      messages: [...messages, userMessage],
+      title: shouldUpdateTitle ? trimmed.slice(0, 20) : activeSession.title,
+      updatedAt: Date.now(),
+    };
     setSessions((prev) =>
-      prev.map((s) =>
-        s.id === activeSessionId
-          ? {
-              ...s,
-              messages: updatedMessages,
-              title: shouldUpdateTitle ? trimmed.slice(0, 20) : s.title,
-              updatedAt: Date.now(),
-            }
-          : s,
-      ),
+      prev.map((s) => (s.id === activeSessionId ? optimisticSession : s)),
     );
 
     setInput("");
     setError(null);
 
     const taskId = crypto.randomUUID();
-    runTask(taskId, () => executeSend(activeSessionId, updatedMessages));
+
+    runTask(taskId, activeSessionId, async (signal) => {
+      const reply = await sendChatMessage(
+        [...messages, userMessage],
+        signal,
+      );
+      // 纯计算 + 返回 Session（backend runTask.then 负责写入）
+      return applySendReply(optimisticSession, reply);
+    });
   };
 
-  // ── Retry（dispatch to Backend）──
+  // ── Retry ──
   const handleRetry = (msgIndex: number) => {
     if (loading) return;
-    if (!activeSessionId) return;
+    if (!activeSessionId || !activeSession) return;
 
     const msg = messages[msgIndex];
     if (!msg || msg.role !== "assistant") return;
@@ -143,17 +172,26 @@ export default function ChatPage() {
     setError(null);
 
     const taskId = crypto.randomUUID();
-    runTask(taskId, () =>
-      executeRetry(activeSessionId, messagesToSend, msgIndex),
-    );
+
+    runTask(taskId, activeSessionId, async (signal) => {
+      const reply = await sendChatMessage(messagesToSend, signal);
+      return applyRetryReply(activeSession, reply, msgIndex);
+    });
   };
 
-  // ── 版本切换（纯 UI 操作，不经过 Backend）──
+  // ── 停止生成 ──
+  const handleStop = () => {
+    if (runningTaskId) {
+      abortTask(runningTaskId);
+    }
+  };
+
+  // ── 版本切换 ──
   const handleSwitchVersion = (
     msgIndex: number,
     direction: "prev" | "next",
   ) => {
-    if (!activeSessionId) return;
+    if (!activeSessionId || !activeSession) return;
 
     const msg = messages[msgIndex];
     if (!msg || !msg.versions || msg.versions.length <= 1) return;
@@ -192,10 +230,7 @@ export default function ChatPage() {
     const now = new Date();
     const diff = now.getTime() - d.getTime();
     if (diff < 86400000) {
-      return d.toLocaleTimeString("zh-CN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
     }
     return d.toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
   };
@@ -209,7 +244,6 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen flex-col bg-zinc-50 dark:bg-black">
-      {/* Top header bar */}
       <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
         <h1 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
           AI 对话
@@ -222,12 +256,9 @@ export default function ChatPage() {
         </Link>
       </header>
 
-      {/* Error Banner */}
       {error && (
         <div className="mx-6 mt-3 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950">
-          <p className="flex-1 text-sm text-red-700 dark:text-red-400">
-            {error}
-          </p>
+          <p className="flex-1 text-sm text-red-700 dark:text-red-400">{error}</p>
           <Link
             href="/api-key"
             className="text-sm font-medium text-red-700 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
@@ -244,9 +275,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Main: Sidebar + Chat */}
       <div className="flex flex-1 overflow-hidden">
-        {/* ── 左侧 Session 列表 ── */}
         <aside className="flex w-64 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
           <div className="px-3 pt-3">
             <button
@@ -266,10 +295,7 @@ export default function ChatPage() {
             ) : (
               <div className="space-y-1">
                 {sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className="group flex items-center gap-1"
-                  >
+                  <div key={session.id} className="group flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => setActiveSessionId(session.id)}
@@ -310,7 +336,6 @@ export default function ChatPage() {
           </div>
         </aside>
 
-        {/* ── 右侧聊天区域 ── */}
         <main className="flex flex-1 flex-col overflow-hidden">
           <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6">
             {!activeSession ? (
@@ -339,8 +364,7 @@ export default function ChatPage() {
                     msg.versions &&
                     msg.versions.length > 1;
                   const versionCount = msg.versions?.length ?? 0;
-                  const activeVersion =
-                    msg.activeVersion ?? versionCount - 1;
+                  const activeVersion = msg.activeVersion ?? versionCount - 1;
 
                   return (
                     <div
@@ -357,12 +381,9 @@ export default function ChatPage() {
                         {msg.content}
                       </div>
 
-                      {/* Timestamp + Actions */}
                       <div
                         className={`mt-1 flex items-center gap-2 flex-wrap ${
-                          msg.role === "user"
-                            ? "justify-end"
-                            : "justify-start"
+                          msg.role === "user" ? "justify-end" : "justify-start"
                         }`}
                       >
                         {msg.createdAt && (
@@ -420,7 +441,6 @@ export default function ChatPage() {
             )}
           </div>
 
-          {/* Input area */}
           {activeSessionId && (
             <footer className="border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
               <div className="mx-auto flex max-w-2xl gap-3">
@@ -433,14 +453,23 @@ export default function ChatPage() {
                   disabled={loading}
                   className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
                 />
-                <button
-                  type="button"
-                  onClick={sendMessage}
-                  disabled={loading}
-                  className="rounded-lg bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
-                >
-                  发送
-                </button>
+                {loading ? (
+                  <button
+                    type="button"
+                    onClick={handleStop}
+                    className="rounded-lg bg-red-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
+                  >
+                    停止生成
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={sendMessage}
+                    className="rounded-lg bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+                  >
+                    发送
+                  </button>
+                )}
               </div>
             </footer>
           )}
