@@ -1,19 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getApiKey, getApiBaseUrl, getApiModel, validateConfig } from "@/lib/config";
-
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-};
+import {
+  getApiKey,
+  getApiBaseUrl,
+  getApiModel,
+  validateConfig,
+  getChatMessages,
+  saveChatMessages,
+  type ChatMessage,
+} from "@/lib/config";
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(getChatMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Persist messages to localStorage on every change
+  useEffect(() => {
+    saveChatMessages(messages);
+  }, [messages]);
 
   const sendMessage = async () => {
     const trimmed = input.trim();
@@ -26,8 +34,11 @@ export default function ChatPage() {
       return;
     }
 
-    const userMessage: Message = { role: "user", content: trimmed };
-    setMessages((prev) => [...prev, userMessage]);
+    const userMessage: ChatMessage = { role: "user", content: trimmed };
+
+    // Build complete message array (no duplication risk)
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInput("");
     setError(null);
     setLoading(true);
@@ -45,7 +56,7 @@ export default function ChatPage() {
         },
         body: JSON.stringify({
           model,
-          messages: [{ role: "user", content: trimmed }],
+          messages: updatedMessages,
         }),
       });
 
@@ -57,8 +68,8 @@ export default function ChatPage() {
       const content =
         data.choices?.[0]?.message?.content || "（AI 未返回内容）";
 
-      const assistantMessage: Message = { role: "assistant", content };
-      setMessages((prev) => [...prev, assistantMessage]);
+      const assistantMessage: ChatMessage = { role: "assistant", content };
+      setMessages([...updatedMessages, assistantMessage]);
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "API 调用失败，请检查网络连接";
@@ -114,9 +125,12 @@ export default function ChatPage() {
       {/* Message List */}
       <main className="flex flex-1 flex-col overflow-y-auto px-6 py-6">
         {messages.length === 0 && !loading ? (
-          <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2">
+            <h2 className="text-lg font-semibold text-zinc-500 dark:text-zinc-400">
+              开始你的第一段对话
+            </h2>
             <p className="text-sm text-zinc-400 dark:text-zinc-500">
-              开始对话吧
+              输入问题，AI 将为你提供帮助
             </p>
           </div>
         ) : (
