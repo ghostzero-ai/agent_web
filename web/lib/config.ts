@@ -32,9 +32,12 @@ export function validateConfig(): { valid: boolean; missing: string[] } {
 // --- Chat message type ---
 
 export type ChatMessage = {
+  id?: string;
   role: "user" | "assistant";
   content: string;
   createdAt?: number;
+  versions?: string[];
+  activeVersion?: number;
 };
 
 // --- Session types and persistence ---

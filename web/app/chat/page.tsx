@@ -10,10 +10,10 @@ import {
   type ChatMessage,
   type Session,
 } from "@/lib/config";
-import { sendChatMessage } from "@/lib/ai/chatService";
+import { executeSend, executeRetry } from "@/lib/ai/chatService";
+import { runTask, subscribe, getAllTasks } from "@/lib/runtime/backend";
 
 export default function ChatPage() {
-  // ── 唯一两个 state（sessions = single source of truth）──
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
@@ -21,13 +21,21 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── 初始化：加载 + 迁移 ──
+  // ── 初始化 ──
   useEffect(() => {
     const loaded = migrateOnce();
     setSessions(loaded);
     if (loaded.length > 0) {
       setActiveSessionId(loaded[0].id);
     }
+  }, []);
+
+  // ── 订阅 Backend ──
+  useEffect(() => {
+    return subscribe(() => {
+      setSessions(getSessions());
+      setLoading(getAllTasks().some((t) => t.status === "running"));
+    });
   }, []);
 
   // ── 持久化 ──
@@ -58,6 +66,7 @@ export default function ChatPage() {
 
   // ── 删除 Session ──
   const handleDeleteSession = (id: string) => {
+    if (!window.confirm("确定要删除这个对话吗？")) return;
     setSessions((prev) => {
       const filtered = prev.filter((s) => s.id !== id);
       if (id === activeSessionId) {
@@ -67,8 +76,8 @@ export default function ChatPage() {
     });
   };
 
-  // ── 发送消息 ──
-  const sendMessage = async () => {
+  // ── 发送消息（dispatch to Backend）──
+  const sendMessage = () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
 
@@ -81,6 +90,7 @@ export default function ChatPage() {
     if (!activeSessionId) return;
 
     const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
       role: "user",
       content: trimmed,
       createdAt: Date.now(),
@@ -104,86 +114,70 @@ export default function ChatPage() {
 
     setInput("");
     setError(null);
-    setLoading(true);
 
-    try {
-      const reply = await sendChatMessage(updatedMessages);
-      const assistantMessage: ChatMessage = {
-        role: "assistant",
-        content: reply,
-        createdAt: Date.now(),
-      };
-
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === activeSessionId
-            ? {
-                ...s,
-                messages: [...updatedMessages, assistantMessage],
-                updatedAt: Date.now(),
-              }
-            : s,
-        ),
-      );
-    } catch (e) {
-      const message =
-        e instanceof Error ? e.message : "API 调用失败，请检查网络连接";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
+    const taskId = crypto.randomUUID();
+    runTask(taskId, () => executeSend(activeSessionId, updatedMessages));
   };
 
-  // ── Retry 重新生成 ──
-  const handleRetry = async () => {
+  // ── Retry（dispatch to Backend）──
+  const handleRetry = (msgIndex: number) => {
     if (loading) return;
-    if (messages.length === 0) return;
-
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg.role !== "assistant") return;
-
     if (!activeSessionId) return;
 
-    // 去掉最后一条 assistant，用剩余 messages 重新请求
-    const truncatedMessages = messages.slice(0, -1);
+    const msg = messages[msgIndex];
+    if (!msg || msg.role !== "assistant") return;
 
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === activeSessionId
-          ? { ...s, messages: truncatedMessages, updatedAt: Date.now() }
-          : s,
-      ),
-    );
+    if (!window.confirm("确定要重新生成回复吗？")) return;
+
+    let lastUserIdx = -1;
+    for (let i = msgIndex - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        lastUserIdx = i;
+        break;
+      }
+    }
+    if (lastUserIdx === -1) return;
+
+    const messagesToSend = messages.slice(0, lastUserIdx + 1);
 
     setError(null);
-    setLoading(true);
 
-    try {
-      const reply = await sendChatMessage(truncatedMessages);
-      const assistantMessage: ChatMessage = {
-        role: "assistant",
-        content: reply,
-        createdAt: Date.now(),
-      };
+    const taskId = crypto.randomUUID();
+    runTask(taskId, () =>
+      executeRetry(activeSessionId, messagesToSend, msgIndex),
+    );
+  };
 
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === activeSessionId
-            ? {
-                ...s,
-                messages: [...truncatedMessages, assistantMessage],
-                updatedAt: Date.now(),
-              }
-            : s,
-        ),
-      );
-    } catch (e) {
-      const message =
-        e instanceof Error ? e.message : "API 调用失败，请检查网络连接";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
+  // ── 版本切换（纯 UI 操作，不经过 Backend）──
+  const handleSwitchVersion = (
+    msgIndex: number,
+    direction: "prev" | "next",
+  ) => {
+    if (!activeSessionId) return;
+
+    const msg = messages[msgIndex];
+    if (!msg || !msg.versions || msg.versions.length <= 1) return;
+
+    const currentVersion = msg.activeVersion ?? msg.versions.length - 1;
+    const newVersion =
+      direction === "next"
+        ? Math.min(currentVersion + 1, msg.versions.length - 1)
+        : Math.max(currentVersion - 1, 0);
+
+    if (newVersion === currentVersion) return;
+
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id !== activeSessionId) return s;
+        const msgs = [...s.messages];
+        msgs[msgIndex] = {
+          ...msgs[msgIndex],
+          content: msg.versions![newVersion],
+          activeVersion: newVersion,
+        };
+        return { ...s, messages: msgs, updatedAt: Date.now() };
+      }),
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -198,7 +192,10 @@ export default function ChatPage() {
     const now = new Date();
     const diff = now.getTime() - d.getTime();
     if (diff < 86400000) {
-      return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleTimeString("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     }
     return d.toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
   };
@@ -212,7 +209,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen flex-col bg-zinc-50 dark:bg-black">
-      {/* Top header bar (shared) */}
+      {/* Top header bar */}
       <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
         <h1 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
           AI 对话
@@ -269,7 +266,10 @@ export default function ChatPage() {
             ) : (
               <div className="space-y-1">
                 {sessions.map((session) => (
-                  <div key={session.id} className="group flex items-center gap-1">
+                  <div
+                    key={session.id}
+                    className="group flex items-center gap-1"
+                  >
                     <button
                       type="button"
                       onClick={() => setActiveSessionId(session.id)}
@@ -334,12 +334,17 @@ export default function ChatPage() {
             ) : (
               <div className="mx-auto w-full max-w-2xl space-y-6">
                 {messages.map((msg, i) => {
-                  const isLastAssistant =
-                    i === messages.length - 1 && msg.role === "assistant";
+                  const hasVersions =
+                    msg.role === "assistant" &&
+                    msg.versions &&
+                    msg.versions.length > 1;
+                  const versionCount = msg.versions?.length ?? 0;
+                  const activeVersion =
+                    msg.activeVersion ?? versionCount - 1;
 
                   return (
                     <div
-                      key={i}
+                      key={msg.id ?? i}
                       className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
                     >
                       <div
@@ -352,10 +357,12 @@ export default function ChatPage() {
                         {msg.content}
                       </div>
 
-                      {/* Timestamp + Retry */}
+                      {/* Timestamp + Actions */}
                       <div
-                        className={`mt-1 flex items-center gap-2 ${
-                          msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                        className={`mt-1 flex items-center gap-2 flex-wrap ${
+                          msg.role === "user"
+                            ? "justify-end"
+                            : "justify-start"
                         }`}
                       >
                         {msg.createdAt && (
@@ -363,10 +370,35 @@ export default function ChatPage() {
                             {formatMsgTime(msg.createdAt)}
                           </span>
                         )}
-                        {isLastAssistant && !loading && (
+
+                        {hasVersions && (
+                          <span className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
+                            <button
+                              type="button"
+                              onClick={() => handleSwitchVersion(i, "prev")}
+                              disabled={activeVersion === 0}
+                              className="disabled:opacity-30 hover:text-zinc-700 dark:hover:text-zinc-300"
+                            >
+                              ◀
+                            </button>
+                            <span>
+                              {activeVersion + 1}/{versionCount}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSwitchVersion(i, "next")}
+                              disabled={activeVersion === versionCount - 1}
+                              className="disabled:opacity-30 hover:text-zinc-700 dark:hover:text-zinc-300"
+                            >
+                              ▶
+                            </button>
+                          </span>
+                        )}
+
+                        {msg.role === "assistant" && !loading && (
                           <button
                             type="button"
-                            onClick={handleRetry}
+                            onClick={() => handleRetry(i)}
                             className="text-xs text-zinc-400 transition-colors hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-300"
                           >
                             重新生成
