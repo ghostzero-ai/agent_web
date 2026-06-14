@@ -34,6 +34,7 @@ export function validateConfig(): { valid: boolean; missing: string[] } {
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  createdAt?: number;
 };
 
 // --- Session types and persistence ---
