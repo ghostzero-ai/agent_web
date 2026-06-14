@@ -22,7 +22,7 @@ export default function ChatPage() {
     // Validate config
     const config = validateConfig();
     if (!config.valid) {
-      setError(`请先配置：${config.missing.join("、")}`);
+      setError("请先配置 API Key、Base URL 和 Model 才能使用 Chat 功能");
       return;
     }
 
@@ -95,6 +95,12 @@ export default function ChatPage() {
           <p className="flex-1 text-sm text-red-700 dark:text-red-400">
             {error}
           </p>
+          <Link
+            href="/api-key"
+            className="text-sm font-medium text-red-700 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+          >
+            前往配置
+          </Link>
           <button
             type="button"
             onClick={() => setError(null)}

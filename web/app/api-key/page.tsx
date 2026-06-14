@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 
 const STORAGE_KEYS = {
   apiKey: "agent_api_key",
@@ -72,11 +73,19 @@ export default function ApiKeyPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
-      <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
-        <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-50 sm:text-4xl">
+      {/* Header */}
+      <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+        <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
           API 配置管理
         </h1>
-
+        <Link
+          href="/chat"
+          className="text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+        >
+          返回对话
+        </Link>
+      </header>
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
         <div className="mt-10 w-full max-w-md space-y-6">
           {/* API Key */}
           <div>
