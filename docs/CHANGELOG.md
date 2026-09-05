@@ -4,6 +4,83 @@
 
 ---
 
+## Sprint 1.1 — PostgreSQL + Drizzle + Migration 基线
+
+**Commit**: `96649c8`
+
+### 为什么
+
+Phase 0 的 localStorage 只能支持单浏览器原型，无法作为跨设备会话、可靠定时任务、后台 Worker 与未来云端迁移的事实来源。本 Sprint 先建立可审阅、可升级、可回滚的数据地基，不提前接入 Repository/API 或改动现有 Chat 行为。
+
+### 怎么做
+
+- 以 PostgreSQL 为服务端事实数据库，以 Drizzle TypeScript Schema 为结构源，以版本化 SQL 为部署制品。
+- 使用显式配对的 forward/rollback SQL；自定义 Runner 提供事务、迁移历史、排他锁、幂等执行和 SHA-256 漂移检测。
+- 使用 PGlite 执行仓库中的真实 PostgreSQL SQL，覆盖当前机器没有 PostgreSQL/Docker 时的自动化迁移回归。
+- `active_leaf_message_id` 保留为列但暂不建立循环外键；Sprint 1.2 Repository 必须验证活动叶节点属于同一 Conversation。
+
+### 修改文件
+
+- `PROJECT.md`
+- `README.md`
+- `docs/CHANGELOG.md`
+- `docs/DATABASE_OPERATIONS.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `docs/adr/ADR-024-POSTGRES-DRIZZLE-MIGRATIONS.md`
+- `web/.env.example`
+- `web/.gitignore`
+- `web/drizzle.config.ts`
+- `web/drizzle/0000_easy_joystick.sql`
+- `web/drizzle/meta/0000_snapshot.json`
+- `web/drizzle/meta/_journal.json`
+- `web/drizzle/rollback/0000_easy_joystick.sql`
+- `web/lib/db/migrations.ts`
+- `web/lib/db/postgresMigrationDatabase.ts`
+- `web/lib/db/schema.ts`
+- `web/package-lock.json`
+- `web/package.json`
+- `web/scripts/db-migrate.ts`
+- `web/scripts/db-rollback.ts`
+- `web/tests/databaseMigrations.test.ts`
+
+### 变更内容
+
+| 功能 | 说明 |
+|------|------|
+| 最小数据模型 | 新增 `users`、`conversations`、`messages`，使用 UUID、`timestamptz`、Enum、JSONB、外键、索引和乐观锁版本列 |
+| 树形持久化 | `messages.parent_message_id` 使用自引用外键，`conversations.active_leaf_message_id` 保存当前分支位置 |
+| Drizzle 基线 | 新增 Drizzle 配置、Schema、生成 SQL、快照与 `db:generate` / `db:check` 命令 |
+| 事务化升级 | `db:migrate` 按序应用待执行迁移，同一事务写入 `app_internal.schema_migrations`，重复执行幂等 |
+| 显式回滚 | rollback SQL 单独存放，`db:rollback` 每次事务化回滚最新一条迁移，避免 down SQL 被前向工具误执行 |
+| 漂移与并发保护 | 已应用 SQL 使用 SHA-256 校验；历史表排他锁避免两个进程重复迁移 |
+| 配置安全 | 提交无效凭据的 `.env.example`，继续忽略 `.env.local` 等真实环境文件 |
+| 依赖安全 | 新增 Drizzle/Postgres/PGlite/tsx；覆盖 Drizzle Kit 的旧 esbuild 传递依赖后，完整与生产审计均为 0 |
+| 操作文档 | 新增环境准备、生成、升级、回滚、事务、安全和后续迁移规范；ADR-024 固化架构取舍 |
+
+### 验证
+
+- `npm test`：8 个测试文件、46 个测试全部通过。
+- 数据库集成测试：真实执行首次建库、默认值写入、重复升级、单步回滚、回滚后重建与迁移漂移拒绝。
+- `npm run db:check`：Drizzle migration 元数据一致。
+- `npm run db:generate`：Schema 无未生成变更。
+- `npx tsc --noEmit --pretty false`：通过。
+- `npm run lint`：通过。
+- `npm run build`：通过，4 个静态路由成功生成。
+- `npm run test:e2e`：3 个 Microsoft Edge 主链路全部通过；网络受限时 Google Fonts 使用既有 fallback，不影响用例。
+- `npm audit` 与 `npm audit --omit=dev`：均为 0 项已知漏洞。
+- 当前机器未安装 PostgreSQL、Docker 或 `psql`，因此未连接外部数据库；迁移 SQL 由进程内 PostgreSQL 兼容引擎验证。标准 Docker 环境仍按路线图在 Sprint 1.5 引入。
+
+### localStorage 变化
+
+- 键名和值结构均无变化。
+- Chat UI 仍由 `agent_chat_sessions` 提供数据；Sprint 1.2 接入 Repository/API，Sprint 1.4 再提供无重复导入。
+
+### 下一步
+
+- Sprint 1.2：实现单用户身份引导、Conversation/Message Repository、事务化活动分支更新和服务端 API。
+
+---
+
 ## Sprint 0.6 — 依赖安全与 Phase 0 封版
 
 **Commit**: `c57a612`
