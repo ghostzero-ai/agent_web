@@ -120,7 +120,8 @@ test("renders dollar and slash-delimited math in the chat page", async ({
               id: "math-answer",
               parentId: "math-question",
               role: "assistant",
-              content: "行内：\\(x^2\\)\n\n\\[y^2\\]\n\n以及 $z^2$",
+              content:
+                "行内：\\(x^2\\) 与 $\\frac{a+b}{c+d}$\n\n\\[\\frac{1}{1 + \\frac{1}{x}}\\]\n\n以及 $z^2$",
             },
           ],
         },
@@ -129,7 +130,8 @@ test("renders dollar and slash-delimited math in the chat page", async ({
   });
   await page.reload();
 
-  await expect(page.locator(".katex")).toHaveCount(3);
+  await expect(page.locator(".katex")).toHaveCount(4);
   await expect(page.locator(".katex-display")).toHaveCount(1);
+  await expect(page.locator(".mfrac")).toHaveCount(3);
   await expect(page.getByText("公式测试", { exact: true })).toBeVisible();
 });
