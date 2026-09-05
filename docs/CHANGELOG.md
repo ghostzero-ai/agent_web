@@ -4,6 +4,31 @@
 
 ---
 
+## Sprint 0.5.1 — KaTeX 分数排版兼容修复
+
+**Commit**: `8534c3a`
+
+### 修改文件
+- `web/package.json`
+- `web/package-lock.json`
+- `web/e2e/chat.spec.ts`
+
+### 变更内容
+| 功能 | 说明 |
+|------|------|
+| KaTeX 版本一致性 | 将直接依赖从 `0.18.5` 固定为 `0.16.47`，与 `rehype-katex` 和 `remark-math` 实际使用的版本一致 |
+| 依赖去重 | 移除两份嵌套 KaTeX 运行时，确保生成公式 DOM 的代码与页面载入的 CSS、字体来自同一版本 |
+| 分数回归测试 | Edge 页面用例新增普通分数与嵌套分数，验证行内、块级公式及 `.mfrac` 结构均能渲染 |
+
+### 验证
+- `npm test`：44/44 通过
+- `npm run lint`：通过
+- `npm run test:e2e`：3/3 用例通过（Edge）
+- `npm run build`：通过
+- localStorage 键值：无变化
+
+---
+
 ## Sprint 0.5 — 树形对话与安全富文本渲染
 
 **Commit**: `803470b`（Phase 0 汇总提交）
