@@ -4,6 +4,42 @@
 
 ---
 
+## Sprint 0.6 — 依赖安全与 Phase 0 封版
+
+**Commit**: `c57a612`
+
+### 修改文件
+- `web/package.json`
+- `web/package-lock.json`
+- `web/AGENTS.md`
+- `PROJECT.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+| 功能 | 说明 |
+|------|------|
+| Next.js 安全升级 | 将 Next.js 与 `eslint-config-next` 从 `16.2.9` 升级并固定到 `16.3.4`，修复 App Router、Turbopack、Server Actions 及传递依赖公告 |
+| 传递依赖修复 | 使用不带 `--force` 的兼容补丁升级，修复 PostCSS、Sharp、Nano ID、Browserslist、JS-YAML 与 Brace Expansion 等公告 |
+| 框架规则同步 | 接受 Next.js 16.3.4 首次启动时自动更新的 `web/AGENTS.md` 规则块，避免每次开发启动产生脏工作区 |
+| Phase 0 封版 | 路线图将 Sprint 0.6 标记完成，项目状态转入 Phase 1 准备阶段，并建立 `phase-0-baseline` Git 标签 |
+
+### 验证
+- `npm audit`：生产与开发依赖均为 0 项已知漏洞
+- `npm test`：7 个测试文件、44 个测试全部通过
+- `npx tsc --noEmit --pretty false`：通过
+- `npm run lint`：通过
+- `npm run build`：通过，4 个静态路由成功生成
+- `npm run test:e2e`：3 个 Microsoft Edge 端到端测试全部通过
+- localStorage 键值：无变化
+
+### Phase 0 基线
+- 基线标签：`phase-0-baseline`
+- 回滚方式：`git switch --detach phase-0-baseline` 可只读检查封版状态；需要开发时应从该标签创建新分支
+- 下一 Sprint：1.1 PostgreSQL + Drizzle + migration 基线
+
+---
+
 ## Sprint 0.5.1 — KaTeX 分数排版兼容修复
 
 **Commit**: `8534c3a`

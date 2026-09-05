@@ -28,19 +28,19 @@ GOAL:
 
 CURRENT_PHASE:
 
-MVP
+Phase 0 Complete / MVP Baseline
 
 ==================================================
 
 CURRENT_TASK:
 
-Landing Page
+Sprint 0.6 — Dependency Security and Phase 0 Baseline
 
 ==================================================
 
 NEXT_TASK:
 
-API Key Settings
+Sprint 1.1 — PostgreSQL + Drizzle + Migration Baseline
 
 ==================================================
 
