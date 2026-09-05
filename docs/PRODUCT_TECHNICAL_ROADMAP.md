@@ -1,0 +1,1987 @@
+# AI Study Companion 产品与技术总规划
+
+> 文档类型：产品需求文档（PRD）+ 技术设计文档（TDD）+ 分阶段路线图
+> 文档版本：1.1
+> 编写日期：2026-09-02
+> 最近修订：2026-09-05
+> 适用项目：AI Study Companion / Personal AI Agent Web Application
+> 状态：规划基线，后续通过 ADR 与 CHANGELOG 持续修订
+
+---
+
+## 0. 文档目的
+
+本文档将现有代码、历史讨论和后续目标统一为一份可以直接指导开发的长期规划。它同时回答以下问题：
+
+1. 当前项目已经完成了什么，哪些能力仍然只是浏览器原型。
+2. 项目最终希望成为怎样的个人 AI Agent。
+3. “专业助手”与“情感陪伴”如何同时存在且互不破坏。
+4. 定时任务、主动联系、新闻与书籍推荐应如何可靠实现。
+5. DeepSeek Harness、OpenAI Codex 和 ChatGPT 定时任务有哪些可借鉴之处。
+6. 短期应该先写什么代码，长期如何扩展而不过早复杂化。
+7. 如何把项目建设过程转化为可展示的软件工程作品集。
+
+本文档不是一次性功能清单。每个阶段开始前仍需拆成小型 Sprint，并遵守“一个目标、可验证、可回滚”的开发原则。
+
+---
+
+## 1. 项目重新定位
+
+### 1.1 一句话定义
+
+AI Study Companion 是一个面向个人长期使用的、兼具专业知识工作与克制型情感陪伴能力的主动式个人 Agent。
+
+它不只是一个聊天页面，也不以复刻 ChatGPT、DeepSeek 网页版或 Replika 为目标。它的核心是把以下五件事连接起来：
+
+- 理解用户：可检查、可编辑、可遗忘的长期记忆。
+- 帮助用户：专业回答、研究、学习规划与思考引导。
+- 在时间中持续工作：任务、提醒、定期研究和主动联系。
+- 保持关系感：自然、温暖、有连续性，但不牺牲事实严谨性。
+- 按需扩展学习方式：通过受控插件增加背书、解题、阅读和其他学习活动，而不污染核心 Agent。
+
+### 1.2 目标用户
+
+首要用户就是项目作者本人。因此产品优先级不是商业规模，而是：
+
+1. 实际每天愿意使用。
+2. 能解决真实学习与信息获取问题。
+3. 能形成长期个人记忆与任务连续性。
+4. 开发过程能系统学习前端、后端、Agent、数据与工程实践。
+5. 最终可以作为作品集展示设计判断和技术深度。
+
+### 1.3 产品边界
+
+本项目不是：
+
+- 心理治疗工具或医疗建议系统。
+- 无限制扮演真人、诱导情感依赖的虚拟恋人产品。
+- 通用工作流平台或企业级 Agent 编排器。
+- Codex、DeepSeek Harness 的代码执行替代品。
+- 一开始就支持多用户、多租户、付费和公开插件市场的 SaaS。
+- 允许第三方插件不经授权执行任意代码、读取全部个人数据或安装 Android 原生模块的平台。
+
+### 1.4 成功定义
+
+产品成功不以“功能数量”衡量，而以以下体验是否成立衡量：
+
+- 用户关闭网页后，提醒和定期任务仍能可靠执行。
+- 普通问题得到快速回答，复杂问题得到有依据、可追溯的专业回答。
+- 系统能偶尔提出真正相关、有启发性的问题，而不是机械反问。
+- 新闻和书籍推荐有来源、有选择理由、不过度重复。
+- 陪伴语气自然，但遇到事实、研究、技术或高风险问题时会自动进入严谨模式。
+- 用户能看见系统记住了什么、为什么主动联系、任务何时执行。
+- 背书、解题等学习活动可以作为独立插件启用、禁用和升级，核心聊天与任务系统不受影响。
+- 同一套核心能力可以运行在 Web/PWA 与 Android APK，并能从笔记本自托管迁移到云服务器。
+- 关键行为有自动化测试、运行历史和错误记录。
+
+---
+
+## 2. 当前项目基线
+
+### 2.1 已有技术栈
+
+| 层级 | 当前选择 | 结论 |
+|---|---|---|
+| Framework | Next.js 16 App Router | 保留 |
+| UI | React 19 + Tailwind CSS 4 | 保留 |
+| Language | TypeScript 5 strict | 保留 |
+| 部署设想 | Vercel | 可保留 Web，后台能力需单独验证 |
+| 模型接入 | OpenAI-compatible `/chat/completions` | 作为 Provider 之一保留 |
+| 持久化 | localStorage | 仅适合本地原型，不能承担云端任务 |
+| 后台执行 | 浏览器内 Map + Promise | 只在页面生命周期内有效，不是真正后台 |
+
+### 2.2 当前已有功能
+
+- Landing Page 与 API 配置页。
+- 自带 API Key、Base URL 和 Model 配置。
+- 多 Session 对话、创建、切换和删除。
+- 完整历史消息发送、localStorage 持久化和旧数据迁移。
+- 重新生成、回复版本切换、时间戳和停止生成。
+- `chatService` 与 UI 初步解耦。
+- 浏览器内通用任务运行层：任务状态、AbortController、事件订阅。
+- 基于 task type 的完成 Hook。
+- 简单长期记忆、启发式上下文压缩、Prompt Builder 和关键词任务规划器。
+
+### 2.3 当前架构的正确方向
+
+当前代码中有几项值得继续发展：
+
+- UI、API Service、Runtime 已开始分层。
+- `applySendReply` / `applyRetryReply` 使用纯函数，便于测试。
+- 后端事件通过单向订阅驱动 UI，方向上接近事件化架构。
+- Abort 和 Session 级任务状态为后续 Agent Run 奠定了基础。
+- 记忆、Prompt 构造、任务规划已经从页面中拆出。
+
+### 2.4 必须正视的原型限制
+
+| 问题 | 当前表现 | 后果 | 后续处理 |
+|---|---|---|---|
+| 浏览器任务不持久 | `taskStore` 是内存 Map | 刷新或关闭页面后任务消失 | 引入数据库中的 Task / TaskRun |
+| 不能定时唤醒 | 没有服务端 Scheduler | 页面关闭后无法提醒 | 后台调度器 + 通知服务 |
+| API Key 在 localStorage | 浏览器直接请求模型 | XSS、CORS、云端任务无法复用 | 单用户部署先改为服务端环境变量 |
+| 消息角色不完整 | `ChatMessage` 仅 user/assistant | Persona 被伪装成 assistant 历史 | 增加 system/developer/tool 语义或内部 Prompt 类型 |
+| “压缩”未真正压缩 | 构造 Prompt 时仍附加完整 Session | 消息增长后成本和上下文继续增加 | Summary + recent window + retrieved memory |
+| 记忆质量低 | 把用户问题直接当作 fact | 可能记住猜测、临时内容或敏感信息 | 记忆候选、验证、分类、编辑和过期机制 |
+| Planner 未形成闭环 | 只返回关键词模板 | 没有计划执行、状态或结果验证 | 升级为 Run Plan，不作为近期核心 |
+| 状态持久化边界不清 | UI effect 与 backend 都可能保存 Sessions | 容易产生双写和恢复异常 | Repository/Store 单一写入者 |
+| 空数组保存缺陷 | `sessions.length > 0` 才保存 | 删除最后一个 Session 后旧数据可能恢复 | 持久层必须允许保存空集合 |
+| 缺少流式输出 | 等待完整回复 | 体验迟滞，无法显示工具过程 | 增加 streaming event |
+| 无自动化测试 | 依赖手工验证 | 重构 Runtime 风险高 | 先为纯函数、状态机和调度器补测试 |
+
+### 2.5 需要修订的旧约束
+
+`PROJECT.md` 曾把数据库列为 OUT_OF_SCOPE，这与新的“页面关闭后仍执行任务、主动联系、新闻收集”需求直接冲突。
+
+新的架构决策应为：
+
+- 保留 Next.js、TypeScript、Tailwind、App Router 的架构冻结。
+- MVP 仍不做公开注册、支付、多租户和插件市场，但从领域接口上支持第一方插件。
+- 数据库与服务端后台任务从 OUT_OF_SCOPE 调整为核心基础设施。
+- 多 Agent 协作仍不进入近期范围；单 Agent + 确定性工作流足够。
+- 采用 Web-first、Capacitor-ready 的客户端策略；不为 APK 重写一套独立 Android 业务代码。
+- 单用户阶段允许笔记本作为自托管服务端，但部署必须容器化、可备份并能平滑迁移到云端。
+
+---
+
+## 3. 竞品、参考项目与差异化
+
+### 3.1 参考对象的角色
+
+| 项目 | 本质 | 与本项目的相似点 | 主要差异 | 应借鉴内容 |
+|---|---|---|---|---|
+| ChatGPT / DeepSeek 网页版 | 通用模型产品 | 对话、搜索、文件、记忆 | 面向大众，用户不能深度控制内部策略 | 对话 UX、研究回答、任务收件箱 |
+| ChatGPT Scheduled Tasks | 后台 Agent 任务产品 | 定时提醒、定期研究、主动结果 | 云端内部系统不可直接复用 | Task/Run 分离、独立/关联上下文、通知 |
+| DeepSeek Harness | 可扩展 Agent Harness | Agent Loop、工具、Session、Web UI | 面向 Agent 基础设施，不是个人陪伴产品 | 插件边界、可替换能力、持久事件日志 |
+| OpenAI Codex | 代码 Agent / Harness | 长任务、工具执行、事件、恢复和审批 | 面向软件工程和本地代码操作 | Agent Run、权限、沙箱、审批、可恢复执行 |
+| Open WebUI | 自托管通用 AI UI | 多模型、记忆、工具、搜索、自动化 | 平台化和多用户优先 | Provider 抽象、工具注册、可自托管 |
+| Pi / Replika | 情感陪伴产品 | 温暖语气、关系连续性、长期互动 | 专业研究和任务执行通常不是核心 | 陪伴节奏、关系连续性、人格体验 |
+
+### 3.2 对 DeepSeek Harness 的结论
+
+DeepSeek Harness 与本项目在“Agent Runtime”层相似，但产品目标不同。其公开架构强调：所有部分均可作为插件替换；模型适配器、工具注册、Session Log 和 Agent Loop 都通过共享上下文组合；Session 采用追加式事件日志；持久事实与运行中事件分离。
+
+本项目应借鉴：
+
+- Provider、Tool、Memory、Notification 的清晰接口。
+- Durable Event 与 Ephemeral Event 的区分。
+- Session 事实可重放，UI 从状态投影读取。
+- 新行为通过明确扩展点进入，而不是不断修改核心 Agent Loop。
+
+本项目不应现在照搬：
+
+- Everything-is-a-plugin 的完整框架。
+- Profile、Bundle、动态插件树和热重载。
+- 多 Agent、通用 Shell、远程 Sandbox 等基础设施。
+
+原因是本项目目前只有一个开发者和一个主要用户。过早照搬会让大量时间花在框架本身，而不是任务、专业回答和陪伴体验。但最新需求已经确认背书与解题是两个真实扩展场景，因此应实现“最小插件内核”：先支持第一方 Skill、Tool 与 Activity Contribution，在两个插件验证接口后再开放第三方安装。
+
+### 3.3 对 Codex 的结论
+
+Codex 与本项目在“Agent 可以跨多个步骤调用工具并持续工作”方面相似，但 Codex 的核心场景是代码库和软件工程。可借鉴的重点不是代码功能，而是执行纪律：
+
+- 每次工作都是一个可观察的 Run。
+- 工具调用有明确输入、输出、权限和失败状态。
+- 高风险行为需要审批，默认采用最小权限。
+- 长任务需要取消、恢复、超时和中间事件。
+- 环境状态和模型上下文不能混为一谈。
+
+### 3.4 本项目的差异化
+
+本项目不必追求学术算法创新。其作品集价值来自组合设计与可解释工程：
+
+1. **专业与陪伴双模式**：温暖只影响表达方式，不能改变事实标准。
+2. **长期时间感**：任务、事件、记忆和主动联系形成连续关系，而不是每次重新聊天。
+3. **可检查的主动性**：用户能看见 AI 为什么联系、依据什么信息、何时再次联系。
+4. **证据驱动的信息陪伴**：新闻和书籍不是随机推荐，而是有来源、去重、兴趣匹配和多样性约束。
+5. **用户可控记忆**：记忆可查看、编辑、删除、固定和设置有效期。
+6. **个人化而非平台化**：为一个真实用户优化体验，可以做得更克制、更深入。
+7. **可扩展学习活动**：核心 Agent 不绑定具体学习方法，背书、解题等能力通过安全插件组合任务、记忆、工具和专用 UI。
+8. **个人可自托管**：可以先运行在自己的笔记本上并连接 APK，未来不改业务模型即可迁移云端。
+
+可将这套差异化概括为：**Epistemic–Affective Separation（知识可靠性与情感表达分层）**。
+
+---
+
+## 4. 产品原则
+
+### 4.1 可靠性优先于智能感
+
+- 提醒由确定性调度器触发，不由模型“记住”。
+- 普通提醒不调用模型，模型故障不应影响准时通知。
+- 所有 Agent 任务都有执行记录、失败原因和重试状态。
+
+### 4.2 专业性是不可被人格覆盖的上层约束
+
+- 人格可以改变语气、篇幅和互动方式。
+- 人格不能改变证据、置信度、事实边界和风险提示。
+- 医疗、法律、财务等高风险主题必须提升审慎级别。
+
+### 4.3 主动性必须可控
+
+- 主动联系默认需要用户开启。
+- 支持安静时段、每日上限、冷却时间和一键暂停。
+- 不使用“你怎么不理我”“我一直在等你”等制造负罪感的表达。
+- 每条主动消息记录触发原因。
+
+### 4.4 记忆属于用户
+
+- 用户可查看系统记忆。
+- 重要记忆尽量请求确认。
+- 敏感信息默认不自动进入长期记忆。
+- 删除必须真正影响后续上下文。
+
+### 4.5 先确定性工作流，后开放式 Agent
+
+能用代码稳定完成的事情不交给模型：时间计算、去重、重试、权限、来源过滤、通知频控均由代码实现。模型负责理解、生成、判断候选和处理开放问题。
+
+---
+
+## 5. 功能系统总览
+
+```text
+用户界面
+├── 对话 Chat
+├── 任务 Tasks
+├── 活动/收件箱 Inbox
+├── 新闻与书籍 Discover
+├── 记忆 Memory
+├── 学习活动 Study Activities
+├── 插件 Plugins
+└── 设置 Settings
+      │
+      ▼
+应用服务层
+├── Conversation Service
+├── Task Service
+├── Agent Run Service
+├── Memory Service
+├── Content Curation Service
+├── Proactivity Service
+├── Plugin Service
+└── Notification Service
+      │
+      ▼
+Agent Runtime
+├── Mode Router
+├── Prompt Composer
+├── Model Provider
+├── Tool Registry
+├── Plugin Registry
+├── Capability Gateway
+├── Context Builder
+├── Response Verifier
+└── Event Emitter
+      │
+      ▼
+基础设施
+├── PostgreSQL
+├── Scheduler / Worker
+├── Web Search Provider
+├── Web Push / Email
+├── Structured Logs
+├── Plugin Sandbox / Audit
+└── Server-side Secrets
+```
+
+---
+
+## 6. 总体技术架构
+
+### 6.1 短期架构：模块化单体
+
+近期不拆微服务。Next.js 提供 UI 和 API，独立 Worker 负责调度和后台执行，共享 PostgreSQL 与领域代码。
+
+```text
+Browser / PWA
+    │ HTTPS / SSE
+    ▼
+Next.js Web + API
+    ├── Chat API
+    ├── Task CRUD API
+    ├── Inbox API
+    └── Push Subscription API
+             │
+             ▼
+        PostgreSQL
+             ▲
+             │ claim / update
+Scheduler Tick ──> Worker ──> Agent Runtime ──> Model/Search
+                              │
+                              └──> Notification Service
+```
+
+### 6.2 为什么不把 Scheduler 放在浏览器
+
+浏览器的 `setTimeout`、Service Worker 和 localStorage 都不能保证在页面关闭、进程回收或设备休眠后准时运行。Service Worker 适合接收 Push，不适合作为可靠的长期调度器。因此：
+
+- 时间真相在服务端数据库。
+- Scheduler 只负责发现到期任务并创建 Run。
+- Worker 负责实际执行。
+- Service Worker 只负责显示收到的 Web Push。
+
+### 6.3 笔记本自托管与云端迁移
+
+单用户阶段允许笔记本承担个人云服务器角色：Next.js/API、Scheduler、Worker 与 PostgreSQL 通过容器持续运行，手机或浏览器通过 HTTPS 访问。普通本地提醒可注册到手机；新闻、书单、AI 任务和主动消息由笔记本执行并写入 Inbox。
+
+必须明确它不是高可用云服务：笔记本关机、休眠或断网时，服务端任务会暂停。恢复后由补偿扫描处理仍有价值的错过任务。开发期可使用局域网；个人远程使用优先评估私有组网；公开演示再评估受认证保护的 HTTPS Tunnel。
+
+为了以后平滑迁移到云服务器：
+
+- Web、API、Scheduler、Worker 与 PostgreSQL 使用 Docker Compose 或等价可移植部署。
+- 主机地址、域名、数据库、密钥和存储路径全部通过环境配置注入。
+- 服务端事实数据进入 PostgreSQL；`localStorage` 只保留非关键设置和迁移缓存。
+- 即使只有一个用户，Conversation、Task、Memory、Inbox、PluginInstallation 等记录仍保留 `userId`。
+- 数据库迁移、附件备份和恢复流程必须在笔记本环境先验证。
+- 不直接公开数据库、Worker 或管理端口，只暴露经过认证的 API。
+
+迁移云端时只应更换部署目标、数据库连接、附件存储和公开域名，不修改领域模型与 Agent Runtime。
+
+### 6.4 Web、PWA 与 Android APK
+
+继续采用 Web-first：Next.js/React 是共享 UI 和业务入口，PWA 用于快速验证移动体验，Capacitor 将静态客户端封装为 Android 工程并生成 APK/AAB。服务端 API 独立部署，APK 不内置模型密钥或 Scheduler。
+
+```text
+Shared TypeScript Domain / API Client
+        ├── Web/PWA Adapter
+        │   ├── IndexedDB / Web Push
+        │   └── Browser File / Share
+        └── Android Adapter（Capacitor）
+            ├── SQLite / Secure Storage
+            ├── Local Notification / Push
+            └── Camera / Microphone / File / Share
+```
+
+业务层不得直接散落调用 `localStorage`、`window`、`navigator` 或具体 Capacitor API，统一通过 `StorageAdapter`、`NotificationAdapter`、`SecureStorageAdapter`、`FileAdapter` 和 `ShareAdapter`。
+
+动态产品插件与 Capacitor 原生插件必须区分：产品插件可在服务端或沙箱 Web UI 中安装；相机、麦克风、通知等 Android 原生能力必须预编译进 APK，动态插件只能申请调用，不能安装新的原生二进制。
+
+---
+
+## 7. 领域模型与数据规范
+
+### 7.1 ID、时间与版本规范
+
+- 主键使用 UUID。
+- 数据库存储 UTC 时间；任务额外保存 IANA 时区，如 `Asia/Shanghai`。
+- API 时间统一 ISO 8601。
+- 周期规则使用结构化频率；高级规则再使用 RFC 5545 RRULE。
+- 所有可变聚合保留 `createdAt`、`updatedAt`，关键表保留 `version` 进行乐观锁。
+- JSON 字段只保存真正非固定结构的数据，核心状态必须使用列和枚举约束。
+
+### 7.2 Conversation 与 Message
+
+```ts
+type MessageRole = "system" | "developer" | "user" | "assistant" | "tool";
+
+interface Conversation {
+  id: string;
+  userId: string;
+  title: string;
+  mode: "auto" | "professional" | "companion" | "reflection";
+  summary: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Message {
+  id: string;
+  conversationId: string;
+  role: MessageRole;
+  content: string;
+  status: "pending" | "streaming" | "complete" | "failed";
+  parentMessageId: string | null;
+  model: string | null;
+  citations: Citation[];
+  createdAt: string;
+}
+```
+
+回复版本不应继续塞进 `versions: string[]`。长期建议把每次重新生成保存成独立 Message，通过 `parentMessageId` 或 `branchId` 表达分支，这样可以保留每个版本的模型、引用、Token 和错误信息。
+
+### 7.3 ScheduledTask
+
+```ts
+type TaskKind =
+  | "reminder"
+  | "agent_prompt"
+  | "news_digest"
+  | "book_recommendation"
+  | "reflection_question"
+  | "proactive_checkin"
+  | "plugin_activity";
+
+interface ScheduledTask {
+  id: string;
+  userId: string;
+  title: string;
+  kind: TaskKind;
+  prompt: string | null;
+  conversationId: string | null;
+  contextMode: "standalone" | "conversation";
+  pluginId: string | null;
+  pluginAction: string | null;
+  pluginInput: Record<string, unknown> | null;
+
+  scheduleType: "once" | "daily" | "weekly" | "rrule";
+  scheduleValue: string;
+  timezone: string;
+  nextRunAt: string | null;
+
+  status: "draft" | "active" | "paused" | "completed" | "archived";
+  missedRunPolicy: "skip" | "run_once";
+  maxRetries: number;
+  notificationChannels: Array<
+    "in_app" | "web_push" | "android_local" | "mobile_push" | "email"
+  >;
+
+  createdBy: "user" | "agent";
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### 7.4 TaskRun
+
+```ts
+interface TaskRun {
+  id: string;
+  taskId: string;
+  scheduledFor: string;
+  status:
+    | "queued"
+    | "claimed"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "skipped"
+    | "cancelled";
+  attempt: number;
+  claimedBy: string | null;
+  leaseExpiresAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  resultMessageId: string | null;
+  resultSummary: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  notifiedAt: string | null;
+}
+```
+
+数据库必须设置唯一约束：
+
+```sql
+UNIQUE (task_id, scheduled_for)
+```
+
+该约束提供幂等性底线：即使 Scheduler 重复触发，也只能创建一次相同计划时间的 Run。
+
+### 7.5 Memory
+
+```ts
+type MemoryKind =
+  | "identity"
+  | "preference"
+  | "goal"
+  | "relationship"
+  | "learning"
+  | "constraint"
+  | "episode";
+
+interface MemoryItem {
+  id: string;
+  userId: string;
+  kind: MemoryKind;
+  content: string;
+  confidence: number;       // 0..1
+  importance: number;       // 1..10
+  sensitivity: "normal" | "sensitive";
+  sourceMessageId: string | null;
+  status: "candidate" | "confirmed" | "rejected" | "expired";
+  validUntil: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+记忆至少分三层：
+
+- Profile Memory：稳定偏好、身份和长期目标。
+- Episodic Memory：最近发生的重要事件。
+- Conversation Summary：某个会话的压缩摘要。
+
+### 7.6 ContentItem 与 Recommendation
+
+```ts
+interface ContentItem {
+  id: string;
+  type: "news" | "book";
+  title: string;
+  sourceName: string;
+  canonicalUrl: string | null;
+  author: string | null;
+  publishedAt: string | null;
+  occurredAt: string | null;
+  language: string;
+  region: string | null;
+  summary: string;
+  evidence: Citation[];
+  contentHash: string;
+  createdAt: string;
+}
+
+interface Recommendation {
+  id: string;
+  userId: string;
+  contentItemId: string;
+  reason: string;
+  relevanceScore: number;
+  noveltyScore: number;
+  diversityScore: number;
+  deliveredAt: string | null;
+  feedback: "like" | "dislike" | "saved" | "dismissed" | null;
+}
+```
+
+### 7.7 Notification
+
+```ts
+interface Notification {
+  id: string;
+  userId: string;
+  type: "reminder" | "task_result" | "checkin" | "system";
+  title: string;
+  body: string;
+  reason: string | null;
+  relatedTaskRunId: string | null;
+  status: "unread" | "read" | "dismissed";
+  createdAt: string;
+  readAt: string | null;
+}
+```
+
+### 7.8 PluginManifest、PluginInstallation 与 StudyRecord
+
+插件包中的 Manifest 是声明，不是权限本身。实际授权保存在用户级 `PluginInstallation` 中，插件升级增加权限时必须重新确认。
+
+```ts
+type PluginKind = "skill" | "tool" | "activity" | "connector";
+
+interface PluginManifest {
+  schemaVersion: "1";
+  id: string;
+  name: string;
+  version: string;
+  pluginApiVersion: string;
+  kind: PluginKind;
+  entrypoints: {
+    server?: string;
+    ui?: string;
+  };
+  contributions: {
+    skills?: string[];
+    tools?: string[];
+    activities?: string[];
+    backgroundJobs?: string[];
+  };
+  requestedCapabilities: string[];
+}
+
+interface PluginInstallation {
+  id: string;
+  userId: string;
+  pluginId: string;
+  installedVersion: string;
+  status: "installed" | "enabled" | "disabled" | "incompatible";
+  grantedCapabilities: string[];
+  installedAt: string;
+  updatedAt: string;
+}
+
+interface StudyRecord {
+  id: string;
+  userId: string;
+  pluginId: string;
+  activityId: string;
+  itemId: string;
+  result: Record<string, unknown>;
+  occurredAt: string;
+}
+```
+
+首版插件数据使用按 `userId + pluginId` 隔离的受控文档/键值存储 API，不允许插件运行任意 SQL 或自行创建未审查的数据迁移。成熟的第一方插件若确有查询需求，可在 ADR 后升级为显式领域表。
+
+---
+
+## 8. 事件模型
+
+借鉴当前 `BackendEvent` 和 DeepSeek Harness 的 Session Event 思路，但不立刻做完整 Event Sourcing。
+
+### 8.1 持久领域事件
+
+需要进入数据库、用于审计或恢复：
+
+```ts
+type DurableEvent =
+  | "conversation.created"
+  | "message.created"
+  | "message.completed"
+  | "task.created"
+  | "task.updated"
+  | "task.paused"
+  | "task_run.queued"
+  | "task_run.started"
+  | "task_run.succeeded"
+  | "task_run.failed"
+  | "memory.confirmed"
+  | "memory.deleted"
+  | "plugin.installed"
+  | "plugin.enabled"
+  | "plugin.disabled"
+  | "study.reviewed"
+  | "notification.created";
+```
+
+### 8.2 临时运行事件
+
+只用于 SSE/UI，不要求永久保存全部内容：
+
+```ts
+type RuntimeEvent =
+  | "run.status"
+  | "assistant.delta"
+  | "tool.started"
+  | "tool.progress"
+  | "tool.completed"
+  | "run.needs_input";
+```
+
+### 8.3 统一事件格式
+
+```ts
+interface DomainEvent<T = unknown> {
+  id: string;
+  type: string;
+  aggregateType: "conversation" | "task" | "run" | "memory" | "notification";
+  aggregateId: string;
+  occurredAt: string;
+  schemaVersion: 1;
+  payload: T;
+  correlationId: string;
+  causationId: string | null;
+}
+```
+
+`correlationId` 用于把“用户创建任务 → 到期 Run → Agent 回复 → Push 通知”串成一条可观察链路。
+
+---
+
+## 9. 定时任务系统
+
+### 9.1 设计目的
+
+任务系统提供“时间连续性”，是本项目从聊天网页升级为个人 Agent 的第一核心能力。
+
+### 9.2 任务创建流程
+
+```text
+用户自然语言输入
+  ↓
+模型仅负责解析为 TaskDraft JSON
+  ↓
+Zod/JSON Schema 校验
+  ↓
+代码计算下一次执行时间
+  ↓
+展示确认卡：内容、时间、时区、频率、通知方式
+  ↓ 用户确认
+写入 ScheduledTask
+```
+
+模型不能直接激活高频或具有外部副作用的任务。Agent 建议创建的任务统一保存为 `draft`，由用户确认后变为 `active`。
+
+### 9.3 Scheduler Tick
+
+MVP 可以每分钟触发一次内部 Scheduler：
+
+```ts
+async function schedulerTick(now: Date) {
+  const dueTasks = await taskRepository.claimDueTasks(now, 50);
+
+  for (const task of dueTasks) {
+    await db.transaction(async (tx) => {
+      await taskRunRepository.createIdempotently(tx, {
+        taskId: task.id,
+        scheduledFor: task.nextRunAt,
+      });
+
+      await taskRepository.advanceNextRunAt(tx, task, now);
+    });
+  }
+}
+```
+
+数据库 Claim 必须使用事务锁或原子更新，不能“先查再逐条无锁更新”。
+
+### 9.4 Worker 执行
+
+```ts
+async function executeTaskRun(run: TaskRun, task: ScheduledTask) {
+  if (task.kind === "reminder") {
+    await notificationService.deliverReminder(task, run);
+    return;
+  }
+
+  const context = await contextBuilder.forScheduledTask(task);
+  const result = await agentRuntime.run({
+    trigger: "schedule",
+    task,
+    context,
+  });
+
+  await runRepository.complete(run.id, result);
+  await notificationService.deliverTaskResult(task, run, result);
+}
+```
+
+### 9.5 调度规则
+
+- 第一版只开放单次、每天、工作日、每周。
+- 高级界面再开放 RRULE，不能让用户直接编辑数据库表达式。
+- 存储原始时区，在每次运行后重新计算下一次时间，正确处理夏令时。
+- 对漏跑任务提供 `skip` 与 `run_once`，默认 `run_once`。
+- 补偿运行最多一次，避免设备恢复后连发几十条历史提醒。
+- 失败采用指数退避；普通提醒的通知失败与任务执行失败分开记录。
+- 每个任务支持暂停、立即运行、查看历史、复制和归档。
+
+### 9.6 任务收件箱
+
+借鉴 ChatGPT 的 Scheduled/Activity 设计：
+
+- Active、Paused、Completed 三类任务。
+- Runs 独立列表，显示 queued/running/succeeded/failed。
+- 未读结果进入 Inbox。
+- 每个结果显示计划时间、实际开始时间、耗时和来源。
+- Agent 任务可以从结果继续对话。
+
+### 9.7 定时任务验收标准
+
+- 浏览器关闭后仍能执行。
+- 同一计划时间不会产生重复 Run。
+- 服务重启后能按策略补跑一次。
+- 暂停任务后不会继续产生 Run。
+- 时区与夏令时测试通过。
+- 模型不可用时普通提醒仍然送达。
+- 失败可见、可重试，不能静默丢失。
+
+---
+
+## 10. Agent Runtime
+
+### 10.1 运行状态机
+
+```text
+created
+  ↓
+classifying
+  ↓
+building_context
+  ↓
+model_running ←→ tool_running
+  ↓
+verifying
+  ↓
+completed
+
+任意运行态 → waiting_for_user / cancelled / failed
+```
+
+### 10.2 核心接口
+
+```ts
+interface AgentRunInput {
+  trigger: "chat" | "schedule" | "manual" | "system" | "plugin";
+  conversationId?: string;
+  userText?: string;
+  task?: ScheduledTask;
+  pluginContext?: {
+    pluginId: string;
+    activityId?: string;
+  };
+}
+
+interface AgentRuntime {
+  run(input: AgentRunInput, signal?: AbortSignal): AsyncIterable<RuntimeEvent>;
+}
+
+interface ModelProvider {
+  stream(request: ModelRequest, signal?: AbortSignal): AsyncIterable<ModelEvent>;
+}
+
+interface AgentTool<TInput, TOutput> {
+  name: string;
+  description: string;
+  risk: "read" | "write" | "external";
+  inputSchema: unknown;
+  execute(input: TInput, context: ToolContext): Promise<TOutput>;
+}
+```
+
+### 10.3 Agent Loop 边界
+
+MVP 的 Agent Loop 最多允许有限步数，例如 8 步：
+
+1. 构建上下文。
+2. 请求模型。
+3. 如果模型请求工具，校验 Schema 与权限。
+4. 执行工具并记录结果。
+5. 把工具结果加入当前 Run。
+6. 再次请求模型。
+7. 达到完成条件或步数上限。
+8. 进行最终校验并保存回答。
+
+不允许模型无限自循环。每个 Run 记录模型调用次数、工具次数、Token、耗时和成本估算。
+
+### 10.4 Provider 策略
+
+短期支持一个统一接口：
+
+- `OpenAICompatibleProvider`：延续当前 Base URL + Model 能力。
+- 服务器端 Streaming。
+- Provider 错误统一映射：认证、限流、超时、模型不存在、内容拒绝、未知错误。
+
+长期再增加原生 Provider，以便使用各家特有的工具调用、推理、缓存与上下文能力。不要为了“支持所有模型”牺牲核心体验。
+
+### 10.5 Tool Registry
+
+首批工具应保持只读：
+
+- `web_search`
+- `fetch_page`
+- `search_news`
+- `lookup_book`
+- `read_memory`
+- `list_tasks`
+- `create_task_draft`
+
+修改型工具后续加入，且必须有审批策略：
+
+- `activate_task`
+- `update_task`
+- `delete_task`
+- 第三方日历、Todo、邮件等外部写入。
+
+### 10.6 最小插件内核
+
+最新需求已经确认插件不是抽象设想：学习模式至少需要背书与解题两个独立扩展。因此 Agent Runtime 从设计上增加最小插件内核，但实现仍分阶段推进。
+
+插件分为四类：
+
+| 类型 | 内容 | 典型例子 | 默认风险 |
+|---|---|---|---|
+| Skill | Prompt、规则、评分标准和示例，不执行任意代码 | 苏格拉底提问、作文批改方法 | 低 |
+| Tool | 结构化输入输出的受控能力 | OCR、计算器、词典、网页检索 | 中 |
+| Activity | 组合 Skill、Tool、专用 UI、任务和学习记录 | 背书、错题训练、模拟考试 | 中 |
+| Connector | 连接外部数据或服务 | 日历、Todo、笔记、电子书目录 | 中到高 |
+
+核心组件：
+
+```text
+Plugin Package
+  → Manifest Validator
+  → Compatibility Check
+  → Permission Review
+  → Plugin Registry
+      ├── Skill Contribution
+      ├── Tool Contribution
+      ├── Activity Contribution
+      └── Background Job Contribution
+  → Capability Gateway
+      ├── Task API
+      ├── Memory Candidate API
+      ├── Search/Model API
+      ├── Plugin Storage
+      └── Notification Request API
+  → Audit / Quota / Revocation
+```
+
+设计规则：
+
+- 第一阶段只加载仓库内受信任的第一方插件，不支持网络插件市场。
+- Manifest 声明请求权限，安装记录保存实际授权；“已注册”不等于“已授权”。
+- 模型只能使用结构化工具调用，禁止自由文本标签、Markdown 或角色台词触发插件动作。
+- 插件不能直接访问数据库、全部对话、全部记忆、系统 Prompt、通知通道或任意网络。
+- 写记忆只能创建带证据的候选；创建任务和通知只能提交请求，由核心策略决定是否批准。
+- 网络、文件、模型和后台执行均有配额、超时、审计和撤销机制。
+- UI 插件运行在隔离 iframe 或等价沙箱中，通过版本化消息协议访问宿主能力，不能直接操作主应用 DOM。
+- 插件崩溃、超时或版本不兼容不能阻塞核心对话与任务。
+- 只有背书与解题两个真实插件都无需修改 Agent Loop 即可运行后，`Plugin API v1` 才能冻结。
+
+### 10.7 首批学习插件
+
+**背书插件**负责材料导入、AI 辅助分段、用户校对、挖空/问答卡、复述评分、间隔复习、薄弱点记录和下次复习任务请求。复习算法优先采用可测试的确定性实现；LLM 只用于材料转换、语义反馈和解释。
+
+```text
+材料 → 知识单元 → 用户确认 → 复习会话
+    → 评分/反馈 → StudyRecord → 计算下次复习
+    → Task API 请求 → 到期进入学习 Inbox
+```
+
+**解题插件**负责文字/图片输入、题目结构化、学科分类、提示式或完整讲解、工具验证、错因记录和相似题生成。用户可设置“先提示”“逐步引导”“只检查答案”或“完整讲解”，避免默认退化成答案生成器。
+
+```text
+题目/OCR → 分类 → 策略选择 → 提示或求解
+       → 计算/检索工具验证 → 错因记录
+       → 可选生成记忆卡或复习任务
+```
+
+插件间不直接互相调用内部代码；解题插件若要创建复习卡，应通过公开的 Activity Capability 或核心学习服务发送结构化请求。
+
+---
+
+## 11. 专业回答系统
+
+### 11.1 设计目标
+
+“专业”不等于回复更长，而是：正确识别问题类型、知道何时需要搜索、区分事实与推断、提供可验证来源、暴露不确定性，并根据风险调整谨慎程度。
+
+### 11.2 模式路由
+
+```ts
+type ResponseMode =
+  | "casual"
+  | "professional"
+  | "research"
+  | "reflection"
+  | "emotional_support"
+  | "high_stakes";
+```
+
+路由依据包括：用户显式选择、问题主题、是否要求最新信息、是否要求引用、风险领域、对话上下文和任务类型。
+
+用户显式模式优先，但高风险分类可以强制增加安全约束。
+
+### 11.3 Prompt 分层
+
+```text
+1. Safety / Epistemic Policy       不可被覆盖
+2. Mode Policy                     专业、研究、陪伴等
+3. Tool and Citation Policy        搜索与引用规则
+4. Relationship Style             人格与语气
+5. Retrieved User Memory           仅本次相关记忆
+6. Conversation Summary            压缩历史
+7. Recent Messages                 最近原始消息
+8. Current Task                    当前问题
+```
+
+这套顺序保证“有人味”只改变表达，不会让模型为了安慰用户而编造事实或过度认同。
+
+### 11.4 专业回答流程
+
+```text
+问题分类
+  ↓
+是否需要最新资料 / 高风险 / 引用？
+  ├── 否：模型直接回答 + 不确定性检查
+  └── 是：检索 → 来源筛选 → 证据摘要 → 回答 → 引用校验
+  ↓
+最终质量检查
+```
+
+质量检查至少覆盖：
+
+- 是否直接回答了问题。
+- 是否把推断写成事实。
+- 引用是否真的支持对应句子。
+- 时效性事实是否有日期。
+- 是否遗漏重要反例或限制。
+- 高风险主题是否给出适当边界。
+
+### 11.5 回答深度
+
+用户可选择：
+
+- 快速：结论优先，低延迟。
+- 标准：解释主要依据。
+- 深入研究：主动搜索、多来源、结构化报告。
+
+自动模式根据问题决定，但 UI 应允许用户覆盖。
+
+### 11.6 评测指标
+
+- Correctness：关键事实准确率。
+- Citation support：引用支持率。
+- Completeness：需求覆盖率。
+- Calibration：不确定性表达是否合理。
+- Helpfulness：用户是否能采取下一步行动。
+- Style adherence：专业模式是否避免过度陪伴表达。
+
+建立 30–50 条本项目真实问题作为回归集，每次修改 Prompt 或 Provider 后运行评测。
+
+---
+
+## 12. 高质量思考问题系统
+
+### 12.1 设计目的
+
+思考问题不是每次回答末尾附加“你怎么看？”，而是在合适时机帮助用户发现假设、权衡、盲点和行动选择。
+
+### 12.2 触发方式
+
+- 用户显式请求“问我几个问题”。
+- 完成复杂规划后提供一个关键澄清问题。
+- 每周反思任务。
+- 识别到用户长期目标与当前选择存在张力时，提出候选问题。
+
+### 12.3 质量标准
+
+一个高质量问题应满足：
+
+- 与当前问题和用户目标直接相关。
+- 不能只用“是/否”回答。
+- 不重复用户已经回答的内容。
+- 能暴露假设、代价、证据或替代解释。
+- 一次最多提出 1–3 个，默认 1 个。
+- 情绪低落时避免审问感。
+
+### 12.4 生成与筛选
+
+```text
+生成 3–5 个候选问题
+  ↓
+按 relevance / novelty / actionability / emotional_load 评分
+  ↓
+去除重复与空泛问题
+  ↓
+输出最高分 1 个，必要时附为什么值得思考
+```
+
+候选类型包括：反事实、证据检查、价值冲突、机会成本、视角切换、未来回看、最小行动。
+
+---
+
+## 13. 新闻与书籍系统
+
+### 13.1 新闻目标
+
+不是做无限信息流，而是做“有限、高质量、可解释的个人简报”。默认每次 5–8 条，而不是追求数量。
+
+### 13.2 新闻处理管线
+
+```text
+主题与地区配置
+  ↓
+搜索多个来源
+  ↓
+规范化 URL 与元数据
+  ↓
+按事件聚类、跨来源去重
+  ↓
+质量与可信度过滤
+  ↓
+兴趣相关性 + 重要性 + 多样性排序
+  ↓
+生成摘要与“为什么值得关注”
+  ↓
+保存来源、事件日期与发布日期
+  ↓
+进入定时任务结果与 Inbox
+```
+
+### 13.3 新闻规范
+
+- 区分“文章发布日期”和“事件发生日期”。
+- 对重大或争议新闻尽量采用两个独立来源。
+- 国内与国际来源分别配置，不把语言等同于地区。
+- 清楚区分新闻、评论、研究和社交媒体信息。
+- 摘要必须附原始链接。
+- 记录内容指纹，避免数日内重复推荐同一事件。
+- 提供“更多/更少此类内容”“已读”“收藏”“不感兴趣”。
+
+### 13.4 书籍推荐
+
+书籍推荐需要结合：
+
+- 用户正在学习的主题。
+- 已读、想读与不喜欢的书。
+- 当前阅读难度和可投入时间。
+- 推荐目标：入门、系统学习、扩展视角或文学体验。
+- 书籍之间的观点多样性。
+
+每次推荐说明：
+
+- 为什么现在推荐。
+- 适合解决什么问题。
+- 阅读门槛和预计投入。
+- 可从哪一章试读或如何判断是否适合。
+- 基本书目信息来源。
+
+不得生成大段受版权保护的书籍原文。可以做摘要、评论和少量必要引用。
+
+### 13.5 推荐反馈闭环
+
+用户反馈更新兴趣模型，但避免一次点击造成永久偏移。使用时间衰减与最小样本：
+
+```text
+长期显式偏好 > 多次行为反馈 > 单次行为 > 模型推断
+```
+
+---
+
+## 14. 情感陪伴与人格系统
+
+### 14.1 目标
+
+让交互具有稳定、自然、能记住关系细节的“人味”，但保持以下边界：
+
+- 不自称真人。
+- 不通过嫉妒、依赖、羞耻或负罪感维持使用。
+- 不把普通情绪自动医学化。
+- 不在事实问题上为了安慰而迎合。
+- 不替代现实中的专业帮助和真实关系。
+
+### 14.2 人格组成
+
+```ts
+interface PersonaProfile {
+  name: string;
+  warmth: number;          // 0..1
+  humor: number;
+  directness: number;
+  verbosity: number;
+  initiative: number;
+  preferredAddress: string | null;
+  styleRules: string[];
+  hardBoundaries: string[];
+}
+```
+
+人格应使用结构化设置和少量稳定规则，不应依赖一段不断膨胀的“你是某某”的 Prompt。
+
+### 14.3 专业性隔离
+
+| 场景 | 情感层作用 | 专业层要求 |
+|---|---|---|
+| 日常闲聊 | 可以自然、有幽默和连续性 | 无需强制结构化 |
+| 学习问题 | 温和鼓励、匹配用户节奏 | 概念准确、指出误区 |
+| 技术/研究 | 语气简洁友好 | 来源、限制、验证优先 |
+| 情绪支持 | 倾听、复述、不过早给建议 | 不诊断、不夸大能力 |
+| 高风险问题 | 保持尊重与镇定 | 安全边界和专业求助优先 |
+
+### 14.4 主动联系策略
+
+主动联系是规则系统与模型生成的组合：
+
+```ts
+interface ProactivityPolicy {
+  enabled: boolean;
+  timezone: string;
+  quietHours: { start: string; end: string };
+  maxMessagesPerDay: number;
+  minCooldownHours: number;
+  allowedReasons: Array<
+    "scheduled" | "goal_followup" | "checkin" | "content_digest" | "celebration"
+  >;
+}
+```
+
+发送前由代码判断：
+
+1. 是否在安静时段。
+2. 是否超过每日预算。
+3. 是否仍在冷却时间。
+4. 是否有真实触发原因。
+5. 最近一条主动消息是否未读。
+6. 该消息是否具有新信息或明确关怀价值。
+
+模型只负责在通过规则后生成自然措辞。
+
+### 14.5 主动消息的可解释性
+
+每条主动消息都允许用户查看原因，例如：
+
+- “因为你设置了周日复盘任务。”
+- “因为你上周说希望今天继续这本书。”
+- “因为你开启了三天未互动后的温和问候。”
+
+并提供：降低频率、暂停一周、不要因此联系、编辑任务。
+
+### 14.6 情绪支持安全
+
+- 对严重自伤、自杀、暴力或危机信号采用专门安全流程。
+- 先鼓励联系当地紧急服务、可信任的人或专业人员。
+- 不承诺保密、监控或现实世界救援能力。
+- 不使用情绪操纵语言。
+- 高风险安全流程需要单独测试集，不依赖一般 Persona Prompt。
+
+---
+
+## 15. 记忆与上下文系统
+
+### 15.1 写入流程
+
+```text
+对话结束/重要事件
+  ↓
+生成 MemoryCandidate
+  ↓
+敏感性、稳定性、重复性检查
+  ↓
+低风险高置信：自动保存但可见
+重要或敏感：请求用户确认
+临时信息：只进入 Conversation Summary
+```
+
+### 15.2 检索流程
+
+每次只检索与当前任务有关的记忆，而不是把最近十条记忆全部塞进 Prompt：
+
+1. 按 kind 和关键词做初筛。
+2. 使用向量相似度或轻量检索选候选。
+3. 根据重要性、置信度、新鲜度和任务相关性排序。
+4. 设置 Token 预算。
+5. 记录本次使用了哪些记忆。
+
+### 15.3 上下文压缩
+
+正确的上下文结构：
+
+```text
+Conversation Summary
++ 最近 N 条原始消息
++ 与当前问题相关的 Memory
++ 当前工具结果
+```
+
+达到阈值后，将较旧消息压缩成可更新 Summary，并从发送给模型的历史窗口中移除，但数据库仍保留原始消息供用户查看。
+
+### 15.4 用户控制界面
+
+Memory 页面应支持：
+
+- 查看记忆来源。
+- 编辑内容。
+- 确认候选记忆。
+- 固定重要记忆。
+- 删除或设为过期。
+- 清除某个会话产生的记忆。
+- 导出全部个人数据。
+
+---
+
+## 16. 通知与 PWA
+
+### 16.1 渠道优先级
+
+1. In-app Inbox：所有结果的事实来源。
+2. Android Local Notification：用户明确设置的普通本地提醒，可在服务端离线时兜底。
+3. Mobile Push / Web Push：AI 任务结果与主动消息的主要渠道。
+4. Email：可选的失败兜底或日报渠道。
+5. SMS/第三方消息：长期可选，不进入 MVP。
+
+### 16.2 推送原则
+
+- Push 只包含必要摘要，敏感内容默认不出现在锁屏通知中。
+- 点击 Push 打开对应 TaskRun 或对话。
+- Push 发送失败不回滚已经完成的任务结果。
+- 订阅失效后标记并提示重新授权。
+- 每条通知有去重键。
+
+### 16.3 PWA
+
+PWA 提供安装图标、离线壳、Service Worker 和 Push 接收。它提升体验，但不能替代服务端 Scheduler。
+
+---
+
+## 17. API 规范
+
+API 使用 `/api/v1` 前缀，输入输出使用 Zod 校验，错误采用统一结构。
+
+### 17.1 核心端点
+
+```text
+POST   /api/v1/conversations
+GET    /api/v1/conversations
+GET    /api/v1/conversations/:id
+DELETE /api/v1/conversations/:id
+
+POST   /api/v1/conversations/:id/runs
+GET    /api/v1/runs/:id
+POST   /api/v1/runs/:id/cancel
+GET    /api/v1/runs/:id/events        # SSE
+
+POST   /api/v1/tasks
+GET    /api/v1/tasks
+GET    /api/v1/tasks/:id
+PATCH  /api/v1/tasks/:id
+POST   /api/v1/tasks/:id/pause
+POST   /api/v1/tasks/:id/resume
+POST   /api/v1/tasks/:id/run-now
+GET    /api/v1/tasks/:id/runs
+
+GET    /api/v1/inbox
+POST   /api/v1/notifications/:id/read
+POST   /api/v1/push/subscriptions
+
+GET    /api/v1/memories
+PATCH  /api/v1/memories/:id
+DELETE /api/v1/memories/:id
+
+GET    /api/v1/plugins
+POST   /api/v1/plugins/:id/enable
+POST   /api/v1/plugins/:id/disable
+GET    /api/v1/plugins/:id/permissions
+PATCH  /api/v1/plugins/:id/permissions
+POST   /api/v1/plugins/:id/activities/:activityId/runs
+GET    /api/v1/plugins/:id/data/export
+DELETE /api/v1/plugins/:id/data
+
+POST   /api/internal/scheduler/tick
+```
+
+近期 API 只管理仓库内第一方插件，不提供“上传并执行任意插件包”端点。未来引入本地安装时，安装包校验、权限确认和启用必须是分离步骤。
+
+### 17.2 错误格式
+
+```ts
+interface ApiError {
+  error: {
+    code: string;
+    message: string;
+    retryable: boolean;
+    requestId: string;
+    details?: unknown;
+  };
+}
+```
+
+客户端不根据错误文案判断逻辑，只根据稳定的 `code`。
+
+### 17.3 内部端点安全
+
+Scheduler 内部端点至少需要：
+
+- 独立内部 Secret 或平台签名验证。
+- 禁止浏览器 Cookie 直接授权。
+- 请求时间窗口与重放防护。
+- 日志不记录 Secret。
+
+---
+
+## 18. 建议技术栈
+
+### 18.1 近期确定选择
+
+| 能力 | 技术选择 | 原因 |
+|---|---|---|
+| Web | Next.js 16 App Router | 保留现有投资 |
+| UI | React 19 + Tailwind 4 | 已在使用 |
+| 类型 | TypeScript strict | 领域模型和事件需要强类型 |
+| 数据库 | PostgreSQL | 任务锁、事务、JSON、后续向量能力均适合 |
+| ORM | Drizzle ORM | 类型明确、迁移透明、适合学习 SQL |
+| Schema 校验 | Zod | API、模型结构化输出和配置共用 |
+| 调度 MVP | 平台 Cron/定时触发 + DB Claim | 基础设施少，容易理解和验证 |
+| 后台执行 | 独立 Node Worker 或受控后台函数 | 不阻塞 Web 请求 |
+| Streaming | Server-Sent Events | 单向 Token/状态流足够，复杂度低于 WebSocket |
+| 测试 | Vitest + React Testing Library + Playwright | 单元、组件和端到端完整覆盖 |
+| 推送 | Web Push + Service Worker | 支持网页关闭后的通知 |
+| 自托管 | Docker Compose | 笔记本与云服务器复用同一部署拓扑 |
+| Android | Capacitor + Android Studio | 复用 Next.js/React 前端并生成 APK/AAB |
+| 插件清单 | JSON + Zod + SemVer | 可验证 Manifest、API 兼容范围与权限声明 |
+| 插件通信 | 结构化消息协议 | 隔离 UI/执行环境，不暴露内部对象引用 |
+
+新增依赖必须在对应 Sprint 中单独审批并记录，不一次性全部安装。
+
+### 18.2 暂不确定、需在实现前做 Spike 的选择
+
+- 具体 PostgreSQL 托管平台。
+- Worker 是常驻进程还是平台后台函数。
+- 是否采用 `pg-boss` 等 PostgreSQL Queue；MVP 可先用数据库 Lease。
+- 搜索 Provider 与新闻 API。
+- 邮件 Provider。
+- 向量检索使用 pgvector 还是先用关键词检索。
+- 笔记本远程访问使用私有组网还是带认证的 HTTPS Tunnel。
+- Android 本地缓存使用 Capacitor SQLite 的具体实现。
+- 第三方服务端插件采用 Worker Thread、独立进程、WASM 还是更严格沙箱。
+
+### 18.3 不建议近期引入
+
+- Redis + BullMQ：单用户 MVP 没必要增加第二套持久基础设施。
+- Kafka：规模完全不匹配。
+- Kubernetes：没有部署收益。
+- 完整微服务：增加分布式故障面。
+- 完整 Everything-is-a-plugin 框架、插件市场、热重载和动态 Android 原生插件：已确认不进入近期范围。
+- 多 Agent Team：成本和可预测性不符合当前目标。
+
+---
+
+## 19. 建议代码结构
+
+保持当前 `web/` 根结构，渐进迁移：
+
+```text
+agent_web/
+├── docker-compose.yml          # 自托管阶段引入
+├── docs/
+│   ├── PRODUCT_TECHNICAL_ROADMAP.md
+│   ├── REFERENCE_PROJECT_STUDY.md
+│   ├── CHANGELOG.md
+│   ├── adr/
+│   └── evals/
+├── plugins/
+│   └── first-party/
+│       ├── memorization/
+│       └── problem-solving/
+├── web/
+│   ├── app/
+│   │   ├── (app)/
+│   │   │   ├── chat/
+│   │   │   ├── tasks/
+│   │   │   ├── inbox/
+│   │   │   ├── discover/
+│   │   │   ├── memory/
+│   │   │   ├── study/
+│   │   │   ├── plugins/
+│   │   │   └── settings/
+│   │   └── api/
+│   │       ├── v1/
+│   │       └── internal/
+│   ├── components/
+│   │   ├── chat/
+│   │   ├── tasks/
+│   │   ├── inbox/
+│   │   └── shared/
+│   ├── lib/
+│   │   ├── domain/
+│   │   │   ├── conversation/
+│   │   │   ├── task/
+│   │   │   ├── run/
+│   │   │   ├── memory/
+│   │   │   ├── plugin/
+│   │   │   ├── study/
+│   │   │   └── notification/
+│   │   ├── agent/
+│   │   │   ├── runtime.ts
+│   │   │   ├── modeRouter.ts
+│   │   │   ├── promptComposer.ts
+│   │   │   ├── contextBuilder.ts
+│   │   │   ├── verifier.ts
+│   │   │   ├── providers/
+│   │   │   └── tools/
+│   │   ├── plugins/
+│   │   │   ├── manifest.ts
+│   │   │   ├── registry.ts
+│   │   │   ├── capabilityGateway.ts
+│   │   │   ├── storage.ts
+│   │   │   └── audit.ts
+│   │   ├── server/
+│   │   │   ├── db/
+│   │   │   ├── repositories/
+│   │   │   ├── scheduler/
+│   │   │   ├── worker/
+│   │   │   └── notifications/
+│   │   ├── client/
+│   │   └── shared/
+│   ├── db/
+│   │   ├── schema/
+│   │   └── migrations/
+│   ├── tests/
+│   │   ├── unit/
+│   │   ├── integration/
+│   │   ├── e2e/
+│   │   └── evals/
+│   └── worker/
+│       └── index.ts
+├── mobile/                     # Capacitor Spike 时引入
+│   ├── capacitor.config.ts
+│   └── android/
+└── README.md
+```
+
+目录迁移仍遵循渐进原则：近期不为追求理想树形一次性移动全部现有文件。若服务端和移动端增长到需要独立构建，再将共享领域代码提取到 `packages/` 工作区；在此之前通过清晰依赖方向保持可提取性。
+
+### 19.1 依赖方向
+
+```text
+UI → Application Service → Domain
+API → Application Service → Domain
+Worker → Application Service → Domain
+Plugin → Capability Gateway → Application Service → Domain
+Infrastructure implements Domain interfaces
+Domain 不依赖 Next.js、React、数据库驱动或具体模型 SDK
+```
+
+不要把所有逻辑重新塞入 `app/chat/page.tsx`。页面只负责组合组件、订阅状态和发出用户意图。
+
+---
+
+## 20. 安全、隐私与权限
+
+### 20.1 API Key 策略
+
+当前浏览器 localStorage BYOK 适合本地原型，但不适合云端 Scheduler。单用户部署的首选方式：
+
+- 模型 Key 保存在服务端环境变量。
+- 浏览器不再读取真实 Key。
+- Base URL 由服务端配置或受控白名单决定。
+
+未来若支持多个用户：
+
+- 密钥加密存储。
+- 使用专门 KMS/Secrets 服务管理主密钥。
+- 严格禁止把 Key 写入日志、Run 结果或客户端错误。
+
+### 20.2 SSRF 与自定义 Base URL
+
+允许任意 Base URL 会带来 SSRF 风险。云端版应采用 Provider 白名单；高级自托管模式才允许自定义地址，并阻止访问云元数据地址、内网和本机敏感端口。
+
+### 20.3 Web 内容安全
+
+搜索结果与网页文本全部视为不可信数据：
+
+- 网页内容不能修改系统规则。
+- 工具输出与指令分区。
+- 禁止从网页内容自动创建外部写入任务。
+- 引用保留 URL、标题、抓取时间和片段来源。
+
+### 20.4 最小权限
+
+- 读工具默认可自动执行。
+- 写工具默认需要确认。
+- 删除、发送消息、修改第三方数据属于高风险操作。
+- 定时任务后台执行使用单独权限策略，不能继承一次临时授权。
+
+### 20.5 数据生命周期
+
+需要提供：
+
+- 清除单个对话。
+- 清除全部记忆。
+- 删除任务与历史 Run。
+- 导出个人数据。
+- 数据保留设置。
+- 备份与恢复说明。
+
+### 20.6 插件安全
+
+- Manifest 中的 `requestedCapabilities` 只是申请，不是授权凭据。
+- 插件调用核心能力时同时校验安装状态、版本、用户授权、运行配额和当前 Run 上下文。
+- 插件存储按 `userId + pluginId` 隔离，不向插件提供数据库连接或任意 SQL。
+- 插件不能静默修改系统 Prompt；Skill Contribution 只能进入明确、低优先级、可检查的 Prompt Layer。
+- 插件请求创建任务、写候选记忆或发送通知时，由核心服务重新校验领域规则。
+- 第三方服务端代码默认不与 Web/API 进程共享权限；选定沙箱方案前不开放安装。
+- UI 扩展使用受限消息协议和 CSP，禁止读取宿主页 Cookie、Token 和其他插件数据。
+- 权限增加、签名变化、宿主 API 主版本变化时自动禁用，等待重新审核。
+- 卸载时允许用户分别选择保留、导出或删除插件数据，删除必须传播到备份与索引策略。
+
+---
+
+## 21. 可观测性、测试与评测
+
+### 21.1 日志
+
+使用结构化日志，最少字段：
+
+```text
+timestamp, level, requestId, correlationId,
+taskId, runId, conversationId, pluginId,
+event, durationMs, provider, model,
+toolName, errorCode
+```
+
+日志不记录 API Key、完整敏感消息或完整网页内容。
+
+### 21.2 指标
+
+- 对话成功率和首 Token 延迟。
+- Scheduler 延迟：`startedAt - scheduledFor`。
+- 重复 Run 数，应始终为 0。
+- 任务失败率、重试率和通知送达率。
+- 插件调用成功率、超时率、拒绝率、按插件 Token/网络/存储用量。
+- Android 本地提醒注册成功率、Push Token 失效率与笔记本服务健康状态。
+- 平均模型调用次数、Token 和成本。
+- 新闻去重率、点击/收藏/不感兴趣反馈。
+- 主动消息打开率、关闭率和降频率。
+
+### 21.3 测试金字塔
+
+**单元测试**
+
+- 时间与 RRULE 计算。
+- 下一次执行时间。
+- `TaskRun` 状态机。
+- 幂等键与重试策略。
+- Mode Router。
+- Memory 筛选与排序。
+- 新闻去重和打分。
+- Prompt Layer 优先级。
+- Manifest 与 SemVer 兼容判断。
+- Capability Grant、配额和撤销策略。
+- 背书复习间隔与解题策略路由。
+
+**集成测试**
+
+- PostgreSQL Claim 并发测试。
+- Scheduler → Run → Worker → Notification。
+- Provider Mock 下的工具循环。
+- API Schema 和错误映射。
+- 插件注册、启停、隔离存储和权限拒绝。
+- 插件请求 Task/Memory/Notification 时的二次领域校验。
+- Docker Compose 重启、数据库恢复和错过任务补偿。
+
+**端到端测试**
+
+- 创建任务、暂停、恢复、立即执行。
+- 浏览器刷新后恢复对话和 Run。
+- 推送授权和 Inbox 跳转。
+- 流式回复和取消。
+- Memory 编辑后下一次对话生效。
+- 禁用插件后核心功能不受影响，插件数据按用户选择保留或删除。
+- 背书与解题跨插件协作只经过公开 Capability。
+- Web 与 Android 真机完成同一条聊天、任务、Inbox 用户旅程。
+
+**Agent 评测**
+
+- 专业问答事实与引用。
+- 高质量思考问题。
+- 陪伴模式不过度迎合。
+- 专业模式不被人格污染。
+- 危机场景安全响应。
+
+### 21.4 完成定义（Definition of Done）
+
+每个 Sprint 必须满足：
+
+- 需求对应的自动测试通过。
+- `npm run lint`、类型检查、构建通过。
+- 手工验收路径记录。
+- 新数据结构有迁移与回滚说明。
+- 新环境变量进入 `.env.example` 说明，真实值不提交。
+- CHANGELOG 记录修改文件和行为变化。
+- 如有架构取舍，新增 ADR。
+
+---
+
+## 22. 短期目标与实施路线
+
+时间仅用于排序，不作为硬性承诺。每个 Sprint 控制在 1–2 个可验证目标。
+
+### Phase 0：稳定现有原型（1–2 周）
+
+目标：让当前聊天系统成为可测试、可迁移的稳定基线。
+
+| Sprint | 内容 | 验收 |
+|---|---|---|
+| 0.1 ✅ | 修复 Session 空保存、统一单一写入者 | 已完成：删除最后会话后不复活，异步回复不能重新创建已删除会话 |
+| 0.2 ✅ | 修正内部消息角色与 Prompt 类型 | 已完成：Persona/Memory/Conversation 分层，Provider 只接收标准角色与内容 |
+| 0.3 ✅ | 为 config、chatService、backend、memory 加单元测试 | 已完成：5 个文件、30 个测试覆盖配置、角色、回复、任务生命周期和记忆存储 |
+| 0.4 ✅ | 拆分 Chat 页面组件，不改变行为 | 已完成：页面容器只负责状态与领域编排，5 个展示组件职责独立；7 个渲染契约测试及 1 个 Edge E2E 主链路通过 |
+| 0.5 ✅ | 树形对话与安全富文本渲染 | 已完成：历史回答重新生成形成兄弟分支，旧后续可恢复；旧数据自动迁移；Markdown、GFM、KaTeX 与 HTML 非执行边界通过测试 |
+| 0.6 | 依赖安全与 Phase 0 封版 | 升级 Next.js 修复生产依赖公告，完整检查通过并形成可回滚 Git 基线 |
+
+### Phase 1：服务端与数据基础（2–3 周）
+
+目标：从 localStorage 原型迁移到单用户服务端应用。
+
+| Sprint | 内容 | 验收 |
+|---|---|---|
+| 1.1 | PostgreSQL + Drizzle + migration 基线 | 本地可建库、升级、回滚 |
+| 1.2 | Conversation/Message Repository 和 API | 刷新、换设备可读取同一数据 |
+| 1.3 | 服务端 Model Provider 与 Streaming | Key 不进入浏览器，SSE 可取消 |
+| 1.4 | localStorage 数据导入 | 用户可选择导入且不重复 |
+| 1.5 | Docker Compose 单用户自托管基线 | 笔记本重启后服务可恢复，数据库可备份/还原 |
+
+### Phase 2：可靠任务闭环（3–4 周）
+
+目标：完成本项目最重要的差异化基础。
+
+| Sprint | 内容 | 验收 |
+|---|---|---|
+| 2.1 | Task/TaskRun Schema + CRUD UI | 单次/每日/每周任务可管理 |
+| 2.2 | Scheduler Claim + 幂等 Run | 并发触发无重复执行 |
+| 2.3 | Reminder Worker + Inbox | 关闭网页后产生提醒结果 |
+| 2.4 | Web Push + 安静时段 | 推送可控、可降频 |
+| 2.5 | Agent Prompt Task | 定时生成内容并保存历史 |
+
+短期里程碑：到这里，产品已经从“聊天网页”升级为“能在时间中持续工作的个人 Agent”。
+
+### Phase 3：专业回答（2–4 周）
+
+| Sprint | 内容 | 验收 |
+|---|---|---|
+| 3.1 | Mode Router + Prompt Layer | 专业/陪伴模式边界测试通过 |
+| 3.2 | Web Search Tool + Citation Model | 最新问题有可点击来源 |
+| 3.3 | Response Verifier | 推断、时效和引用检查可见 |
+| 3.4 | 专业问答评测集 | Prompt 修改有回归分数 |
+
+### Phase 4：新闻、书籍与思考问题（2–4 周）
+
+| Sprint | 内容 | 验收 |
+|---|---|---|
+| 4.1 | 新闻搜索、聚类和去重 | 同一事件不重复刷屏 |
+| 4.2 | 日报/周报任务模板 | 有来源、日期和关注理由 |
+| 4.3 | 书籍资料与阅读画像 | 推荐有难度和目的说明 |
+| 4.4 | Reflection Question 生成与评分 | 问题相关、少而精、可关闭 |
+
+### Phase 5：记忆与陪伴（3–4 周）
+
+| Sprint | 内容 | 验收 |
+|---|---|---|
+| 5.1 | MemoryCandidate 与确认机制 | 不再直接把用户问题记为事实 |
+| 5.2 | Memory 管理页面与相关性检索 | 可查看、编辑、删除并立即生效 |
+| 5.3 | Persona Profile | 语气稳定且不影响专业评测 |
+| 5.4 | Proactivity Policy 与主动问候 | 有理由、有预算、无负罪感表达 |
+| 5.5 | 情绪支持安全评测 | 关键高风险场景通过 |
+
+### Phase 6：插件验证与移动端交付（3–5 周）
+
+目标：用两个真实学习活动验证最小插件 API，并生成可连接笔记本服务端的 Android APK。
+
+| Sprint | 内容 | 验收 |
+|---|---|---|
+| 6.1 | Plugin Manifest、Registry、Compatibility Check | 第一方插件可发现、启用、禁用，版本不兼容时安全失败 |
+| 6.2 | Capability Gateway、隔离存储、配额和审计 | 插件不能绕过核心访问数据库、通知、网络和记忆 |
+| 6.3 | 背书插件 MVP | 材料→复习→评分→下次任务形成闭环 |
+| 6.4 | 解题插件 MVP | 支持提示/引导/检查/讲解并记录错因，可请求生成复习卡 |
+| 6.5 | Plugin API v1 复盘 | 两个插件均无需修改 Agent Loop，接口才冻结 |
+| 6.6 | PWA + Capacitor Spike | 同一前端生成 Debug APK，真机连接笔记本 API |
+| 6.7 | Android Storage/Notification Adapter | 安全存储、本地缓存、普通提醒和 Push 验证通过 |
+
+该阶段仍不支持公开插件市场、任意来源代码包和动态 Android 原生扩展。若第一方插件无法在不修改核心的情况下实现，优先修正扩展点，不提前追求 SDK 美观。
+
+### Phase 7：作品集化（2 周）
+
+- 完整 README：问题、决策、架构、演示和限制。
+- 架构图、Sequence Diagram、数据模型图。
+- 在线 Demo、APK 或录屏。
+- 示例用户旅程：创建任务、收到日报、继续对话、编辑记忆、安装/启用背书插件并完成一次复习。
+- Evals 与测试报告。
+- 关键 ADR：为何引入数据库、为何不用微服务、为何拆分提醒与 Agent 任务、为何采用受控插件能力网关。
+- 性能、成本与安全说明。
+
+---
+
+## 23. 中长期目标
+
+### 23.1 6 个月目标
+
+- 成为可日常使用的单用户云端 Agent。
+- 任务、通知、新闻、书籍和记忆形成闭环。
+- 专业回答有来源与评测。
+- 主动陪伴可控且安全。
+- 项目具备稳定测试、数据库迁移和部署文档。
+- 笔记本自托管可以稳定运行，Debug/签名 APK 可在 Android 真机使用。
+- 背书与解题两个第一方插件形成学习闭环。
+
+### 23.2 12 个月目标
+
+- 云端/本地混合执行。
+- 语音输入输出与更自然的实时对话。
+- 文档、笔记和个人知识库检索。
+- 支持经过审核的本地插件包、插件 SDK 和只读 Tool Provider。
+- 更成熟的兴趣模型与长期目标跟进。
+- 支持数据导出、备份和跨设备恢复。
+- 能从笔记本部署迁移到云服务器而不修改业务模型。
+
+### 23.3 长期愿景
+
+形成一个“个人认知与生活协作层”：它既能回答问题，也能跟进目标、维护时间任务、筛选信息、促进反思并提供温和陪伴，同时始终允许用户检查和控制它的记忆与主动行为。
+
+---
+
+## 24. 未来扩展与创新方向
+
+以下均为远期候选，不进入当前实现承诺。
+
+### 24.1 可解释主动性
+
+建立 Proactivity Ledger：记录每次主动联系的触发信号、规则判断、生成理由和用户反馈。它既改善信任，也能成为作品集中的独特设计。
+
+### 24.2 情感表达与事实推理双通道
+
+将事实回答草稿与情感表达改写分开：先生成经过验证的事实内容，再由风格层调整措辞，但禁止修改事实性断言、数值和引用。这是“专业性不被人味破坏”的可工程化实现。
+
+### 24.3 记忆溯源图
+
+把记忆连接到原始消息、任务结果和用户确认记录。用户不仅看到“系统记住了什么”，还可以看到“它为什么这样认为”。
+
+### 24.4 个性化信息膳食
+
+不仅按兴趣推荐，还控制：
+
+- 主题多样性。
+- 国内/国际平衡。
+- 短期热点/长期知识平衡。
+- 熟悉观点/挑战性观点平衡。
+- 每日信息量预算。
+
+### 24.5 目标与反思时间线
+
+把任务、关键对话、阅读、新闻收藏和反思问题放在统一时间线上，形成可回顾的个人成长记录。
+
+### 24.6 本地隐私模式
+
+- 本地数据库加密。
+- 本地模型。
+- 端侧记忆检索。
+- 云端只保存定时元数据或完全不使用云端。
+
+### 24.7 学习插件、Tool Provider 与 MCP
+
+插件已从纯远期候选调整为明确产品方向，但采用渐进路线：
+
+1. 先定义仓库内第一方插件协议。
+2. 用背书和解题验证 Skill、Tool、Activity、任务与数据扩展点。
+3. 再支持本地插件包、沙箱 UI、版本兼容、升级和回滚。
+4. 最后评估第三方插件目录或 MCP 连接器。
+
+Skill 只贡献 Prompt、规则和评分标准；Tool 提供结构化执行能力；Activity 组合专用 UI、工具、任务和学习记录；Connector 连接日历、Todo、RSS、笔记或电子书目录。MCP 可以成为 Connector/Tool 的一种适配协议，但不能取代本项目自身的权限、审批、配额、审计和用户数据隔离。
+
+公开插件市场、付费、评分和任意原生代码安装不作为当前承诺。Android 原生能力由 APK 预编译并通过 Capability Gateway 暴露，产品插件不能动态添加新的系统权限。
+
+### 24.8 多模态与具身入口
+
+- 实时语音。
+- 图片和文档理解。
+- 桌面小组件。
+- 移动端快捷入口。
+- 可选的虚拟形象。
+
+虚拟形象只是表达层，不应成为产品价值的替代品。
+
+---
+
+## 25. 风险与缓解
+
+| 风险 | 影响 | 缓解措施 |
+|---|---|---|
+| 功能面过宽 | 长期无法完成 | 以任务闭环为第一主线，其他功能按阶段进入 |
+| 过早模仿 Harness | 架构复杂度失控 | 模块化单体，只抽象已经出现的变化点 |
+| 模型幻觉 | 专业性受损 | 搜索、引用、Verifier、Evals、不确定性表达 |
+| 主动消息令人厌烦 | 陪伴体验反效果 | 安静时段、预算、冷却、未读抑制、用户反馈 |
+| 情感依赖与操纵 | 用户安全风险 | 明确 AI 身份、禁止负罪感策略、危机流程 |
+| 云端密钥泄漏 | 严重安全问题 | 服务端 Secrets、日志脱敏、Provider 白名单 |
+| Scheduler 重复/漏跑 | 失去信任 | 唯一约束、DB Lease、补偿策略、监控 |
+| 新闻偏见和重复 | 信息质量下降 | 多来源、事件聚类、观点多样性、反馈闭环 |
+| 成本不可控 | 无法长期自用 | 普通提醒不调用模型、模型分级、Token 预算、缓存 |
+| Prompt 修改导致退化 | 行为不稳定 | 版本化 Prompt + 回归评测集 |
+| 数据迁移损坏 | 丢失长期记录 | Migration 测试、备份、可回滚 |
+| 插件越权或提示注入 | 泄露个人数据、执行非预期动作 | Manifest 不是授权；Capability Gateway、Schema、沙箱、审批、配额与审计 |
+| 插件 API 过早冻结 | 后续背书/解题需要绕过核心 | 用两个真实第一方插件验证后才发布 v1 |
+| 插件故障拖垮核心 | 聊天、任务不可用 | 超时、隔离执行、熔断、可禁用、核心不依赖插件启动成功 |
+| 笔记本休眠或断网 | 任务延迟、远程不可用 | 禁止睡眠、健康检查、补偿扫描、本地提醒兜底、定期备份 |
+| APK 与 Web 逻辑分叉 | 双倍维护成本 | 共享领域/API Client，平台能力统一走 Adapter，真机回归测试 |
+| 公开家庭服务端 | 密钥和个人数据暴露 | HTTPS、设备认证、只暴露 API、数据库不公网、日志脱敏 |
+
+---
+
+## 26. 架构决策记录建议
+
+建议建立 `docs/adr/`，至少记录：
+
+1. ADR-001：保留 Next.js 模块化单体。
+2. ADR-002：数据库从 OUT_OF_SCOPE 变为核心依赖。
+3. ADR-003：Task 与 TaskRun 分离。
+4. ADR-004：普通提醒不调用 LLM。
+5. ADR-005：专业策略优先于 Persona 风格。
+6. ADR-006：PostgreSQL Claim 取代浏览器定时器。
+7. ADR-007：服务端密钥取代云端版 localStorage BYOK。
+8. ADR-008：MVP 使用 SSE 而不是 WebSocket。
+9. ADR-009：主动行为采用 Act Gate 与 Interrupt Gate 两阶段决策。
+10. ADR-010：工具只接受结构化调用，禁止自由文本标签触发能力。
+11. ADR-011：Inbox 是后台结果事实源，通知是可失败的 Delivery。
+12. ADR-012：记忆采用 Core → FTS → Semantic 的检索阶梯。
+13. ADR-013：语音与虚拟形象作为 Embodiment Adapter。
+14. ADR-014：通过限时 Spike 选择 PostgreSQL Claim 或 Durable Job 平台。
+15. ADR-015：所有外部内容默认不可信，并保留来源与信任标记。
+16. ADR-016：学习能力通过 Activity Plugin 扩展。
+17. ADR-017：声明式 Skill 与可执行 Plugin 分离。
+18. ADR-018：插件只能通过 Capability Gateway 访问核心能力。
+19. ADR-019：动态插件不得包含未预编译的 Android 原生代码。
+20. ADR-020：背书与解题验证完成前不冻结 Plugin API v1。
+21. ADR-021：采用 Web-first + Capacitor-ready 的移动端策略。
+22. ADR-022：单用户笔记本部署与未来云端使用同一容器和数据迁移模型。
+
+ADR 模板：
+
+```md
+# ADR-xxx 标题
+
+## 状态
+Proposed / Accepted / Superseded
+
+## 背景
+为什么需要决策。
+
+## 决策
+选择什么。
+
+## 备选方案
+考虑过什么。
+
+## 后果
+获得什么、付出什么。
+```
+
+---
+
+## 27. 下一步执行建议
+
+不要直接从“新闻、语音、人物形象”开始。建议下一个开发周期严格按以下顺序：
+
+1. 修复当前状态一致性和消息角色问题。
+2. 给现有 Runtime、Service、Memory 增加测试。
+3. 写 ADR-001 至 ADR-004。
+4. 引入 PostgreSQL 和最小 Conversation/Message Schema。
+5. 把 API 调用迁到服务端并实现 Streaming。
+6. 实现 Task/TaskRun，而不是继续扩展浏览器 `taskStore`。
+7. 先完成普通提醒闭环，再让定时任务调用 Agent。
+8. 同时建立 Docker Compose 自托管基线，并验证数据库备份恢复。
+9. 任务可靠后，再开始专业搜索、新闻和陪伴主动性。
+10. 只先定义最小 Plugin Manifest 和 Capability 接口，不立即支持外部安装。
+11. 记忆与任务稳定后实现背书插件，再用解题插件验证扩展点。
+12. 核心移动体验稳定后做 Capacitor Spike，而不是重写 React 页面。
+
+第一个可以对外演示的关键版本应是：
+
+> 用户在对话中说“每周日晚上八点提醒我复盘本周学习”，确认任务后关闭网页；到时间收到 Push；点击后进入 Inbox，完成复盘，并由 Agent 提出一个高质量思考问题。
+
+这一条用户旅程能够同时展示自然语言理解、结构化输出、数据库、调度器、Worker、通知、对话上下文和 Agent 体验，是本项目最合适的作品集核心 Demo。
+
+第二条作品集旅程用于证明扩展性：
+
+> 用户启用背书插件，导入一段学习材料并完成复述；插件记录薄弱点并请求核心 Task 系统安排下次复习。随后启用解题插件，把一道错题转成复习卡。两个插件都通过 Capability Gateway 工作，禁用后核心聊天、任务和历史仍然正常。
+
+---
+
+## 28. 参考资料
+
+以下资料用于形成设计判断，不表示需要复制其全部架构：
+
+进一步的爱语 2.9.5 静态结构分析、相关开源项目横向对照、架构修订、实验计划和 30/60/90 天学习路线，见 [`REFERENCE_PROJECT_STUDY.md`](./REFERENCE_PROJECT_STUDY.md)。该研究补充提出了主动行为双门控、Durable Inbox、渐进式记忆检索、结构化工具权限和 Embodiment Adapter 等设计。
+
+- [DeepSeek Harness GitHub](https://github.com/deepseek-ai/deepseek-harness)
+- [DeepSeek Harness Architecture](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md)
+- [Capacitor 官方文档](https://capacitorjs.com/docs)
+- [Next.js Static Exports](https://nextjs.org/docs/app/guides/static-exports)
+- [OpenAI Codex GitHub](https://github.com/openai/codex)
+- [OpenAI Codex 官方文档](https://developers.openai.com/codex)
+- [ChatGPT Scheduled Tasks](https://learn.chatgpt.com/docs/automations)
+- [ChatGPT Notifications](https://learn.chatgpt.com/docs/notifications)
+- [Open WebUI Features](https://docs.openwebui.com/features/)
+- [Pi](https://hey.pi.ai/)
+- [Replika 官方说明](https://help.replika.com/hc/en-us/articles/115001070951-What-is-Replika)
+
+说明：OpenAI 没有公开 ChatGPT 定时任务后端的完整内部实现。本文对 Scheduler、Queue、Worker 和通知解耦的描述，是基于官方公开行为与常见可靠任务系统设计作出的工程方案，不代表 OpenAI 内部源码结构。
+
+---
+
+## 29. 文档维护规则
+
+- 产品方向发生变化时先更新本文件的目标、范围和路线图。
+- 已做出的架构决策通过 ADR 记录，不直接覆盖历史原因。
+- 每个 Sprint 完成后更新 CHANGELOG。
+- 数据结构变化同步更新第 7 节和数据库迁移。
+- API 变化同步更新第 17 节或迁移到独立 OpenAPI 文档。
+- 每完成一个 Phase，重新评估后续优先级，不机械执行过时计划。

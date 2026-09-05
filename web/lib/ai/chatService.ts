@@ -6,12 +6,21 @@ import {
   type ChatMessage,
   type Session,
 } from "@/lib/config";
+import {
+  toChatCompletionMessages,
+  type PromptMessage,
+} from "@/lib/ai/messages";
+import {
+  appendAssistantBranch,
+  appendMessage,
+  normalizeSessionTree,
+} from "@/lib/conversation/tree";
 
 /**
  * 纯 API 调用。signal 直接传入 fetch，支持 AbortController。
  */
 export async function sendChatMessage(
-  messages: ChatMessage[],
+  messages: PromptMessage[],
   signal?: AbortSignal,
 ): Promise<string> {
   const config = validateConfig();
@@ -29,7 +38,10 @@ export async function sendChatMessage(
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model, messages }),
+    body: JSON.stringify({
+      model,
+      messages: toChatCompletionMessages(messages),
+    }),
     signal,
   });
 
@@ -53,13 +65,10 @@ export function applySendReply(session: Session, reply: string): Session {
     role: "assistant",
     content: reply,
     createdAt: Date.now(),
-    versions: [reply],
-    activeVersion: 0,
   };
 
   return {
-    ...session,
-    messages: [...session.messages, assistant],
+    ...appendMessage(session, assistant),
     updatedAt: Date.now(),
   };
 }
@@ -71,24 +80,21 @@ export function applySendReply(session: Session, reply: string): Session {
 export function applyRetryReply(
   session: Session,
   reply: string,
-  targetMsgIndex: number,
+  targetMessageId: string,
 ): Session {
-  const msgs = [...session.messages];
-  const target = msgs[targetMsgIndex];
-  if (!target || target.role !== "assistant") {
-    return session;
-  }
+  const normalized = normalizeSessionTree(session);
+  const target = normalized.messages.find(
+    (message) => message.id === targetMessageId,
+  );
+  if (!target || target.role !== "assistant") return session;
 
-  const versions = target.versions ?? [target.content];
-  const newVersionIndex = versions.length;
-
-  msgs[targetMsgIndex] = {
-    ...target,
+  const branch: ChatMessage = {
+    id: crypto.randomUUID(),
+    role: "assistant",
     content: reply,
-    versions: [...versions, reply],
-    activeVersion: newVersionIndex,
     createdAt: Date.now(),
   };
 
-  return { ...session, messages: msgs, updatedAt: Date.now() };
+  const updated = appendAssistantBranch(normalized, targetMessageId, branch);
+  return { ...updated, updatedAt: Date.now() };
 }

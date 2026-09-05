@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 
 const STORAGE_KEYS = {
@@ -9,31 +9,41 @@ const STORAGE_KEYS = {
   model: "agent_api_model",
 };
 
-export default function ApiKeyPage() {
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [model, setModel] = useState("");
+type StoredConfig = {
+  apiKey: string | null;
+  baseUrl: string | null;
+  model: string | null;
+};
+
+function subscribeToHydration(): () => void {
+  return () => undefined;
+}
+
+function getClientHydrationSnapshot(): boolean {
+  return true;
+}
+
+function getServerHydrationSnapshot(): boolean {
+  return false;
+}
+
+function readStoredConfig(): StoredConfig {
+  return {
+    apiKey: localStorage.getItem(STORAGE_KEYS.apiKey),
+    baseUrl: localStorage.getItem(STORAGE_KEYS.baseUrl),
+    model: localStorage.getItem(STORAGE_KEYS.model),
+  };
+}
+
+function ApiKeyForm({ initialConfig }: { initialConfig: StoredConfig }) {
+  const [apiKey, setApiKey] = useState(initialConfig.apiKey ?? "");
+  const [baseUrl, setBaseUrl] = useState(initialConfig.baseUrl ?? "");
+  const [model, setModel] = useState(initialConfig.model ?? "");
   const [saved, setSaved] = useState<{
     apiKey: string | null;
     baseUrl: string | null;
     model: string | null;
-  }>({ apiKey: null, baseUrl: null, model: null });
-
-  useEffect(() => {
-    const storedApiKey = localStorage.getItem(STORAGE_KEYS.apiKey);
-    const storedBaseUrl = localStorage.getItem(STORAGE_KEYS.baseUrl);
-    const storedModel = localStorage.getItem(STORAGE_KEYS.model);
-
-    if (storedApiKey) setApiKey(storedApiKey);
-    if (storedBaseUrl) setBaseUrl(storedBaseUrl);
-    if (storedModel) setModel(storedModel);
-
-    setSaved({
-      apiKey: storedApiKey,
-      baseUrl: storedBaseUrl,
-      model: storedModel,
-    });
-  }, []);
+  }>(initialConfig);
 
   const handleSave = () => {
     const trimmedKey = apiKey.trim();
@@ -189,4 +199,16 @@ export default function ApiKeyPage() {
       </main>
     </div>
   );
+}
+
+export default function ApiKeyPage() {
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
+
+  if (!hydrated) return null;
+
+  return <ApiKeyForm initialConfig={readStoredConfig()} />;
 }
