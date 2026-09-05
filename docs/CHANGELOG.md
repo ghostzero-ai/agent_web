@@ -4,6 +4,85 @@
 
 ---
 
+## Sprint 1.3 — 服务端 Model Provider 与 SSE Streaming
+
+**Commit**: `563097e`
+
+### 为什么
+
+此前浏览器直接保存并携带模型 API Key，请求路径既会暴露密钥，也难以统一处理 Provider 差异、流式取消和安全错误。Sprint 1.3 将模型访问收口到 Next.js 服务端，为后续自托管、移动端和多 Provider 扩展建立稳定边界。
+
+### 怎么做
+
+- 用服务端环境变量读取 API Key、Base URL 和模型名，浏览器只能读取脱敏后的配置状态。
+- 新增 OpenAI-compatible Provider Adapter，在服务端发起请求并解析 SSE 或 JSON fallback。
+- 新增内部 `/api/v1/model/stream` SSE 接口，统一 `meta`、`delta`、`done`、`error` 事件。
+- 将浏览器取消信号传播到上游 Provider，并为流式增量使用稳定 assistant 消息 ID，避免重复消息节点。
+- 清除历史浏览器模型配置键，配置页改为只读服务端状态页。
+- 对输入规模、URL 协议、Provider 状态码和外部错误信息建立显式安全边界。
+
+### 修改文件
+
+- `PROJECT.md`
+- `README.md`
+- `docs/CHANGELOG.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `docs/SERVER_DATA_API.md`
+- `docs/SERVER_MODEL_PROVIDER.md`
+- `docs/adr/ADR-026-SERVER-MODEL-STREAMING.md`
+- `web/.env.example`
+- `web/app/api-key/page.tsx`
+- `web/app/api/v1/model/config/route.ts`
+- `web/app/api/v1/model/stream/route.ts`
+- `web/app/chat/page.tsx`
+- `web/components/config/LegacyApiConfigCleanup.tsx`
+- `web/e2e/chat.spec.ts`
+- `web/lib/ai/chatService.ts`
+- `web/lib/ai/server/modelConfig.ts`
+- `web/lib/ai/server/modelProvider.ts`
+- `web/lib/api/modelApi.ts`
+- `web/lib/config.ts`
+- `web/tests/chatService.test.ts`
+- `web/tests/config.test.ts`
+- `web/tests/modelApi.test.ts`
+- `web/tests/modelProvider.test.ts`
+
+### 代码与功能
+
+| 功能 | 说明 |
+|------|------|
+| 服务端密钥 | `AI_API_KEY` 只在 Node.js Runtime 中读取，不进入客户端 bundle、请求体或 localStorage |
+| Provider Adapter | 兼容 OpenAI Chat Completions，隔离鉴权、URL、模型和上游响应解析 |
+| 内部 SSE | 浏览器仅访问同源接口，以稳定事件协议接收增量文本、完成和安全错误 |
+| 取消传播 | 客户端中止读取时，服务端 AbortController 会取消上游请求 |
+| 流式 UI | 同一 assistant 节点持续更新，完成后保持相同 ID 和树关系 |
+| 错误契约 | 鉴权、限流、模型不存在、请求拒绝、不可用、非法响应使用稳定错误码 |
+| 配置安全 | Base URL 默认要求 HTTPS；状态接口只返回 Origin、模型名和缺失字段 |
+| 旧配置清理 | Chat 和配置页挂载时移除浏览器中遗留的三个模型配置键 |
+
+### 验证方法与结果
+
+- `npm test -- --run`：12 个测试文件、58 个测试全部通过。
+- Provider/API 测试：覆盖密钥不出服务端、HTTP 显式开关、跨 chunk SSE、EOF 尾帧、JSON fallback、限流映射、严格输入校验和取消传播。
+- `npx tsc --noEmit --pretty false`：通过。
+- `npm run lint`：通过。
+- `npm run db:check`：迁移元数据一致。
+- `npm run db:generate`：无未生成 Schema 变化；本 Sprint 无数据库迁移。
+- `npm run build`：通过；模型配置与流式接口均为 Node.js 动态路由。
+- Playwright：3 条 Microsoft Edge 主链路断言全部通过；Windows 下 Next 开发服务在断言完成后保留句柄，测试协调进程由人工结束，因此没有把该次进程退出码记为成功。
+- `npm audit --audit-level=high`：0 项已知漏洞。
+
+### localStorage 变化
+
+- 启动时删除 `agent_api_key`、`agent_api_base_url`、`agent_api_model`。
+- `agent_chat_sessions` 的结构和读写方式暂时不变；其显式导入将在 Sprint 1.4 完成。
+
+### 下一步
+
+- Sprint 1.4：实现用户确认的 localStorage 会话树导入、幂等去重，并让 Chat UI 使用服务端 Conversation API 作为事实来源。
+
+---
+
 ## Sprint 1.2 — Conversation/Message Repository 与 API
 
 **Commit**: `9e522d0`
