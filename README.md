@@ -50,9 +50,9 @@ Database
 
 开发中：
 
-* 服务端 Model Provider 与 Streaming
+* localStorage 会话预检、导入与服务端数据切换
 
-Conversation/Message 服务端 Repository 与 API 已完成。当前 Chat 数据仍保存在浏览器 localStorage；Sprint 1.3 接入服务端模型调用，Sprint 1.4 再显式导入旧数据。
+Conversation/Message 服务端 Repository/API 与服务端模型 Streaming 已完成。当前 Chat 会话仍保存在浏览器 localStorage；Sprint 1.4 将通过用户确认的幂等导入切换到服务端数据。
 
 ---
 
@@ -66,6 +66,8 @@ Conversation/Message 服务端 Repository 与 API 已完成。当前 Chat 数据
 详细流程、安全约束和故障处理见 `docs/DATABASE_OPERATIONS.md`。
 
 服务端会话 API 使用 `/api/v1/conversations` 前缀，具体端点、请求格式和并发规则见 `docs/SERVER_DATA_API.md`。当前 API 没有登录鉴权，只能在本机或可信私有网络使用，不得直接暴露到公网。
+
+模型配置必须写入 `web/.env.local` 的 `AI_API_KEY`、`AI_BASE_URL` 和 `AI_MODEL`。浏览器不再保存或读取真实 Key；Streaming 与错误码说明见 `docs/SERVER_MODEL_PROVIDER.md`。
 
 ---
 

@@ -1,8 +1,4 @@
 import {
-  getApiKey,
-  getApiBaseUrl,
-  getApiModel,
-  validateConfig,
   type ChatMessage,
   type Session,
 } from "@/lib/config";
@@ -22,35 +18,71 @@ import {
 export async function sendChatMessage(
   messages: PromptMessage[],
   signal?: AbortSignal,
+  onDelta?: (text: string, accumulated: string) => void,
 ): Promise<string> {
-  const config = validateConfig();
-  if (!config.valid) {
-    throw new Error(`请先配置：${config.missing.join("、")}`);
-  }
-
-  const apiKey = getApiKey()!;
-  const baseUrl = getApiBaseUrl()!.replace(/\/+$/, "");
-  const model = getApiModel()!;
-
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetch("/api/v1/model/stream", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
     },
     body: JSON.stringify({
-      model,
       messages: toChatCompletionMessages(messages),
     }),
     signal,
   });
 
   if (!response.ok) {
-    throw new Error(`API 返回错误：${response.status}`);
+    const body = await response.json().catch(() => null);
+    const message = body?.error?.message;
+    throw new Error(
+      typeof message === "string" ? message : `服务端返回错误：${response.status}`,
+    );
+  }
+  if (!response.body) throw new Error("服务端没有返回可读取的响应流");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const frames = buffer.split(/\r?\n\r?\n/);
+    buffer = frames.pop() ?? "";
+    if (done && buffer.trim()) {
+      frames.push(buffer);
+      buffer = "";
+    }
+
+    for (const frame of frames) {
+      const event = frame
+        .split(/\r?\n/)
+        .find((line) => line.startsWith("event:"))
+        ?.slice(6)
+        .trim();
+      const dataText = frame
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart())
+        .join("\n");
+      if (!dataText) continue;
+
+      const data = JSON.parse(dataText);
+      if (event === "delta" && typeof data.text === "string") {
+        result += data.text;
+        onDelta?.(data.text, result);
+      } else if (event === "error") {
+        throw new Error(
+          typeof data.message === "string" ? data.message : "模型生成失败",
+        );
+      }
+    }
+
+    if (done) break;
   }
 
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || "（AI 未返回内容）";
+  return result || "（AI 未返回内容）";
 }
 
 // ── 领域 Action（纯计算，只算不写）──
@@ -59,9 +91,13 @@ export async function sendChatMessage(
  * 纯函数：将 AI 回复追加为新 assistant 消息，返回新 Session。
  * 不写 localStorage，不产生副作用。
  */
-export function applySendReply(session: Session, reply: string): Session {
+export function applySendReply(
+  session: Session,
+  reply: string,
+  messageId = crypto.randomUUID(),
+): Session {
   const assistant: ChatMessage = {
-    id: crypto.randomUUID(),
+    id: messageId,
     role: "assistant",
     content: reply,
     createdAt: Date.now(),
@@ -81,6 +117,7 @@ export function applyRetryReply(
   session: Session,
   reply: string,
   targetMessageId: string,
+  messageId = crypto.randomUUID(),
 ): Session {
   const normalized = normalizeSessionTree(session);
   const target = normalized.messages.find(
@@ -89,7 +126,7 @@ export function applyRetryReply(
   if (!target || target.role !== "assistant") return session;
 
   const branch: ChatMessage = {
-    id: crypto.randomUUID(),
+    id: messageId,
     role: "assistant",
     content: reply,
     createdAt: Date.now(),

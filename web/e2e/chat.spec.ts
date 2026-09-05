@@ -2,8 +2,23 @@ import { expect, test } from "@playwright/test";
 
 test("chat session lifecycle survives reloads", async ({ page }) => {
   await page.goto("/chat");
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.localStorage.setItem("agent_api_key", "must-be-removed");
+    window.localStorage.setItem("agent_api_base_url", "https://legacy.example");
+    window.localStorage.setItem("agent_api_model", "legacy-model");
+  });
   await page.reload();
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        key: window.localStorage.getItem("agent_api_key"),
+        baseUrl: window.localStorage.getItem("agent_api_base_url"),
+        model: window.localStorage.getItem("agent_api_model"),
+      })),
+    )
+    .toEqual({ key: null, baseUrl: null, model: null });
 
   await expect(page.getByRole("heading", { name: "AI 对话" })).toBeVisible();
   await expect(page.getByText("暂无对话，点击上方按钮开始")).toBeVisible();
@@ -20,11 +35,11 @@ test("chat session lifecycle survives reloads", async ({ page }) => {
   await page.getByPlaceholder("请输入你的问题").fill("不会发送到模型");
   await page.getByPlaceholder("请输入你的问题").press("Enter");
   await expect(
-    page.getByText("请先配置 API Key、Base URL 和 Model 才能使用 Chat 功能"),
+    page.getByText("Server model provider is not configured."),
   ).toBeVisible();
   await page.getByRole("button", { name: "关闭" }).click();
   await expect(
-    page.getByText("请先配置 API Key、Base URL 和 Model 才能使用 Chat 功能"),
+    page.getByText("Server model provider is not configured."),
   ).toBeHidden();
 
   page.once("dialog", (dialog) => dialog.accept());
@@ -40,26 +55,22 @@ test("regenerating an earlier answer creates and restores branches", async ({
   page,
 }) => {
   const replies = ["第一版回答", "第二轮回答", "第一版回答的新分支"];
-  await page.route("https://provider.example/**", async (route) => {
+  await page.route("**/api/v1/model/stream", async (route) => {
     const reply = replies.shift();
     await route.fulfill({
       status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        choices: [{ message: { content: reply ?? "意外请求" } }],
-      }),
+      contentType: "text/event-stream",
+      body: [
+        'event: meta\ndata: {"model":"e2e-model"}\n\n',
+        `event: delta\ndata: ${JSON.stringify({ text: reply ?? "意外请求" })}\n\n`,
+        "event: done\ndata: {}\n\n",
+      ].join(""),
     });
   });
 
   await page.goto("/chat");
   await page.evaluate(() => {
     window.localStorage.clear();
-    window.localStorage.setItem("agent_api_key", "e2e-key");
-    window.localStorage.setItem(
-      "agent_api_base_url",
-      "https://provider.example/v1",
-    );
-    window.localStorage.setItem("agent_api_model", "e2e-model");
   });
   await page.reload();
 

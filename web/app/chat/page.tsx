@@ -7,7 +7,7 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { MessageList } from "@/components/chat/MessageList";
 import { SessionSidebar } from "@/components/chat/SessionSidebar";
 import {
-  validateConfig,
+  clearLegacyBrowserApiConfig,
   migrateOnce,
   type ChatMessage,
   type Session,
@@ -59,6 +59,7 @@ export default function ChatPage() {
 
   // ── 初始化 ──
   useEffect(() => {
+    clearLegacyBrowserApiConfig();
     const loaded = migrateOnce();
     loadSessions(loaded);
   }, []);
@@ -68,6 +69,9 @@ export default function ChatPage() {
     return subscribe((event: BackendEvent) => {
       if (event.type === "task_update") {
         setTasks((prev) => ({ ...prev, [event.payload.id]: event.payload }));
+        if (event.payload.status === "error" && event.payload.error) {
+          setError(event.payload.error);
+        }
       }
     });
   }, []);
@@ -120,12 +124,6 @@ export default function ChatPage() {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
 
-    const config = validateConfig();
-    if (!config.valid) {
-      setError("请先配置 API Key、Base URL 和 Model 才能使用 Chat 功能");
-      return;
-    }
-
     if (!resolvedActiveSessionId || !activeSession) return;
 
     const timestamp = currentTimestamp();
@@ -150,12 +148,21 @@ export default function ChatPage() {
     setError(null);
 
     const taskId = crypto.randomUUID();
+    const assistantId = crypto.randomUUID();
 
     runTask(taskId, resolvedActiveSessionId, async (signal) => {
       const memory = getMemory();
       const agentContext = buildAgentPrompt({ session: optimisticSession, memory });
-      const reply = await sendChatMessage(agentContext, signal);
-      return applySendReply(optimisticSession, reply);
+      const reply = await sendChatMessage(
+        agentContext,
+        signal,
+        (_delta, accumulated) => {
+          updateSession(
+            applySendReply(optimisticSession, accumulated, assistantId),
+          );
+        },
+      );
+      return applySendReply(optimisticSession, reply, assistantId);
     }, "chat_completion");
   };
 
@@ -178,12 +185,26 @@ export default function ChatPage() {
     setError(null);
 
     const taskId = crypto.randomUUID();
+    const assistantId = crypto.randomUUID();
 
     runTask(taskId, resolvedActiveSessionId, async (signal) => {
       const memory = getMemory();
       const agentContext = buildAgentPrompt({ session: retrySession, memory });
-      const reply = await sendChatMessage(agentContext, signal);
-      return applyRetryReply(activeSession, reply, messageId);
+      const reply = await sendChatMessage(
+        agentContext,
+        signal,
+        (_delta, accumulated) => {
+          updateSession(
+            applyRetryReply(
+              activeSession,
+              accumulated,
+              messageId,
+              assistantId,
+            ),
+          );
+        },
+      );
+      return applyRetryReply(activeSession, reply, messageId, assistantId);
     }, "chat_completion");
   };
 

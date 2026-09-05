@@ -1,92 +1,18 @@
-"use client";
-
-import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { LegacyApiConfigCleanup } from "@/components/config/LegacyApiConfigCleanup";
+import { getModelProviderStatus } from "@/lib/ai/server/modelConfig";
 
-const STORAGE_KEYS = {
-  apiKey: "agent_api_key",
-  baseUrl: "agent_api_base_url",
-  model: "agent_api_model",
-};
+export const dynamic = "force-dynamic";
 
-type StoredConfig = {
-  apiKey: string | null;
-  baseUrl: string | null;
-  model: string | null;
-};
-
-function subscribeToHydration(): () => void {
-  return () => undefined;
-}
-
-function getClientHydrationSnapshot(): boolean {
-  return true;
-}
-
-function getServerHydrationSnapshot(): boolean {
-  return false;
-}
-
-function readStoredConfig(): StoredConfig {
-  return {
-    apiKey: localStorage.getItem(STORAGE_KEYS.apiKey),
-    baseUrl: localStorage.getItem(STORAGE_KEYS.baseUrl),
-    model: localStorage.getItem(STORAGE_KEYS.model),
-  };
-}
-
-function ApiKeyForm({ initialConfig }: { initialConfig: StoredConfig }) {
-  const [apiKey, setApiKey] = useState(initialConfig.apiKey ?? "");
-  const [baseUrl, setBaseUrl] = useState(initialConfig.baseUrl ?? "");
-  const [model, setModel] = useState(initialConfig.model ?? "");
-  const [saved, setSaved] = useState<{
-    apiKey: string | null;
-    baseUrl: string | null;
-    model: string | null;
-  }>(initialConfig);
-
-  const handleSave = () => {
-    const trimmedKey = apiKey.trim();
-    const trimmedUrl = baseUrl.trim();
-    const trimmedModel = model.trim();
-
-    if (!trimmedKey && !trimmedUrl && !trimmedModel) return;
-
-    if (trimmedKey) {
-      localStorage.setItem(STORAGE_KEYS.apiKey, trimmedKey);
-    }
-    if (trimmedUrl) {
-      localStorage.setItem(STORAGE_KEYS.baseUrl, trimmedUrl);
-    }
-    if (trimmedModel) {
-      localStorage.setItem(STORAGE_KEYS.model, trimmedModel);
-    }
-
-    setSaved({
-      apiKey: trimmedKey || saved.apiKey,
-      baseUrl: trimmedUrl || saved.baseUrl,
-      model: trimmedModel || saved.model,
-    });
-  };
-
-  const handleDelete = () => {
-    localStorage.removeItem(STORAGE_KEYS.apiKey);
-    localStorage.removeItem(STORAGE_KEYS.baseUrl);
-    localStorage.removeItem(STORAGE_KEYS.model);
-    setApiKey("");
-    setBaseUrl("");
-    setModel("");
-    setSaved({ apiKey: null, baseUrl: null, model: null });
-  };
-
-  const isConfigured = saved.apiKey || saved.baseUrl || saved.model;
+export default function ApiKeyPage() {
+  const status = getModelProviderStatus();
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
-      {/* Header */}
+      <LegacyApiConfigCleanup />
       <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
         <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
-          API 配置管理
+          模型服务配置
         </h1>
         <Link
           href="/chat"
@@ -95,120 +21,60 @@ function ApiKeyForm({ initialConfig }: { initialConfig: StoredConfig }) {
           返回对话
         </Link>
       </header>
-      <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
-        <div className="mt-10 w-full max-w-md space-y-6">
-          {/* API Key */}
+
+      <main className="flex flex-1 items-center justify-center px-6 py-16">
+        <div className="w-full max-w-xl space-y-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
           <div>
-            <label
-              htmlFor="api-key-input"
-              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-            >
-              API Key
-            </label>
-            <input
-              id="api-key-input"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="请输入你的 API Key"
-              className="mt-2 block w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
-            />
+            <h2 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">
+              服务端环境变量
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+              为避免 API Key 暴露给浏览器，请在服务器的
+              <code className="mx-1 rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-900">
+                web/.env.local
+              </code>
+              中配置 AI_API_KEY、AI_BASE_URL 和 AI_MODEL，然后重启服务。
+            </p>
           </div>
 
-          {/* Base URL */}
-          <div>
-            <label
-              htmlFor="base-url-input"
-              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-            >
-              Base URL
-            </label>
-            <input
-              id="base-url-input"
-              type="text"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://api.openai.com/v1"
-              className="mt-2 block w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
-            />
-          </div>
-
-          {/* Model */}
-          <div>
-            <label
-              htmlFor="model-input"
-              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-            >
-              Model
-            </label>
-            <input
-              id="model-input"
-              type="text"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="gpt-4o-mini"
-              className="mt-2 block w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
-            />
-          </div>
-
-          {/* Buttons */}
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={handleSave}
-              className="flex-1 rounded-lg bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
-            >
-              保存配置
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              删除配置
-            </button>
-          </div>
-
-          {/* Status */}
-          <div className="space-y-2 rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-            {isConfigured ? (
-              <>
-                {saved.apiKey && (
-                  <p className="text-sm text-green-700 dark:text-green-400">
-                    API Key 已配置
-                  </p>
-                )}
-                {saved.baseUrl && (
-                  <p className="text-sm text-green-700 dark:text-green-400">
-                    Base URL 已配置
-                  </p>
-                )}
-                {saved.model && (
-                  <p className="text-sm text-green-700 dark:text-green-400">
-                    Model 已配置
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                尚未配置
+          <div className="space-y-3 rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
+            <div className="flex justify-between gap-4">
+              <span className="text-zinc-500 dark:text-zinc-400">状态</span>
+              <span
+                className={
+                  status.configured
+                    ? "font-medium text-green-700 dark:text-green-400"
+                    : "font-medium text-amber-700 dark:text-amber-400"
+                }
+              >
+                {status.configured ? "已配置" : "未完成"}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-zinc-500 dark:text-zinc-400">Provider</span>
+              <span className="break-all text-right text-zinc-800 dark:text-zinc-200">
+                {status.baseUrl ?? "—"}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-zinc-500 dark:text-zinc-400">Model</span>
+              <span className="break-all text-right text-zinc-800 dark:text-zinc-200">
+                {status.model ?? "—"}
+              </span>
+            </div>
+            {!status.configured && (
+              <p className="border-t border-zinc-200 pt-3 text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
+                缺少：{status.missing.join("、")}
               </p>
             )}
           </div>
+
+          <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-500">
+            页面只显示配置状态、Provider Origin 和模型名；真实 API Key
+            不会进入 HTML、客户端状态或 localStorage。
+          </p>
         </div>
       </main>
     </div>
   );
-}
-
-export default function ApiKeyPage() {
-  const hydrated = useSyncExternalStore(
-    subscribeToHydration,
-    getClientHydrationSnapshot,
-    getServerHydrationSnapshot,
-  );
-
-  if (!hydrated) return null;
-
-  return <ApiKeyForm initialConfig={readStoredConfig()} />;
 }

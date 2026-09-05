@@ -1,15 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  getApiBaseUrl,
-  getApiKey,
-  getApiModel,
+  clearLegacyBrowserApiConfig,
   getSessions,
   isChatMessage,
   isSession,
   migrateOnce,
   saveSessions,
-  validateConfig,
 } from "../lib/config";
 import {
   installBrowserStorage,
@@ -142,26 +139,20 @@ describe("runtime type guards", () => {
   });
 });
 
-describe("API configuration", () => {
-  it("reports every missing field", () => {
-    installBrowserStorage();
-
-    expect(validateConfig()).toEqual({
-      valid: false,
-      missing: ["API Key", "Base URL", "Model"],
-    });
-  });
-
-  it("reads a complete configuration", () => {
+describe("legacy browser API configuration", () => {
+  it("removes secrets and provider settings from localStorage", () => {
     installBrowserStorage({
       agent_api_key: "key",
       agent_api_base_url: "https://provider.example/v1",
       agent_api_model: "model",
+      agent_chat_sessions: "[]",
     });
 
-    expect(getApiKey()).toBe("key");
-    expect(getApiBaseUrl()).toBe("https://provider.example/v1");
-    expect(getApiModel()).toBe("model");
-    expect(validateConfig()).toEqual({ valid: true, missing: [] });
+    clearLegacyBrowserApiConfig();
+
+    expect(localStorage.getItem("agent_api_key")).toBeNull();
+    expect(localStorage.getItem("agent_api_base_url")).toBeNull();
+    expect(localStorage.getItem("agent_api_model")).toBeNull();
+    expect(localStorage.getItem("agent_chat_sessions")).toBe("[]");
   });
 });

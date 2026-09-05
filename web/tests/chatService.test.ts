@@ -18,11 +18,7 @@ import {
 } from "./helpers/browserStorage";
 
 beforeEach(() => {
-  installBrowserStorage({
-    agent_api_key: "test-key",
-    agent_api_base_url: "https://provider.example/v1/",
-    agent_api_model: "test-model",
-  });
+  installBrowserStorage();
 });
 
 afterEach(() => {
@@ -32,14 +28,20 @@ afterEach(() => {
 });
 
 describe("sendChatMessage", () => {
-  it("sends only provider-compatible role and content fields", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: "回答" } }],
-      }),
-    });
+  it("streams through the server without browser provider credentials", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        [
+          'event: meta\ndata: {"model":"server-model"}\n\n',
+          'event: delta\ndata: {"text":"回"}\n\n',
+          'event: delta\ndata: {"text":"答"}\n\n',
+          "event: done\ndata: {}\n\n",
+        ].join(""),
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      ),
+    );
     vi.stubGlobal("fetch", fetchMock);
+    const onDelta = vi.fn();
 
     const prompt: PromptMessage[] = [
       {
@@ -62,15 +64,16 @@ describe("sendChatMessage", () => {
       },
     ];
 
-    await expect(sendChatMessage(prompt)).resolves.toBe("回答");
+    await expect(sendChatMessage(prompt, undefined, onDelta)).resolves.toBe(
+      "回答",
+    );
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://provider.example/v1/chat/completions");
+    expect(url).toBe("/api/v1/model/stream");
 
     const body = JSON.parse(String(init.body));
     expect(body).toEqual({
-      model: "test-model",
       messages: [
         { role: "system", content: "保持专业" },
         { role: "system", content: "历史参考" },
@@ -79,32 +82,38 @@ describe("sendChatMessage", () => {
     });
     expect(JSON.stringify(body)).not.toContain('"kind"');
     expect(JSON.stringify(body)).not.toContain('"source"');
+    expect(init.headers).not.toHaveProperty("authorization");
+    expect(onDelta.mock.calls).toEqual([
+      ["回", "回"],
+      ["答", "回答"],
+    ]);
   });
 
-  it("fails before fetch when required configuration is missing", async () => {
-    localStorage.clear();
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
+  it("maps a non-successful server response to its safe message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          { error: { message: "Server model provider is not configured." } },
+          { status: 503 },
+        ),
+      ),
+    );
 
     await expect(sendChatMessage([])).rejects.toThrow(
-      "请先配置：API Key、Base URL、Model",
+      "Server model provider is not configured.",
     );
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("maps a non-successful provider response to a stable error", async () => {
+  it("uses a visible fallback when the stream has no content", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: false, status: 429 }),
-    );
-
-    await expect(sendChatMessage([])).rejects.toThrow("API 返回错误：429");
-  });
-
-  it("uses a visible fallback when the provider has no message content", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [] }) }),
+      vi.fn().mockResolvedValue(
+        new Response("event: done\ndata: {}\n\n", {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        }),
+      ),
     );
 
     await expect(sendChatMessage([])).resolves.toBe("（AI 未返回内容）");

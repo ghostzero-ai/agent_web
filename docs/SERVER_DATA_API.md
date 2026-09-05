@@ -2,6 +2,8 @@
 
 Sprint 1.2 提供单用户 Conversation/Message Repository 和 `/api/v1` HTTP 接口。它是 Chat UI 迁移到服务端的基础，不包含模型调用、Streaming 或旧 localStorage 导入。
 
+模型状态与 Streaming 端点已在 Sprint 1.3 加入，详见 `docs/SERVER_MODEL_PROVIDER.md`。
+
 ## 1. 使用前提与安全边界
 
 1. 配置 `web/.env.local` 中的 `DATABASE_URL`。
