@@ -34,13 +34,13 @@ Phase 1 — Server and Data Foundation
 
 CURRENT_TASK:
 
-Sprint 1.1 — PostgreSQL + Drizzle + Migration Baseline
+Sprint 1.2 — Conversation/Message Repository and API
 
 ==================================================
 
 NEXT_TASK:
 
-Sprint 1.2 — Conversation/Message Repository and API
+Sprint 1.3 — Server-side Model Provider and Streaming
 
 ==================================================
 
@@ -144,7 +144,9 @@ STORAGE:
 
 PostgreSQL Schema 与迁移基线已经建立。
 
-当前 Chat UI 仍默认使用 localStorage；Sprint 1.2–1.4 渐进迁移到服务端。
+Conversation/Message Repository 与 `/api/v1` 服务端 API 已建立。
+
+当前 Chat UI 仍默认使用 localStorage；Sprint 1.3–1.4 渐进迁移到服务端。
 
 用户自带API Key。
 

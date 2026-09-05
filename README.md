@@ -50,9 +50,9 @@ Database
 
 开发中：
 
-* Conversation/Message 服务端 Repository 与 API
+* 服务端 Model Provider 与 Streaming
 
-当前 Chat 数据仍保存在浏览器 localStorage；Phase 1 会先接入服务端数据层，再迁移旧数据。
+Conversation/Message 服务端 Repository 与 API 已完成。当前 Chat 数据仍保存在浏览器 localStorage；Sprint 1.3 接入服务端模型调用，Sprint 1.4 再显式导入旧数据。
 
 ---
 
@@ -64,6 +64,8 @@ Database
 4. 修改 `lib/db/schema.ts` 后执行 `npm run db:generate`，审阅生成 SQL，并为新迁移补充同名 rollback SQL。
 
 详细流程、安全约束和故障处理见 `docs/DATABASE_OPERATIONS.md`。
+
+服务端会话 API 使用 `/api/v1/conversations` 前缀，具体端点、请求格式和并发规则见 `docs/SERVER_DATA_API.md`。当前 API 没有登录鉴权，只能在本机或可信私有网络使用，不得直接暴露到公网。
 
 ---
 

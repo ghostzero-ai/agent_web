@@ -56,7 +56,7 @@ npm test -- databaseMigrations.test.ts
 - 主键使用 UUID，时间使用 `timestamptz`，API 层未来统一输出 ISO 8601。
 - `users` 即使在单用户阶段也保留，避免未来迁移云端时改写所有外键。
 - `messages.parent_message_id` 使用自引用外键，真实保存对话树，而不是把版本塞入 JSON。
-- `conversations.active_leaf_message_id` 当前不设循环外键；Sprint 1.2 的 Repository 必须在事务中验证活动叶节点属于同一会话。
+- `conversations.active_leaf_message_id` 不设循环外键；Sprint 1.2 Repository 已在事务中验证节点属于同一会话、确实没有子节点，并用 `version` 防止并发覆盖。
 - JSONB 仅用于结构开放的 `citations`；角色、状态和模式均使用 PostgreSQL Enum。
 
 ## 6. 回滚注意事项
