@@ -1686,7 +1686,7 @@ toolName, errorCode
 
 | Sprint | 内容 | 验收 |
 |---|---|---|
-| 1.1 | PostgreSQL + Drizzle + migration 基线 | 本地可建库、升级、回滚 |
+| 1.1 ✅ | PostgreSQL + Drizzle + migration 基线 | 已完成：最小 User/Conversation/Message Schema、事务化升级/单步回滚、漂移检测与 PostgreSQL 兼容集成测试 |
 | 1.2 | Conversation/Message Repository 和 API | 刷新、换设备可读取同一数据 |
 | 1.3 | 服务端 Model Provider 与 Streaming | Key 不进入浏览器，SSE 可取消 |
 | 1.4 | localStorage 数据导入 | 用户可选择导入且不重复 |

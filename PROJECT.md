@@ -28,19 +28,19 @@ GOAL:
 
 CURRENT_PHASE:
 
-Phase 0 Complete / MVP Baseline
+Phase 1 — Server and Data Foundation
 
 ==================================================
 
 CURRENT_TASK:
 
-Sprint 0.6 — Dependency Security and Phase 0 Baseline
+Sprint 1.1 — PostgreSQL + Drizzle + Migration Baseline
 
 ==================================================
 
 NEXT_TASK:
 
-Sprint 1.1 — PostgreSQL + Drizzle + Migration Baseline
+Sprint 1.2 — Conversation/Message Repository and API
 
 ==================================================
 
@@ -81,6 +81,10 @@ TypeScript
 UI:
 
 Tailwind CSS
+
+Database:
+
+PostgreSQL + Drizzle ORM
 
 Router:
 
@@ -126,8 +130,6 @@ OUT_OF_SCOPE:
 
 登录系统
 
-数据库
-
 支付系统
 
 用户中心
@@ -140,7 +142,9 @@ OUT_OF_SCOPE:
 
 STORAGE:
 
-默认本地存储。
+PostgreSQL Schema 与迁移基线已经建立。
+
+当前 Chat UI 仍默认使用 localStorage；Sprint 1.2–1.4 渐进迁移到服务端。
 
 用户自带API Key。
 

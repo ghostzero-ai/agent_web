@@ -33,24 +33,37 @@ Deploy
 
 * Vercel
 
+Database
+
+* PostgreSQL
+* Drizzle ORM
+
 ---
 
 ## 当前开发进度
 
 已完成：
 
-* 项目初始化
+* Phase 0 聊天 MVP 基线
+* 树形对话与安全 Markdown/数学公式渲染
+* PostgreSQL/Drizzle Schema 与可回滚迁移基线
 
 开发中：
 
-* Landing Page
+* Conversation/Message 服务端 Repository 与 API
 
-计划：
+当前 Chat 数据仍保存在浏览器 localStorage；Phase 1 会先接入服务端数据层，再迁移旧数据。
 
-* API Key设置
-* Chat页面
-* Emotion Agent
-* Study Agent
+---
+
+## 数据库开发
+
+1. 在 `web/` 下把 `.env.example` 复制为 `.env.local`，填写本机 PostgreSQL 连接串。
+2. 执行 `npm run db:migrate` 升级到最新 Schema。
+3. 执行 `npm run db:rollback` 事务化回滚最近一条迁移。
+4. 修改 `lib/db/schema.ts` 后执行 `npm run db:generate`，审阅生成 SQL，并为新迁移补充同名 rollback SQL。
+
+详细流程、安全约束和故障处理见 `docs/DATABASE_OPERATIONS.md`。
 
 ---
 
