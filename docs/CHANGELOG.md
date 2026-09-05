@@ -4,6 +4,106 @@
 
 ---
 
+## Sprint 1.2 — Conversation/Message Repository 与 API
+
+**Commit**: `9e522d0`
+
+### 为什么
+
+Sprint 1.1 只有 PostgreSQL Schema 与迁移，Route、未来 Worker 和模型 Runtime 仍缺少统一的数据访问边界。本 Sprint 建立单用户服务端事实数据入口，并把对话树归属、活动叶节点和并发版本规则集中到 Repository，避免各层直接拼接 SQL。
+
+### 怎么做
+
+- 用固定 UUID 建立幂等的本地用户，不允许 API 接收或伪造 `userId`。
+- 使用 Drizzle Repository 提供会话创建、列表、详情、删除、消息追加和活动分支切换。
+- 消息追加在一个事务中完成 Conversation 行锁、父节点归属校验、Message 写入、active leaf 推进和版本递增。
+- 活动分支切换验证同会话、真实叶节点与 `expectedVersion`，拒绝静默并发覆盖。
+- Next.js Node.js Route Handler 提供 `/api/v1`，Zod 负责严格输入校验，统一错误结构、Request ID 和 `no-store`。
+- 保持现有 Chat/localStorage 不变；旧数据导入仍由 Sprint 1.4 显式处理。
+
+### 修改文件
+
+- `PROJECT.md`
+- `README.md`
+- `docs/CHANGELOG.md`
+- `docs/DATABASE_OPERATIONS.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `docs/SERVER_DATA_API.md`
+- `docs/adr/ADR-025-CONVERSATION-REPOSITORY-AND-API.md`
+- `web/app/api/v1/conversations/route.ts`
+- `web/app/api/v1/conversations/[id]/route.ts`
+- `web/app/api/v1/conversations/[id]/messages/route.ts`
+- `web/app/api/v1/conversations/[id]/active-leaf/route.ts`
+- `web/lib/api/conversationApi.ts`
+- `web/lib/db/client.ts`
+- `web/lib/repositories/conversationRepository.ts`
+- `web/package-lock.json`
+- `web/package.json`
+- `web/tests/conversationApi.test.ts`
+- `web/tests/conversationRepository.test.ts`
+
+### 代码与功能
+
+| 功能 | 说明 |
+|------|------|
+| 数据库客户端 | 延迟读取 `DATABASE_URL`，复用 Postgres.js 连接池，避免构建阶段连接数据库和开发热更新重复建池 |
+| 本地用户 | 固定 UUID + `ON CONFLICT DO NOTHING`，重复请求只保留一个单用户身份锚点 |
+| Conversation Repository | 提供列表、创建、完整树详情和级联删除，所有查询限定本地用户 |
+| Message 事务 | 校验父节点存在且属于同一会话；消息和活动叶/版本更新共同成功或共同回滚 |
+| 分支一致性 | 只允许选择同会话且无子节点的真实叶；非空会话不能清空 active leaf |
+| 并发控制 | Conversation 使用行锁和 `version` 乐观锁，过期客户端收到 `VERSION_CONFLICT` |
+| HTTP API | 新增 4 个动态路由，覆盖 6 个 Conversation/Message 操作 |
+| 输入校验 | 新增并固定 `zod@4.5.4`，严格验证 UUID、枚举、长度、URL 和未知字段 |
+| 错误契约 | `{ error: { code, message, retryable, requestId, details? } }`；数据库内部错误不返回客户端 |
+| 安全文档 | 明确当前无登录鉴权，只能在本机或可信私有网络使用，不得直接暴露公网 |
+| 架构记录 | ADR-025 固化 Repository 边界、固定单用户、树事务、乐观锁和分阶段迁移策略 |
+
+### 验证方法与结果
+
+- `npm test`：10 个测试文件、53 个测试全部通过。
+- Repository 集成测试：覆盖跨实例读取、树形兄弟分支、父节点归属、失败回滚、乐观锁、叶节点约束和级联删除。
+- API 集成测试：覆盖创建/列表/详情/删除、消息追加、输入错误、版本冲突、Request ID 和数据库初始化失败的安全响应。
+- `npm run db:check`：迁移元数据一致。
+- `npm run db:generate`：没有未生成的 Schema 变化；本 Sprint 无新增数据库迁移。
+- `npx tsc --noEmit --pretty false`：通过。
+- `npm run lint`：通过。
+- `npm run build`：通过；新增 4 个 Node.js 动态 API 路由，原 4 个静态页面正常生成。
+- Playwright：3 个 Microsoft Edge 既有主链路断言全部通过；受限网络下 Google Fonts 使用 fallback。Windows 本机复用的 Next 开发服务器在断言结束后仍保持句柄，本次手动结束测试协调进程，未终止不属于本次任务的既有 Node 进程。
+- `npm audit`：0 项已知漏洞。
+
+### localStorage 变化
+
+- 键名和值结构均无变化。
+- Chat UI 仍使用 `agent_chat_sessions`；数据库 API 与浏览器数据暂时并行，避免未经确认上传旧会话。
+
+### 项目结构快照
+
+```text
+web/
+├── app/
+│   ├── api/v1/conversations/       # 会话、消息与活动分支 Route Handlers
+│   ├── api-key/                     # 浏览器 API 配置页
+│   └── chat/                        # 当前 localStorage Chat UI
+├── components/chat/                 # Chat 展示与安全 Markdown 渲染
+├── drizzle/                         # forward/rollback SQL 与快照
+├── lib/
+│   ├── agent/                       # Prompt、Memory 与 Dispatcher
+│   ├── ai/                          # 当前浏览器 Provider 适配
+│   ├── api/                         # HTTP 校验、响应与错误契约
+│   ├── conversation/                # 浏览器树形领域操作
+│   ├── db/                          # Schema、连接与迁移基础
+│   ├── repositories/                # 服务端领域持久化边界
+│   └── runtime/                     # Browser Backend
+├── scripts/                         # 数据库 migrate/rollback 命令
+└── tests/                           # 单元、组件、数据库与 API 集成测试
+```
+
+### 下一步
+
+- Sprint 1.3：把 Model Provider 和 API Key 移到服务端，实现可取消的 SSE Streaming，并复用本 Sprint Repository 保存 user/assistant 消息。
+
+---
+
 ## Sprint 1.1 — PostgreSQL + Drizzle + Migration 基线
 
 **Commit**: `96649c8`
