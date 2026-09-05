@@ -6,7 +6,7 @@
 
 ## Sprint 0.5 — 树形对话与安全富文本渲染
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - `web/lib/conversation/tree.ts`
@@ -82,7 +82,7 @@ web/
 
 ## Sprint 0.4 — Chat 页面组件化
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - `web/app/chat/page.tsx`
@@ -128,7 +128,7 @@ web/
 
 ## Sprint 0.3 — 核心单元测试基线
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - `web/lib/config.ts`
@@ -167,7 +167,7 @@ web/
 
 ## Sprint 0.2 — 内部消息角色与 Prompt 分层
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - **新建** `web/lib/ai/messages.ts`
@@ -199,7 +199,7 @@ web/
 
 ## Sprint 0.1 — Session 持久化一致性
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - `web/lib/config.ts`
@@ -235,7 +235,7 @@ web/
 
 ## Planning 1.1 — 插件体系、Android 与自托管路线修订
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - `docs/PRODUCT_TECHNICAL_ROADMAP.md`
@@ -257,7 +257,7 @@ web/
 
 ## Research 1.0 — 爱语与相关开源项目架构学习
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - **新建** `docs/REFERENCE_PROJECT_STUDY.md`
@@ -277,7 +277,7 @@ web/
 
 ## Planning 1.0 — 产品与技术总规划
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - **新建** `docs/PRODUCT_TECHNICAL_ROADMAP.md`
@@ -299,7 +299,7 @@ web/
 
 ## Phase 9.2 — Browser Backend Layer
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - **新建** `web/lib/runtime/backend.ts`
@@ -325,7 +325,7 @@ UI (React) → subscribe/notify → Backend (runTask) → chatService (executeSe
 
 ## Sprint 9 — Chat Runtime Model + Background Execution
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - `web/lib/config.ts`
@@ -355,7 +355,7 @@ UI (React) → subscribe/notify → Backend (runTask) → chatService (executeSe
 
 ## Phase 9.3 — 执行隔离 + Abort + Session 级 loading
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - `web/lib/runtime/backend.ts`
@@ -375,7 +375,7 @@ UI (React) → subscribe/notify → Backend (runTask) → chatService (executeSe
 
 ## Phase 9.4 — 状态一致性收敛（Event Log 架构）
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 修改文件
 - `web/lib/runtime/backend.ts`
@@ -406,7 +406,7 @@ Backend (唯一写入者)
 
 ## Phase 10 — Browser Agent Core System
 
-**Commit**: `(待提交)`
+**Commit**: `803470b`（Phase 0 汇总提交）
 
 ### 新建文件
 - `web/lib/agent/memory.ts` — 长期记忆系统（`agent_memory_store`）
