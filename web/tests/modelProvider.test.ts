@@ -11,6 +11,7 @@ import {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("server model configuration", () => {
@@ -68,6 +69,55 @@ describe("server model configuration", () => {
 });
 
 describe("OpenAICompatibleProvider", () => {
+  it("retries a transient DNS lookup failure before streaming", async () => {
+    const dnsError = Object.assign(new TypeError("fetch failed"), {
+      cause: { code: "EAI_AGAIN" },
+    });
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            'data: {"choices":[{"delta":{"content":"OK"}}]}\n\ndata: [DONE]\n\n',
+          ),
+        );
+        controller.close();
+      },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(dnsError)
+      .mockResolvedValueOnce(
+        new Response(stream, {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const provider = new OpenAICompatibleProvider({
+      apiKey: "server-secret",
+      baseUrl: "https://provider.example/v1",
+      model: "test-model",
+    });
+
+    const events = [];
+    for await (const event of provider.stream({
+      messages: [{ role: "user", content: "你好" }],
+    })) {
+      events.push(event);
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(events).toEqual([
+      { type: "delta", text: "OK" },
+      { type: "done" },
+    ]);
+    expect(console.warn).toHaveBeenCalledWith(
+      "[model-provider] Retrying after transient DNS failure",
+      { code: "EAI_AGAIN", attempt: 2 },
+    );
+  });
+
   it("parses split OpenAI-compatible SSE chunks", async () => {
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
