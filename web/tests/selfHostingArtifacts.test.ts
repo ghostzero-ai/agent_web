@@ -27,6 +27,9 @@ describe("single-user self-hosting artifacts", () => {
     ]);
 
     expect(compose).toContain("${APP_BIND_ADDRESS:-127.0.0.1}");
+    expect(compose).toContain(
+      "${CREDENTIAL_MASTER_KEY:?Set CREDENTIAL_MASTER_KEY in .env.selfhost}",
+    );
     expect(compose).toContain("condition: service_healthy");
     expect(compose).toContain("/api/v1/health");
     expect(compose.split("  web:")[1]).not.toContain("POSTGRES_PASSWORD");
