@@ -4,6 +4,61 @@
 
 ---
 
+## Credential Vault 2/3 — 安全凭据 API 与模型运行时
+
+**Commit**: `ac006c0`
+
+### 为什么
+
+加密表本身不能形成产品能力；浏览器需要一个严格、不可回读明文的服务端接口，聊天、健康检查和未来 Scheduler 也必须统一从同一个解析边界取得模型配置，避免再次依赖前端逐请求携带 Key。
+
+### 怎么做
+
+- 新增凭据状态、保存、删除和 Provider `/models` 连接测试接口。
+- 严格校验 JSON、字段数量、长度、HTTPS URL，并拒绝 URL 内嵌账号密码。
+- Provider 测试限制 10 秒，只返回连接与模型可用性，不转发上游响应正文。
+- 模型流与健康检查异步解析数据库凭据；没有存储记录时兼容回退服务端环境变量。
+- 状态、错误与日志均不返回 API Key、加密信封、数据库细节或上游正文。
+
+### 修改文件
+
+- `web/app/api/v1/model/config/route.ts`
+- `web/app/api/v1/model/credentials/route.ts`
+- `web/app/api/v1/model/credentials/test/route.ts`
+- `web/lib/ai/server/modelConfig.ts`
+- `web/lib/ai/server/modelCredentialService.ts`
+- `web/lib/api/healthApi.ts`
+- `web/lib/api/modelApi.ts`
+- `web/lib/api/modelCredentialApi.ts`
+- `web/tests/healthApi.test.ts`
+- `web/tests/modelApi.test.ts`
+- `web/tests/modelCredentialApi.test.ts`
+- `web/tests/modelCredentialService.test.ts`
+- `web/tests/modelProvider.test.ts`
+- `docs/CHANGELOG.md`
+
+### 代码与功能
+
+| 功能 | 说明 |
+|------|------|
+| `GET /api/v1/model/credentials` | 返回来源、Provider、Base URL、Model、Key 末四位提示和版本 |
+| `PUT /api/v1/model/credentials` | 接收一次明文输入，在服务端加密并只返回公开状态 |
+| `DELETE /api/v1/model/credentials` | 删除数据库凭据；环境变量兜底不受影响 |
+| `POST /api/v1/model/credentials/test` | 用临时输入查询 Provider 模型列表，不写数据库 |
+| 运行时解析 | 存储凭据优先、环境变量兜底；后台任务可复用同一入口 |
+| 故障隔离 | 凭据存储异常时健康检查返回安全 503，配置接口返回稳定错误结构 |
+
+### 验证方法与结果
+
+- `npm test`：21 个测试文件、89 个测试全部通过。
+- API 测试覆盖未知字段、HTTP/内嵌认证 URL、主密钥缺失和响应不泄密。
+- Service 测试覆盖加密保存、服务端解密、模型列表检测和上游认证错误映射。
+- `npm run lint`、`npx tsc --noEmit`、`npm run build`、`git diff --check`：通过。
+
+### localStorage 变化
+
+- 无；明文 Key 只存在于设置请求和短暂服务端内存中。
+
 ## Credential Vault 1/3 — 加密凭据数据层
 
 **Commit**: `42aabd7`
