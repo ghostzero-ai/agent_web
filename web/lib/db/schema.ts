@@ -147,7 +147,44 @@ export const conversationImports = pgTable(
   ],
 );
 
+export const modelCredentials = pgTable(
+  "model_credentials",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    baseUrl: text("base_url").notNull(),
+    model: text("model").notNull(),
+    encryptedApiKey: text("encrypted_api_key").notNull(),
+    apiKeyHint: text("api_key_hint").notNull(),
+    encryptionKeyVersion: integer("encryption_key_version")
+      .notNull()
+      .default(1),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("model_credentials_user_provider_unique").on(
+      table.userId,
+      table.provider,
+    ),
+    check(
+      "model_credentials_encryption_key_version_positive",
+      sql`${table.encryptionKeyVersion} > 0`,
+    ),
+    check("model_credentials_version_positive", sql`${table.version} > 0`),
+  ],
+);
+
 export type UserRecord = typeof users.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type ConversationImportRecord = typeof conversationImports.$inferSelect;
+export type ModelCredentialRecord = typeof modelCredentials.$inferSelect;

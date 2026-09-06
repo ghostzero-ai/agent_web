@@ -47,7 +47,7 @@ describe("database migrations", () => {
   it("creates, validates and re-applies the current PostgreSQL schema", async () => {
     const migrations = await loadMigrations();
 
-    expect(migrations).toHaveLength(2);
+    expect(migrations).toHaveLength(3);
     expect(migrations.every((migration) => migration.down !== null)).toBe(true);
     await expect(migrateDatabase(database, migrations)).resolves.toEqual(
       migrations.map((migration) => migration.id),
@@ -63,6 +63,7 @@ describe("database migrations", () => {
       "conversation_imports",
       "conversations",
       "messages",
+      "model_credentials",
       "users",
     ]);
 
@@ -91,19 +92,19 @@ describe("database migrations", () => {
 
     await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
     await expect(rollbackDatabase(database, migrations)).resolves.toBe(
-      migrations[1].id,
+      migrations[2].id,
     );
 
     const tablesAfterRollback = await pglite.query<{ tablename: string }>(`
       SELECT tablename
       FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename = 'conversation_imports'
+        AND tablename = 'model_credentials'
     `);
     expect(tablesAfterRollback.rows).toEqual([]);
 
     await expect(migrateDatabase(database, migrations)).resolves.toEqual([
-      migrations[1].id,
+      migrations[2].id,
     ]);
   });
 
