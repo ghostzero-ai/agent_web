@@ -93,6 +93,25 @@ describe("Conversation API", () => {
     });
     expect(getBody.data.createdAt).toMatch(/Z$/);
 
+    const renameResponse = await api.rename(
+      id,
+      jsonRequest(`/api/v1/conversations/${id}`, "PATCH", {
+        title: "持久化标题",
+        expectedVersion: createBody.data.version,
+      }),
+    );
+    const renamed = (await renameResponse.json()).data;
+    expect(renamed).toMatchObject({ title: "持久化标题", version: 2 });
+
+    const staleRename = await api.rename(
+      id,
+      jsonRequest(`/api/v1/conversations/${id}`, "PATCH", {
+        title: "过期覆盖",
+        expectedVersion: createBody.data.version,
+      }),
+    );
+    expect(staleRename.status).toBe(409);
+
     const deleteResponse = await api.delete(id);
     expect(deleteResponse.status).toBe(204);
     expect((await api.get(id)).status).toBe(404);

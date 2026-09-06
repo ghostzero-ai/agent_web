@@ -26,6 +26,11 @@ export type CreateConversationInput = {
   mode: ConversationMode;
 };
 
+export type RenameConversationInput = {
+  title: string;
+  expectedVersion: number;
+};
+
 export type AppendMessageInput = {
   parentMessageId: string | null;
   role: MessageRole;
@@ -55,6 +60,10 @@ export interface ConversationRepositoryPort {
   createConversation(input: CreateConversationInput): Promise<ConversationSummary>;
   getConversation(id: string): Promise<ConversationDetail | null>;
   deleteConversation(id: string): Promise<boolean>;
+  renameConversation(
+    id: string,
+    input: RenameConversationInput,
+  ): Promise<ConversationSummary>;
   appendMessage(
     conversationId: string,
     input: AppendMessageInput,
@@ -143,6 +152,57 @@ export class ConversationRepository<
       )
       .returning({ id: conversations.id });
     return deleted.length > 0;
+  }
+
+  async renameConversation(
+    id: string,
+    input: RenameConversationInput,
+  ): Promise<ConversationSummary> {
+    return this.database.transaction(async (transaction) => {
+      const [conversation] = await transaction
+        .select({ version: conversations.version })
+        .from(conversations)
+        .where(
+          and(eq(conversations.id, id), eq(conversations.userId, LOCAL_USER_ID)),
+        )
+        .for("update")
+        .limit(1);
+      if (!conversation) {
+        throw new RepositoryError(
+          "CONVERSATION_NOT_FOUND",
+          "Conversation was not found.",
+        );
+      }
+      if (conversation.version !== input.expectedVersion) {
+        throw new RepositoryError(
+          "VERSION_CONFLICT",
+          "Conversation version does not match.",
+        );
+      }
+
+      const [updated] = await transaction
+        .update(conversations)
+        .set({
+          title: input.title,
+          updatedAt: new Date(),
+          version: sql`${conversations.version} + 1`,
+        })
+        .where(
+          and(
+            eq(conversations.id, id),
+            eq(conversations.userId, LOCAL_USER_ID),
+            eq(conversations.version, input.expectedVersion),
+          ),
+        )
+        .returning();
+      if (!updated) {
+        throw new RepositoryError(
+          "VERSION_CONFLICT",
+          "Conversation changed while its title was being updated.",
+        );
+      }
+      return updated;
+    });
   }
 
   async appendMessage(

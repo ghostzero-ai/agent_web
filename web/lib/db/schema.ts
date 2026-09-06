@@ -9,6 +9,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -120,6 +121,33 @@ export const messages = pgTable(
   ],
 );
 
+export const conversationImports = pgTable(
+  "conversation_imports",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    sourceId: text("source_id").notNull(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    importedAt: timestamp("imported_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("conversation_imports_source_unique").on(
+      table.userId,
+      table.source,
+      table.sourceId,
+    ),
+    index("conversation_imports_conversation_idx").on(table.conversationId),
+  ],
+);
+
 export type UserRecord = typeof users.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
+export type ConversationImportRecord = typeof conversationImports.$inferSelect;

@@ -47,11 +47,11 @@ describe("database migrations", () => {
   it("creates, validates and re-applies the current PostgreSQL schema", async () => {
     const migrations = await loadMigrations();
 
-    expect(migrations).toHaveLength(1);
-    expect(migrations[0].down).not.toBeNull();
-    await expect(migrateDatabase(database, migrations)).resolves.toEqual([
-      migrations[0].id,
-    ]);
+    expect(migrations).toHaveLength(2);
+    expect(migrations.every((migration) => migration.down !== null)).toBe(true);
+    await expect(migrateDatabase(database, migrations)).resolves.toEqual(
+      migrations.map((migration) => migration.id),
+    );
 
     const tableResult = await pglite.query<{ tablename: string }>(`
       SELECT tablename
@@ -60,6 +60,7 @@ describe("database migrations", () => {
       ORDER BY tablename
     `);
     expect(tableResult.rows.map((row) => row.tablename)).toEqual([
+      "conversation_imports",
       "conversations",
       "messages",
       "users",
@@ -90,19 +91,19 @@ describe("database migrations", () => {
 
     await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
     await expect(rollbackDatabase(database, migrations)).resolves.toBe(
-      migrations[0].id,
+      migrations[1].id,
     );
 
     const tablesAfterRollback = await pglite.query<{ tablename: string }>(`
       SELECT tablename
       FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename IN ('users', 'conversations', 'messages')
+        AND tablename = 'conversation_imports'
     `);
     expect(tablesAfterRollback.rows).toEqual([]);
 
     await expect(migrateDatabase(database, migrations)).resolves.toEqual([
-      migrations[0].id,
+      migrations[1].id,
     ]);
   });
 

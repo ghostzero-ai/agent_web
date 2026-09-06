@@ -22,3 +22,11 @@ export async function DELETE(
   const { id } = await context.params;
   return getConversationApi().delete(id);
 }
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  const { id } = await context.params;
+  return getConversationApi().rename(id, request);
+}

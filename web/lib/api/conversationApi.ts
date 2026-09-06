@@ -67,6 +67,13 @@ const setActiveLeafSchema = z
   })
   .strict();
 
+const renameConversationSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    expectedVersion: z.number().int().positive(),
+  })
+  .strict();
+
 function responseHeaders(requestId: string): HeadersInit {
   return {
     "cache-control": "no-store",
@@ -259,6 +266,18 @@ export function createConversationApi(
           status: 204,
           headers: responseHeaders(requestId),
         });
+      });
+    },
+
+    rename(id: string, request: Request): Promise<Response> {
+      return handleRequest(async (requestId) => {
+        const conversationId = parseConversationId(id);
+        const input = await parseBody(request, renameConversationSchema);
+        const conversation = await repository().renameConversation(
+          conversationId,
+          input,
+        );
+        return jsonResponse(requestId, { data: conversation });
       });
     },
 
