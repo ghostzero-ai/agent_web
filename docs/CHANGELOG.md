@@ -4,6 +4,49 @@
 
 ---
 
+## Sprint 1.5.1 — Docker 迁移入口兼容修复
+
+**Commit**: `c91a58d`
+
+### 为什么
+
+首次真实 Docker Desktop 演练发现，生产镜像中的 `tsx` 将迁移入口按 CommonJS 输出处理，原有顶层 `await` 无法转换，导致 Web 容器在数据库健康后循环重启。此前静态 Compose 检查、PGlite 迁移测试与宿主机构建均未覆盖这一容器运行时差异。
+
+### 怎么做
+
+- 将迁移与回滚入口收进显式异步 `main()`，避免依赖顶层 `await`。
+- 在入口末尾统一捕获错误并设置失败退出码，同时继续通过 `finally` 关闭数据库连接。
+- 增加自托管制品回归断言，防止迁移入口重新引入 CommonJS 不兼容写法。
+
+### 修改文件
+
+- `web/scripts/db-migrate.ts`
+- `web/scripts/db-rollback.ts`
+- `web/tests/selfHostingArtifacts.test.ts`
+- `docs/CHANGELOG.md`
+
+### 代码与功能
+
+| 功能 | 说明 |
+|------|------|
+| 容器启动 | PostgreSQL 健康后可执行全部迁移并启动 Next.js，不再循环重启 |
+| 回滚入口 | 与迁移入口保持相同的 CommonJS 兼容生命周期和失败退出语义 |
+| 回归保护 | 静态检查两个命令入口均使用 `main()` 和显式错误捕获 |
+
+### 验证方法与结果
+
+- `npm test`：17 个测试文件、76 个测试全部通过。
+- `npm run lint`、`npx tsc --noEmit`：通过。
+- `npm run build`：受限网络首次因 Google Fonts 获取失败；在允许网络后通过。
+- `docker compose --env-file .env.selfhost up --build -d`：真实 Docker Desktop 构建并启动成功。
+- PostgreSQL 容器 `healthy`；Web 容器 `healthy`，仅映射 `127.0.0.1:3000`。
+- 容器日志确认应用 `0000_easy_joystick.sql`、`0001_perfect_typhoid_mary.sql` 后启动 Next.js。
+- `/api/v1/health` 返回 `degraded`：数据库 `ready`，模型凭据按计划尚未配置。
+
+### localStorage 变化
+
+- 无。
+
 ## Sprint 1.5 — Docker Compose 单用户自托管基线
 
 **Commit**: `c42bbdc`
