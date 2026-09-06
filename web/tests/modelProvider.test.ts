@@ -16,12 +16,12 @@ afterEach(() => {
 describe("server model configuration", () => {
   it("keeps the key private while reporting safe provider status", () => {
     vi.stubEnv("AI_API_KEY", "super-secret");
-    vi.stubEnv("AI_BASE_URL", "https://user:password@provider.example/v1/");
+    vi.stubEnv("AI_BASE_URL", "https://provider.example/v1/");
     vi.stubEnv("AI_MODEL", "test-model");
 
     expect(getModelProviderConfig()).toEqual({
       apiKey: "super-secret",
-      baseUrl: "https://user:password@provider.example/v1",
+      baseUrl: "https://provider.example/v1",
       model: "test-model",
     });
     expect(getModelProviderStatus()).toEqual({
@@ -31,7 +31,6 @@ describe("server model configuration", () => {
       missing: [],
     });
     expect(JSON.stringify(getModelProviderStatus())).not.toContain("super-secret");
-    expect(JSON.stringify(getModelProviderStatus())).not.toContain("password");
   });
 
   it("requires complete config and explicit opt-in for HTTP", () => {
@@ -48,6 +47,23 @@ describe("server model configuration", () => {
 
     vi.stubEnv("AI_ALLOW_INSECURE_HTTP", "true");
     expect(getModelProviderStatus().baseUrl).toBe("http://127.0.0.1:11434");
+  });
+
+  it("rejects provider URLs with embedded credentials", () => {
+    vi.stubEnv("AI_API_KEY", "super-secret");
+    vi.stubEnv(
+      "AI_BASE_URL",
+      "https://user:password@provider.example/v1",
+    );
+    vi.stubEnv("AI_MODEL", "test-model");
+
+    expect(() => getModelProviderConfig()).toThrow(ModelConfigError);
+    expect(getModelProviderStatus()).toMatchObject({
+      configured: false,
+      baseUrl: null,
+      missing: ["AI_BASE_URL (invalid)"],
+    });
+    expect(JSON.stringify(getModelProviderStatus())).not.toContain("password");
   });
 });
 

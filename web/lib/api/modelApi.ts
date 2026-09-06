@@ -1,11 +1,13 @@
 import { z, ZodError } from "zod";
 import {
-  getModelProviderConfig,
-  getModelProviderStatus,
   ModelConfigError,
   type ModelProviderConfig,
   type ModelProviderStatus,
 } from "@/lib/ai/server/modelConfig";
+import {
+  resolveModelProviderConfig,
+  resolveModelProviderStatus,
+} from "@/lib/ai/server/modelCredentialService";
 import {
   ModelProviderError,
   OpenAICompatibleProvider,
@@ -13,8 +15,8 @@ import {
 } from "@/lib/ai/server/modelProvider";
 
 type ModelApiDependencies = {
-  getConfig: () => ModelProviderConfig;
-  getStatus: () => ModelProviderStatus;
+  getConfig: () => ModelProviderConfig | Promise<ModelProviderConfig>;
+  getStatus: () => ModelProviderStatus | Promise<ModelProviderStatus>;
   createProvider: (config: ModelProviderConfig) => ModelProvider;
 };
 
@@ -91,12 +93,25 @@ async function parseRequest(request: Request) {
 
 export function createModelApi(dependencies: ModelApiDependencies) {
   return {
-    status(): Response {
+    async status(): Promise<Response> {
       const requestId = crypto.randomUUID();
-      return Response.json(
-        { data: dependencies.getStatus() },
-        { headers: headers(requestId, "application/json") },
-      );
+      try {
+        return Response.json(
+          { data: await dependencies.getStatus() },
+          { headers: headers(requestId, "application/json") },
+        );
+      } catch (error) {
+        console.error(`[model-config:${requestId}] Status check failed`, {
+          name: error instanceof Error ? error.name : "UnknownError",
+        });
+        return apiError(
+          requestId,
+          500,
+          "INTERNAL_ERROR",
+          "The server could not read the model configuration.",
+          true,
+        );
+      }
     },
 
     async stream(request: Request): Promise<Response> {
@@ -106,7 +121,7 @@ export function createModelApi(dependencies: ModelApiDependencies) {
 
       try {
         input = await parseRequest(request);
-        config = dependencies.getConfig();
+        config = await dependencies.getConfig();
       } catch (error) {
         if (error instanceof SyntaxError) {
           return apiError(
@@ -211,8 +226,8 @@ export function createModelApi(dependencies: ModelApiDependencies) {
 
 export function getModelApi() {
   return createModelApi({
-    getConfig: getModelProviderConfig,
-    getStatus: getModelProviderStatus,
+    getConfig: resolveModelProviderConfig,
+    getStatus: resolveModelProviderStatus,
     createProvider: (config) => new OpenAICompatibleProvider(config),
   });
 }

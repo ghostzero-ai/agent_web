@@ -1,10 +1,11 @@
 import { sql } from "drizzle-orm";
-import { getModelProviderStatus, type ModelProviderStatus } from "@/lib/ai/server/modelConfig";
+import type { ModelProviderStatus } from "@/lib/ai/server/modelConfig";
+import { resolveModelProviderStatus } from "@/lib/ai/server/modelCredentialService";
 import { getDatabase } from "@/lib/db/client";
 
 type HealthApiDependencies = {
   checkDatabase: () => Promise<void>;
-  getModelStatus: () => ModelProviderStatus;
+  getModelStatus: () => ModelProviderStatus | Promise<ModelProviderStatus>;
   now: () => Date;
 };
 
@@ -26,7 +27,22 @@ export function createHealthApi(dependencies: HealthApiDependencies) {
         });
       }
 
-      const model = dependencies.getModelStatus();
+      let model: ModelProviderStatus = {
+        configured: false,
+        baseUrl: null,
+        model: null,
+        missing: [],
+      };
+      if (databaseReady) {
+        try {
+          model = await dependencies.getModelStatus();
+        } catch (error) {
+          databaseReady = false;
+          console.error(`[health:${requestId}] Model status check failed`, {
+            name: error instanceof Error ? error.name : "UnknownError",
+          });
+        }
+      }
       const status = !databaseReady
         ? "unhealthy"
         : model.configured
@@ -55,7 +71,7 @@ export function getHealthApi() {
     async checkDatabase() {
       await getDatabase().execute(sql`select 1`);
     },
-    getModelStatus: getModelProviderStatus,
+    getModelStatus: resolveModelProviderStatus,
     now: () => new Date(),
   });
 }

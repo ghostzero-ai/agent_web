@@ -28,7 +28,7 @@ function readServerConfig() {
   };
 }
 
-function normalizeBaseUrl(value: string): string {
+export function normalizeBaseUrl(value: string): string {
   let url: URL;
   try {
     url = new URL(value);
@@ -41,6 +41,10 @@ function normalizeBaseUrl(value: string): string {
     throw new Error(
       "AI_BASE_URL must use HTTPS unless AI_ALLOW_INSECURE_HTTP=true.",
     );
+  }
+
+  if (url.username || url.password) {
+    throw new Error("AI_BASE_URL must not contain embedded credentials.");
   }
 
   url.pathname = url.pathname.replace(/\/+$/, "");

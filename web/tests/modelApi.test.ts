@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createModelApi } from "@/lib/api/modelApi";
 import { ModelConfigError } from "@/lib/ai/server/modelConfig";
 import type {
@@ -11,6 +11,10 @@ const config = {
   baseUrl: "https://provider.example/v1",
   model: "test-model",
 };
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function request(body: unknown, signal?: AbortSignal): Request {
   return new Request("http://localhost/api/v1/model/stream", {
@@ -87,6 +91,27 @@ describe("Model API", () => {
       retryable: false,
       details: { missing: ["AI_API_KEY"] },
     });
+  });
+
+  it("returns a safe error when model status storage is unavailable", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const api = createModelApi({
+      getConfig: () => config,
+      getStatus: async () => {
+        throw new Error("database secret detail");
+      },
+      createProvider: () => {
+        throw new Error("must not create provider");
+      },
+    });
+
+    const response = await api.status();
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.error.code).toBe("INTERNAL_ERROR");
+    expect(JSON.stringify(body)).not.toContain("secret detail");
+    expect(consoleError).toHaveBeenCalledOnce();
   });
 
   it("propagates client cancellation to the provider signal", async () => {

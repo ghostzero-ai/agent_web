@@ -73,4 +73,27 @@ describe("health API", () => {
     expect(JSON.stringify(body)).not.toContain("secret");
     expect(consoleError).toHaveBeenCalledOnce();
   });
+
+  it("returns 503 without leaking credential status errors", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await createHealthApi({
+      checkDatabase: async () => undefined,
+      getModelStatus: async () => {
+        throw new Error("credential secret detail");
+      },
+      now: () => new Date(0),
+    }).check();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.data).toMatchObject({
+      status: "unhealthy",
+      checks: {
+        database: "unavailable",
+        modelProvider: "not_configured",
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain("secret detail");
+    expect(consoleError).toHaveBeenCalledOnce();
+  });
 });
