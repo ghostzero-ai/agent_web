@@ -4,6 +4,55 @@
 
 ---
 
+## Credential Vault 1/3 — 加密凭据数据层
+
+**Commit**: `42aabd7`
+
+### 为什么
+
+模型配置此前只能从服务端环境变量读取，未实现项目原始的 BYOK 设置流程；直接恢复浏览器 localStorage 又会重新引入 XSS、跨设备和后台任务无法取 Key 的问题。本任务先建立只在服务端解密的持久化地基。
+
+### 怎么做
+
+- 新增单用户、按 Provider 唯一的 `model_credentials` 表及可回滚迁移。
+- API Key 使用 AES-256-GCM、随机 96-bit IV、128-bit Auth Tag 和固定 AAD 加密，密文采用带版本信封格式。
+- 数据库只保存密文、末四位提示、加密主密钥版本与乐观版本，不保存明文。
+- Repository 提供读取、原位 upsert 与删除，并始终约束固定本地用户和 `openai-compatible` Provider。
+
+### 修改文件
+
+- `web/drizzle/0002_goofy_smasher.sql`
+- `web/drizzle/meta/0002_snapshot.json`
+- `web/drizzle/meta/_journal.json`
+- `web/drizzle/rollback/0002_goofy_smasher.sql`
+- `web/lib/ai/server/credentialCipher.ts`
+- `web/lib/db/schema.ts`
+- `web/lib/repositories/modelCredentialRepository.ts`
+- `web/tests/credentialCipher.test.ts`
+- `web/tests/databaseMigrations.test.ts`
+- `web/tests/modelCredentialRepository.test.ts`
+- `docs/CHANGELOG.md`
+
+### 代码与功能
+
+| 功能 | 说明 |
+|------|------|
+| 加密信封 | `v1.iv.authTag.ciphertext`，认证加密可拒绝篡改或错误主密钥 |
+| Schema | 用户/Provider 唯一、级联删除、正数版本约束和完整时间戳 |
+| Repository | 单用户凭据读取、替换和删除；更新不产生重复行 |
+| 回滚 | 最新迁移可独立删除 `model_credentials` 并重新应用 |
+
+### 验证方法与结果
+
+- `npm test`：19 个测试文件、80 个测试全部通过。
+- 加密测试：明文不进入信封、正确解密、篡改拒绝、非法主密钥拒绝。
+- Repository 测试：唯一记录 upsert、版本递增、删除幂等、存储值无测试明文。
+- `npm run db:check`、`npm run lint`、`npx tsc --noEmit`、`npm run build`：通过。
+
+### localStorage 变化
+
+- 无；API Key 不恢复到浏览器存储。
+
 ## Sprint 1.5.1 — Docker 迁移入口兼容修复
 
 **Commit**: `c91a58d`
