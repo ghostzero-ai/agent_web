@@ -14,9 +14,11 @@ out/
 .env
 .env.local
 .env.*
+!.env.selfhost.example
 
 # Logs
 *.log
+backups/
 
 # OS
 .DS_Store
