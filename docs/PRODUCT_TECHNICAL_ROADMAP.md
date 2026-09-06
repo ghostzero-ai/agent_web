@@ -1520,16 +1520,19 @@ Domain 不依赖 Next.js、React、数据库驱动或具体模型 SDK
 
 ### 20.1 API Key 策略
 
-当前浏览器 localStorage BYOK 适合本地原型，但不适合云端 Scheduler。单用户部署的首选方式：
+浏览器 localStorage BYOK 只适合早期原型，不适合云端 Scheduler。当前单用户部署已经完成 Credential Vault：
 
-- 模型 Key 保存在服务端环境变量。
-- 浏览器不再读取真实 Key。
-- Base URL 由服务端配置或受控白名单决定。
+- 用户在 `/api-key` 写入式页面输入、测试和保存 Key。
+- Key 只在请求期间处于浏览器内存，服务端用 AES-256-GCM 加密后写入 PostgreSQL。
+- 读取接口只返回配置来源、Base URL、Model 与 Key 末四位提示，不返回密文或明文。
+- 模型 Streaming、健康检查和未来 Scheduler 使用统一的服务端解析入口；数据库凭据优先，环境变量仅作兜底。
+- 自定义 Base URL 必须使用 HTTPS（显式自托管开关除外），并拒绝 URL 内嵌认证信息。
 
-未来若支持多个用户：
+未来若支持多个用户或公开部署：
 
-- 密钥加密存储。
 - 使用专门 KMS/Secrets 服务管理主密钥。
+- 身份认证完成后按 `userId + provider` 强制隔离凭据。
+- 增加 Provider/出口白名单、凭据轮换和主密钥版本迁移。
 - 严格禁止把 Key 写入日志、Run 结果或客户端错误。
 
 ### 20.2 SSRF 与自定义 Base URL

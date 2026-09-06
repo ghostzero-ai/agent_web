@@ -1,12 +1,13 @@
 # 单用户自托管运行手册
 
-Sprint 1.5 提供由 Next.js Web/API 与 PostgreSQL 组成的 Docker Compose 基线。它面向个人笔记本运行，也保留未来迁移到云主机时不改领域代码的路径。
+当前基线由 Docker Compose 中的 Next.js Web/API 与 PostgreSQL 组成，面向个人笔记本运行，并保留未来迁移到云主机时不改领域代码的路径。手机远程访问首选 Tailscale 私有网络；数据库不映射宿主机端口，Web 默认只绑定 localhost。
 
 ## 1. 前提
 
 - 安装 Docker Desktop（Windows/macOS）或 Docker Engine + Compose Plugin（Linux）。
-- 笔记本重启后要自动恢复服务，需要让 Docker 自身随系统启动；Compose 服务已设置 `restart: unless-stopped`。
-- 当前版本没有登录鉴权。默认只监听 `127.0.0.1`，不要直接暴露到公网。
+- 在笔记本和需要访问的手机上安装 Tailscale，并登录同一个 Tailnet 账号。
+- 笔记本重启后要自动恢复服务，需要让 Docker 与 Tailscale 随系统启动；Compose 服务已设置 `restart: unless-stopped`。
+- 当前版本没有应用登录鉴权。不要做公网端口转发，也不要启用 Tailscale Funnel。
 
 ## 2. 首次启动
 
@@ -19,8 +20,18 @@ Copy-Item .env.selfhost.example .env.selfhost
 编辑 `.env.selfhost`：
 
 - 为 `POSTGRES_PASSWORD` 生成长随机密码，并同步修改 `DATABASE_URL`；密码含 URI 保留字符时需要 URL 编码。
-- 填写真实 `AI_API_KEY`、`AI_BASE_URL` 和 `AI_MODEL`。
-- 保持 `APP_BIND_ADDRESS=127.0.0.1`，除非明确需要可信局域网设备访问。
+- 为 `CREDENTIAL_MASTER_KEY` 生成 32 个随机字节的无填充 base64url 字符串。PowerShell 可使用：
+
+```powershell
+$bytes = New-Object byte[] 32
+$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+$rng.Dispose()
+[Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+','-').Replace('/','_')
+```
+
+- `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 是可选的管理员兜底。推荐先留空，启动后在 `/api-key` 页面测试并保存凭据。
+- 保持 `APP_BIND_ADDRESS=127.0.0.1`。Tailscale Serve 可以代理 localhost，无需将应用暴露到整个局域网。
 
 启动并构建：
 
@@ -30,9 +41,37 @@ docker compose --env-file .env.selfhost ps
 docker compose --env-file .env.selfhost logs --tail 100 web
 ```
 
-Web 容器会等待 PostgreSQL 健康，然后先执行 `npm run db:migrate`，确认迁移成功后才启动 Next.js。打开 `http://127.0.0.1:3000/chat`。
+Web 容器会等待 PostgreSQL 健康，然后先执行 `npm run db:migrate`，确认迁移成功后才启动 Next.js。电脑本机打开 `http://127.0.0.1:3000/api-key`，测试并保存模型凭据；之后打开 `/chat`。
 
-## 3. 健康检查
+## 3. Tailscale 手机私有访问
+
+完成电脑端与手机端安装、登录后，在 Windows 管理员 PowerShell 执行：
+
+```powershell
+tailscale serve --bg localhost:3000
+tailscale serve status
+```
+
+命令会返回仅 Tailnet 内可访问的 HTTPS 地址。在手机开启 Tailscale 后，访问该地址的 `/api-key` 或 `/chat`。此方案保留 `APP_BIND_ADDRESS=127.0.0.1`，由 Tailscale 提供设备身份、私有路由与 HTTPS。
+
+命令细节与版本变化以 [Tailscale Serve 官方文档](https://tailscale.com/docs/reference/tailscale-cli/serve) 为准。
+
+停用代理：
+
+```powershell
+tailscale serve reset
+```
+
+安全规则：
+
+1. 使用 `tailscale serve`，不要使用会公开到互联网的 `tailscale funnel`。
+2. 只把可信设备加入 Tailnet，并为 Tailscale 账号启用多因素认证。
+3. 笔记本必须开机，Docker、Tailscale 和容器必须运行，手机才能访问。
+4. 当前应用没有二次登录；同一 Tailnet 中获准访问该设备的成员应被视为可信用户。
+
+如果以后确实只在可信同一 Wi-Fi 使用，也可以将 `APP_BIND_ADDRESS` 改为 `0.0.0.0` 并设置 Windows 防火墙来源限制。但 Tailscale 是当前首选，日常使用不需要修改该变量。
+
+## 4. 健康检查
 
 `GET /api/v1/health` 返回：
 
@@ -47,7 +86,7 @@ Invoke-RestMethod http://127.0.0.1:3000/api/v1/health
 docker compose --env-file .env.selfhost ps
 ```
 
-## 4. 停止、升级与重启恢复
+## 5. 停止、升级与重启恢复
 
 ```powershell
 # 停止容器但保留数据库卷
@@ -59,7 +98,7 @@ docker compose --env-file .env.selfhost up --build -d
 
 不要执行 `docker compose down -v`，它会删除 PostgreSQL 数据卷。代码更新前先备份；涉及 Schema 变化时阅读对应 CHANGELOG 和 rollback 说明。
 
-## 5. 备份
+## 6. 备份与主密钥
 
 Windows PowerShell：
 
@@ -73,9 +112,13 @@ Linux/macOS：
 ./scripts/selfhost-backup.sh
 ```
 
-脚本通过容器内 `pg_dump` 生成 `backups/agent-web-<timestamp>.sql`。`backups/` 与真实 `.env.selfhost` 均被 Git 忽略。至少定期把备份复制到另一块磁盘或受保护的云存储；只保存在同一笔记本上不能防范磁盘损坏。
+脚本通过容器内 `pg_dump` 生成 `backups/agent-web-<timestamp>.sql`。`backups/` 与真实 `.env.selfhost` 均被 Git 忽略。
 
-## 6. 还原演练
+数据库备份包含加密后的模型凭据，但不包含 `CREDENTIAL_MASTER_KEY`。必须把主密钥另存到密码管理器或其他受保护位置；不要把它直接附在数据库备份旁。丢失主密钥不会影响会话正文，但现有 API Key 密文无法解密，只能删除并重新保存新的 Key。
+
+至少定期把数据库备份复制到另一块磁盘或受保护的云存储；只保存在同一笔记本上不能防范磁盘损坏。
+
+## 7. 还原演练
 
 还原会替换当前数据库，必须显式确认。先停止写入并核对目标环境与文件：
 
@@ -87,29 +130,26 @@ Linux/macOS：
 ./scripts/selfhost-restore.sh ./backups/agent-web-20260906-120000.sql --confirm-restore
 ```
 
-脚本先验证文件存在且非空、停止 Web 写入，再重建 `public` Schema，并让 `psql` 使用 `ON_ERROR_STOP=1`；成功后重新启动 Web，任何 SQL 错误都会返回失败且 Web 保持停止以避免继续写入不完整数据库。还原后检查健康端点和 Chat 会话。正式数据至少做一次“备份 → 独立测试环境还原 → 核对会话数与分支”的演练，不能只验证备份文件存在。
+脚本先验证文件存在且非空、停止 Web 写入，再重建 `public` Schema，并让 `psql` 使用 `ON_ERROR_STOP=1`；成功后重新启动 Web，任何 SQL 错误都会返回失败且 Web 保持停止以避免继续写入不完整数据库。还原时还必须向新环境提供原来的 `CREDENTIAL_MASTER_KEY`，否则模型凭据需要重新保存。
 
-## 7. 手机与局域网访问
-
-如果手机和笔记本处于可信局域网，可将 `APP_BIND_ADDRESS` 改为 `0.0.0.0`，重启 Compose 后通过笔记本局域网 IP 访问。启用前必须：
-
-1. 确认网络可信并限制防火墙来源。
-2. 不开放 PostgreSQL 端口；Compose 默认没有映射它。
-3. 理解当前没有登录，局域网中能连接该端口的设备都可能访问个人会话。
-4. 远程访问优先使用带设备认证的私有组网与 HTTPS；在完成应用鉴权前不建议公网端口转发。
+正式数据至少做一次“备份 → 独立测试环境还原 → 核对会话数、分支和凭据状态”的演练，不能只验证备份文件存在。
 
 ## 8. 迁移到云端
 
 云迁移时保持同一镜像、迁移命令和 PostgreSQL Schema：
 
-1. 在笔记本生成并验证备份。
-2. 云端通过 Secrets 注入同名环境变量，不复制真实 `.env.selfhost` 到镜像。
+1. 在笔记本生成并验证数据库备份，另行确认主密钥可恢复。
+2. 云端通过 Secrets/KMS 注入变量，不复制真实 `.env.selfhost` 到镜像。
 3. 创建受保护的 PostgreSQL，恢复备份并运行 `db:migrate`。
-4. Web 只通过私有网络连接数据库；公网入口使用 HTTPS 反向代理并先增加身份认证。
-5. 切换域名后核对健康检查、会话树、模型流和备份计划。
+4. Web 只通过私有网络连接数据库；公网入口使用 HTTPS 反向代理，并在开放前增加应用身份认证、CSRF 防护、速率限制和审计。
+5. 切换域名后核对健康检查、会话树、模型流、凭据解密和备份计划。
 
-当前 Compose 是单机基线，不提供高可用、自动 TLS、自动异地备份、登录或零停机升级。这些能力应在真正需要公网或多用户时进入后续 Sprint。
+当前 Compose 是单机基线，不提供高可用、自动异地备份、应用登录或零停机升级。这些能力应在真正需要公网或多用户时进入后续 Sprint。
 
 ## 9. 当前验证边界
 
-自动化测试会检查 Compose 的私有数据库、持久卷、依赖健康顺序、localhost 默认绑定、迁移先于启动、Secret 排除和恢复确认。当前开发机未安装 Docker/PostgreSQL CLI，因此 Sprint 1.5 无法在本机真实拉起容器或执行 `pg_dump/psql`；首次在具备 Docker 的机器运行时必须补做完整启动、重启恢复和备份还原演练，并把结果追加到 CHANGELOG。
+- 已在 Windows Docker Desktop 实机完成镜像构建、数据库迁移、容器健康检查、网页访问和重启后启动验证。
+- 已用一次性假凭据完成写入、读取公开状态和删除的真实 API/数据库集成检查，并确认数据库密文不包含明文。
+- 自动化测试覆盖私有数据库、持久卷、localhost 绑定、迁移先于启动、Secret 排除、恢复确认和 Credential Vault 行为。
+- 尚未执行正式 `pg_dump → 独立环境还原` 演练；产生重要个人数据前应补做。
+- Tailscale Serve 需要在电脑和手机安装、登录后由用户启用；项目不自动修改系统 VPN、账号或 Tailnet 策略。

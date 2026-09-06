@@ -52,7 +52,7 @@ Database
 
 * Phase 2：可靠 Task/TaskRun 提醒闭环
 
-Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Streaming、显式旧数据导入和 Docker Compose 单用户自托管基线均已建立。Chat 现在以 PostgreSQL 为事实来源；浏览器旧会话只有在用户确认后才会导入，重复请求由导入收据去重。
+Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Streaming、显式旧数据导入和 Docker Compose 单用户自托管基线均已建立。Chat 现在以 PostgreSQL 为事实来源；浏览器旧会话只有在用户确认后才会导入，重复请求由导入收据去重。随后完成的 Credential Vault 支持从网页测试和保存自有 Key，服务端使用 AES-256-GCM 加密后写入 PostgreSQL。
 
 ---
 
@@ -69,9 +69,9 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 
 旧版 `agent_chat_sessions` 的预检、确认、树形迁移、去重和失败恢复规则见 `docs/LEGACY_DATA_IMPORT.md`。
 
-模型配置必须写入 `web/.env.local` 的 `AI_API_KEY`、`AI_BASE_URL` 和 `AI_MODEL`。浏览器不再保存或读取真实 Key；Streaming 与错误码说明见 `docs/SERVER_MODEL_PROVIDER.md`。
+模型配置首选 `/api-key` 写入式设置页：Key 只在保存/测试请求中短暂经过浏览器内存，服务端加密保存，状态接口只返回末四位提示。`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 仅保留为没有数据库凭据时的管理员兜底；Streaming、凭据端点与错误码见 `docs/SERVER_MODEL_PROVIDER.md`。
 
-笔记本自托管的启动、健康检查、重启恢复、备份还原与局域网安全规则见 `docs/SELF_HOSTING.md`。默认只绑定 localhost，当前无登录鉴权，不可直接暴露公网。
+笔记本自托管的启动、健康检查、凭据主密钥、重启恢复、备份还原与 Tailscale 私有访问见 `docs/SELF_HOSTING.md`。默认只绑定 localhost，当前无应用登录鉴权，不可使用 Funnel 或端口转发直接暴露公网。
 
 ---
 

@@ -4,6 +4,57 @@
 
 ---
 
+## Credential Vault 3/3 — 前端设置页与 Docker 集成
+
+**Commit**: `57d229c`
+
+### 为什么
+
+数据层与服务端 API 完成后，仍需要一个用户可操作但不可回读明文的配置入口，并确保 Docker 自托管环境具备独立的凭据主密钥。该任务完成从网页测试、加密保存到模型运行时使用的闭环。
+
+### 怎么做
+
+- 将 `/api-key` 从只读环境状态页改为写入式凭据设置页，支持测试、保存、替换和删除。
+- 表单明文只保留在 React 组件状态和当次请求内，保存成功后清空；页面只展示末四位提示。
+- 增加类型化前端 Client、状态反馈、危险删除确认和旧 localStorage 凭据清理。
+- Docker Compose 强制要求 `CREDENTIAL_MASTER_KEY`，模型 `AI_*` 变量改为可选兜底。
+- 自托管示例加入主密钥占位，且真实 `.env.selfhost` 继续由 Git 忽略。
+
+### 修改文件
+
+- `.env.selfhost.example`
+- `docker-compose.yml`
+- `web/.env.example`
+- `web/app/api-key/page.tsx`
+- `web/components/config/ModelCredentialSettings.tsx`
+- `web/e2e/credential.spec.ts`
+- `web/lib/api/modelCredentialClient.ts`
+- `web/tests/modelCredentialClient.test.ts`
+- `web/tests/modelCredentialSettings.test.tsx`
+- `web/tests/selfHostingArtifacts.test.ts`
+- `docs/CHANGELOG.md`
+
+### 代码与功能
+
+| 功能 | 说明 |
+|------|------|
+| 凭据设置页 | 填写 Base URL、Model、Key；测试不落库，保存后清空 Key 输入 |
+| 公开状态 | 只显示配置来源、Provider、模型、Base URL、版本与 Key 末四位 |
+| 删除与回退 | 删除存储凭据后，若服务器存在完整 `AI_*` 则回退环境变量 |
+| Docker 主密钥 | 容器启动时强制注入 `CREDENTIAL_MASTER_KEY`，不烘焙进镜像 |
+| 防泄露验证 | 真容器写入一次性假 Key 后，数据库仅出现 AES-GCM 信封且不含明文 |
+
+### 验证方法与结果
+
+- `npm test`：23 个测试文件、92 个测试全部通过。
+- `npm run test:e2e`（Microsoft Edge）：4 个端到端测试全部通过，其中包括凭据测试、保存和删除闭环。
+- `npm run build`、`npm run lint`、`npx tsc --noEmit`、`npm run db:check`、`git diff --check`：通过。
+- Docker Desktop 实机构建、迁移 `0002_goofy_smasher.sql`、双容器健康检查和 API/数据库集成检查通过；一次性假凭据已在验证后删除。
+
+### localStorage 变化
+
+- 不新增 Key；旧 `agent_api_key`、`agent_api_base_url`、`agent_api_model` 会被清理。
+
 ## Credential Vault 2/3 — 安全凭据 API 与模型运行时
 
 **Commit**: `ac006c0`

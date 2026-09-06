@@ -150,7 +150,7 @@ Chat UI 已使用 PostgreSQL Conversation/Message API 作为事实来源，并�
 
 历史 `agent_chat_sessions` 只作为待确认导入源；成功导入前保留，成功后清除。
 
-单用户 API Key 由服务端环境变量管理，不进入浏览器。
+单用户 API Key 从前端写入式设置页提交，由服务端 AES-256-GCM 加密后保存；不进入 localStorage，完整值不通过读取接口返回。环境变量仅作无数据库凭据时的管理员兜底。
 
 默认不保存云端聊天记录。
 
