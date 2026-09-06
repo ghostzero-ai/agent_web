@@ -28,19 +28,19 @@ GOAL:
 
 CURRENT_PHASE:
 
-Phase 1 — Server and Data Foundation
+Phase 2 — Reliable Task Loop
 
 ==================================================
 
 CURRENT_TASK:
 
-Sprint 1.3 — Server-side Model Provider and Streaming
+Sprint 2.1 — Task/TaskRun Schema and CRUD UI
 
 ==================================================
 
 NEXT_TASK:
 
-Sprint 1.4 — Explicit localStorage Data Import
+Sprint 2.2 — Scheduler Claim and Idempotent Runs
 
 ==================================================
 
@@ -92,7 +92,7 @@ App Router
 
 Deploy:
 
-Vercel
+Docker Compose self-hosting baseline; Vercel remains optional
 
 ==================================================
 
@@ -146,7 +146,9 @@ PostgreSQL Schema 与迁移基线已经建立。
 
 Conversation/Message Repository 与 `/api/v1` 服务端 API 已建立。
 
-当前 Chat UI 仍保存会话到 localStorage，但模型请求已通过服务端 SSE；Sprint 1.4 将会话迁移到服务端。
+Chat UI 已使用 PostgreSQL Conversation/Message API 作为事实来源，并通过服务端 SSE 调用模型。
+
+历史 `agent_chat_sessions` 只作为待确认导入源；成功导入前保留，成功后清除。
 
 单用户 API Key 由服务端环境变量管理，不进入浏览器。
 

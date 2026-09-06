@@ -50,9 +50,9 @@ Database
 
 开发中：
 
-* localStorage 会话预检、导入与服务端数据切换
+* Phase 2：可靠 Task/TaskRun 提醒闭环
 
-Conversation/Message 服务端 Repository/API 与服务端模型 Streaming 已完成。当前 Chat 会话仍保存在浏览器 localStorage；Sprint 1.4 将通过用户确认的幂等导入切换到服务端数据。
+Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Streaming、显式旧数据导入和 Docker Compose 单用户自托管基线均已建立。Chat 现在以 PostgreSQL 为事实来源；浏览器旧会话只有在用户确认后才会导入，重复请求由导入收据去重。
 
 ---
 
@@ -67,7 +67,11 @@ Conversation/Message 服务端 Repository/API 与服务端模型 Streaming 已�
 
 服务端会话 API 使用 `/api/v1/conversations` 前缀，具体端点、请求格式和并发规则见 `docs/SERVER_DATA_API.md`。当前 API 没有登录鉴权，只能在本机或可信私有网络使用，不得直接暴露到公网。
 
+旧版 `agent_chat_sessions` 的预检、确认、树形迁移、去重和失败恢复规则见 `docs/LEGACY_DATA_IMPORT.md`。
+
 模型配置必须写入 `web/.env.local` 的 `AI_API_KEY`、`AI_BASE_URL` 和 `AI_MODEL`。浏览器不再保存或读取真实 Key；Streaming 与错误码说明见 `docs/SERVER_MODEL_PROVIDER.md`。
+
+笔记本自托管的启动、健康检查、重启恢复、备份还原与局域网安全规则见 `docs/SELF_HOSTING.md`。默认只绑定 localhost，当前无登录鉴权，不可直接暴露公网。
 
 ---
 

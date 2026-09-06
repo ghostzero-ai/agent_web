@@ -3,7 +3,7 @@
 > 文档类型：产品需求文档（PRD）+ 技术设计文档（TDD）+ 分阶段路线图
 > 文档版本：1.1
 > 编写日期：2026-09-02
-> 最近修订：2026-09-05
+> 最近修订：2026-09-06
 > 适用项目：AI Study Companion / Personal AI Agent Web Application
 > 状态：规划基线，后续通过 ADR 与 CHANGELOG 持续修订
 
@@ -1689,8 +1689,8 @@ toolName, errorCode
 | 1.1 ✅ | PostgreSQL + Drizzle + migration 基线 | 已完成：最小 User/Conversation/Message Schema、事务化升级/单步回滚、漂移检测与 PostgreSQL 兼容集成测试 |
 | 1.2 ✅ | Conversation/Message Repository 和 API | 已完成：固定单用户身份、树形消息事务、活动叶乐观锁与 `/api/v1`；连接同一服务端的客户端可读取同一数据 |
 | 1.3 ✅ | 服务端 Model Provider 与 Streaming | 已完成：服务端环境密钥、OpenAI-compatible SSE、增量 UI、Abort 贯通、Provider 错误映射与旧浏览器密钥清除 |
-| 1.4 | localStorage 数据导入 | 用户可选择导入且不重复 |
-| 1.5 | Docker Compose 单用户自托管基线 | 笔记本重启后服务可恢复，数据库可备份/还原 |
+| 1.4 ✅ | localStorage 数据导入 | 已完成：用户显式确认、严格树校验、事务导入、来源收据去重；Chat 已切换 PostgreSQL 事实源 |
+| 1.5 ✅ | Docker Compose 单用户自托管基线 | 已完成：Web/PostgreSQL 编排、持久卷、迁移入口、健康检查、重启策略及双平台备份还原脚本；待有 Docker 的机器补实机演练 |
 
 ### Phase 2：可靠任务闭环（3–4 周）
 

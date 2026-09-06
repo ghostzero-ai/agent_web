@@ -25,12 +25,15 @@ X-Request-Id: <uuid>
 
 | 方法 | 路径 | 用途 |
 |---|---|---|
+| `GET` | `/api/v1/health` | 检查数据库 readiness 与脱敏模型配置状态 |
 | `GET` | `/api/v1/conversations` | 按更新时间倒序列出会话，不携带消息 |
 | `POST` | `/api/v1/conversations` | 创建会话 |
 | `GET` | `/api/v1/conversations/:id` | 获取会话及完整消息树 |
 | `DELETE` | `/api/v1/conversations/:id` | 删除会话并级联删除消息 |
+| `PATCH` | `/api/v1/conversations/:id` | 用乐观版本锁更新标题 |
 | `POST` | `/api/v1/conversations/:id/messages` | 追加一个消息节点并将其设为活动叶节点 |
 | `PATCH` | `/api/v1/conversations/:id/active-leaf` | 切换当前活动分支 |
+| `POST` | `/api/v1/imports/local-storage` | 预检或确认导入浏览器旧会话 |
 
 ### 创建会话
 
@@ -59,6 +62,17 @@ X-Request-Id: <uuid>
 `role` 支持 `system`、`developer`、`user`、`assistant`、`tool`；`status` 支持 `pending`、`streaming`、`complete`、`failed`。省略字段使用 `parentMessageId=null`、`status=complete`、`model=null`、`citations=[]`。
 
 Repository 会锁定目标会话，确认父消息存在且属于同一会话，然后在同一事务中写入 Message、推进 `activeLeafMessageId`、更新时间并递增版本。任何一步失败都不会留下半条消息。
+
+### 更新标题
+
+```json
+{
+  "title": "新的会话标题",
+  "expectedVersion": 3
+}
+```
+
+标题更新与活动分支切换使用相同的乐观版本规则。Chat 在首条用户消息持久化后更新自动标题，因此刷新页面或更换设备后标题仍一致。
 
 ### 切换活动分支
 
@@ -115,5 +129,5 @@ Repository 会锁定目标会话，确认父消息存在且属于同一会话，
 - API 返回整棵消息树，由客户端根据 `activeLeafMessageId` 计算活动路径。
 - 单用户阶段暂不分页；数据量增长前必须给会话列表和消息树增加游标策略。
 - API 不接受客户端指定 User ID，避免伪造其他身份。
-- Chat 页面尚未调用这些端点，所以当前用户界面行为和 localStorage 键值保持不变。
-- Sprint 1.3 会在服务端运行 Model Provider；Sprint 1.4 才把旧 localStorage Session 幂等导入数据库。
+- Chat 页面已经通过这些端点创建、读取、删除、重命名会话，追加消息和切换树分支。
+- `agent_chat_sessions` 不再是运行时事实源，只用于 Sprint 1.4 的显式一次性导入；详细契约见 `docs/LEGACY_DATA_IMPORT.md`。

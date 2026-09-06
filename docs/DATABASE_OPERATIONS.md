@@ -1,10 +1,10 @@
 # 数据库迁移操作手册
 
-本文档定义 Sprint 1.1 起 PostgreSQL Schema 的生成、升级、验证与回滚流程。应用目前仍由浏览器 localStorage 提供聊天数据；数据库会在 Sprint 1.2 接入 Repository/API，并在 Sprint 1.4 导入旧数据。
+本文档定义 Sprint 1.1 起 PostgreSQL Schema 的生成、升级、验证与回滚流程。Chat 已使用 PostgreSQL 作为会话事实源，旧 localStorage 会话只通过用户确认的导入端点迁移。
 
 ## 1. 环境准备
 
-运行迁移命令需要一个可连接的 PostgreSQL 数据库。Docker Compose 自托管拓扑属于 Sprint 1.5，本阶段可使用本机 PostgreSQL 或临时开发数据库。
+运行迁移命令需要一个可连接的 PostgreSQL 数据库。既可使用本机 PostgreSQL，也可按 `docs/SELF_HOSTING.md` 启动 Sprint 1.5 的 Docker Compose 拓扑；Web 容器入口会自动执行待处理迁移。
 
 在 `web/` 目录中：
 
@@ -57,10 +57,11 @@ npm test -- databaseMigrations.test.ts
 - `users` 即使在单用户阶段也保留，避免未来迁移云端时改写所有外键。
 - `messages.parent_message_id` 使用自引用外键，真实保存对话树，而不是把版本塞入 JSON。
 - `conversations.active_leaf_message_id` 不设循环外键；Sprint 1.2 Repository 已在事务中验证节点属于同一会话、确实没有子节点，并用 `version` 防止并发覆盖。
+- `conversation_imports` 保存来源会话收据；`(user_id, source, source_id)` 唯一约束保证旧数据重复提交不会复制会话。
 - JSONB 仅用于结构开放的 `citations`；角色、状态和模式均使用 PostgreSQL Enum。
 
 ## 6. 回滚注意事项
 
 回滚可能删除表、列或数据，执行前必须确认目标数据库并做好备份。`db:rollback` 只回滚一条；成功后会移除相应历史记录。若代码已依赖新 Schema，应同时将应用代码切回兼容版本。
 
-当前首条 rollback 会删除 User/Conversation/Message 三张业务表及对应 Enum，只适用于开发基线演练，不应在含真实数据的环境直接执行。
+`0001` rollback 会删除导入收据表，不删除已经导入的 Conversation/Message；回滚后若浏览器仍保留旧源数据，后续导入无法识别此前收据。`0000` rollback 会删除 User/Conversation/Message 三张业务表及对应 Enum。两者都只适用于开发演练，不应在含真实数据的环境直接执行。

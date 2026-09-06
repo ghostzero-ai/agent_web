@@ -4,6 +4,183 @@
 
 ---
 
+## Sprint 1.5 — Docker Compose 单用户自托管基线
+
+**Commit**: `c42bbdc`
+
+### 为什么
+
+开发服务器与独立 localStorage 无法让笔记本稳定承担个人服务端，也不能形成可重复的云迁移、健康检查和备份恢复流程。本 Sprint 把 Web/API 与 PostgreSQL 组合为默认安全的单机部署单元。
+
+### 怎么做
+
+- Compose 编排 Next.js 与 PostgreSQL；数据库只在内部网络提供服务并使用命名卷。
+- Web 默认绑定 localhost，等待数据库健康，入口脚本先执行版本化迁移再启动生产服务。
+- 新增不泄密的 readiness 健康端点，区分 healthy、degraded 与 unhealthy。
+- 提供 PowerShell/POSIX `pg_dump` 备份与显式确认恢复脚本，恢复期间停止 Web 写入。
+- 真实环境文件和备份被 Git/Docker build context 排除，Shell 文件固定 LF。
+
+### 修改文件
+
+- `.env.selfhost.example`
+- `.gitattributes`
+- `.gitignore`
+- `PROJECT.md`
+- `README.md`
+- `docker-compose.yml`
+- `docs/CHANGELOG.md`
+- `docs/DATABASE_OPERATIONS.md`
+- `docs/PHASE_1_COMPLETION_REPORT.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `docs/SELF_HOSTING.md`
+- `docs/SERVER_DATA_API.md`
+- `docs/adr/ADR-028-COMPOSE-SELF-HOSTING-BASELINE.md`
+- `scripts/selfhost-backup.ps1`
+- `scripts/selfhost-backup.sh`
+- `scripts/selfhost-restore.ps1`
+- `scripts/selfhost-restore.sh`
+- `web/.dockerignore`
+- `web/.gitignore`
+- `web/Dockerfile`
+- `web/app/api/v1/health/route.ts`
+- `web/docker-entrypoint.sh`
+- `web/lib/api/healthApi.ts`
+- `web/tests/healthApi.test.ts`
+- `web/tests/selfHostingArtifacts.test.ts`
+
+### 代码与功能
+
+| 功能 | 说明 |
+|------|------|
+| Compose 拓扑 | Web/PostgreSQL 健康依赖、重启策略和持久卷；数据库无宿主机端口 |
+| 安全默认 | Web 默认 `127.0.0.1`，密钥由未提交环境注入，容器启用 no-new-privileges |
+| 启动迁移 | 数据库 ready 后先运行 `db:migrate`，失败时不启动不兼容应用 |
+| 健康检查 | 数据库决定 readiness；模型缺失为 degraded；错误与 Secret 不进入响应 |
+| 备份 | Windows 与 POSIX 脚本生成带时间戳的 plain SQL dump |
+| 恢复 | 文件存在/非空校验、显式确认、停止 Web、重建 Schema、SQL 失败即停、成功后重启 |
+| 云迁移 | 同一容器、环境变量和 Schema 可迁移，公网鉴权/TLS 仍明确在范围外 |
+
+### 验证方法与结果
+
+- `npm test -- --run`：17 个测试文件、75 个测试全部通过。
+- 自托管专项测试：验证数据库无端口、持久卷、localhost 默认、健康依赖、迁移顺序、Secret 排除和恢复确认。
+- `npx tsc --noEmit --pretty false`、`npm run lint`、`npm run build`：通过。
+- `npm run db:check` 与 `npm run db:generate`：通过且无未生成 Schema 变化。
+- Compose 由 PyYAML 成功解析为 `postgres`、`web` 两个服务。
+- 两份 PowerShell 脚本由 PowerShell AST Parser 成功解析。
+- `npm prune --offline --ignore-scripts`：审计 542 个包，0 项已知漏洞。
+- 当前机器没有 Docker；WSL/Bash 启动被系统拒绝，因此容器启动、重启恢复、真实 `pg_dump/psql` 与 POSIX 语法仍需在有 Docker 的环境补做实机演练，不能记为通过。
+
+### localStorage 变化
+
+- 本 Sprint 无新增 localStorage 键值变化；服务端事实源沿用 Sprint 1.4 结果。
+
+### 项目结构快照
+
+```text
+agent_web/
+├── docker-compose.yml              # Web + private PostgreSQL
+├── .env.selfhost.example           # 无效示例配置
+├── scripts/                        # 跨平台备份/恢复
+├── docs/                           # API、迁移、自托管、ADR 与完成报告
+└── web/
+    ├── app/api/v1/                 # conversations/imports/model/health
+    ├── app/chat/                   # PostgreSQL 事实源 Chat UI
+    ├── drizzle/                    # 两条 forward/rollback 迁移
+    ├── lib/api/                    # 服务端 API 与浏览器 API Clients
+    ├── lib/repositories/           # Conversation 与 Legacy Import 边界
+    ├── tests/                      # 17 个单元/组件/数据库/部署测试文件
+    ├── Dockerfile
+    └── docker-entrypoint.sh
+```
+
+### 下一步
+
+- Phase 2 Sprint 2.1：建立 Task/TaskRun Schema 与 CRUD UI；在公开网络或多人使用前先完成鉴权。
+
+---
+
+## Sprint 1.4 — 显式旧数据导入与服务端 Chat 事实源
+
+**Commit**: `46231b7`
+
+### 为什么
+
+Sprint 1.2 的数据库与浏览器 localStorage 并行存在，无法跨设备读取同一会话；自动上传旧历史又会违反用户确认原则。本 Sprint 提供安全迁移并结束双事实源状态。
+
+### 怎么做
+
+- Chat 改用 Conversation API 完成读取、创建、删除、消息追加、自动标题与分支切换。
+- 浏览器旧会话只用于迁移提示，用户确认前不上传、不删除。
+- 导入 API 严格校验树、角色、数量与文本上限，为旧 ID 生成 UUID 映射。
+- 新增 `conversation_imports` 收据和唯一约束，重复导入直接跳过。
+- 每个会话、消息树、活动叶与收据在同一事务提交；失败保留 localStorage 源。
+
+### 修改文件
+
+- `PROJECT.md`
+- `README.md`
+- `docs/CHANGELOG.md`
+- `docs/DATABASE_OPERATIONS.md`
+- `docs/LEGACY_DATA_IMPORT.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `docs/SERVER_DATA_API.md`
+- `docs/adr/ADR-027-EXPLICIT-LEGACY-DATA-IMPORT.md`
+- `web/app/api/v1/conversations/[id]/route.ts`
+- `web/app/api/v1/imports/local-storage/route.ts`
+- `web/app/chat/page.tsx`
+- `web/drizzle/0001_perfect_typhoid_mary.sql`
+- `web/drizzle/meta/0001_snapshot.json`
+- `web/drizzle/meta/_journal.json`
+- `web/drizzle/rollback/0001_perfect_typhoid_mary.sql`
+- `web/e2e/chat.spec.ts`
+- `web/lib/api/conversationApi.ts`
+- `web/lib/api/conversationClient.ts`
+- `web/lib/api/legacyImportApi.ts`
+- `web/lib/api/legacyImportClient.ts`
+- `web/lib/db/schema.ts`
+- `web/lib/repositories/conversationRepository.ts`
+- `web/lib/repositories/legacyImportRepository.ts`
+- `web/tests/conversationApi.test.ts`
+- `web/tests/conversationClient.test.ts`
+- `web/tests/databaseMigrations.test.ts`
+- `web/tests/legacyImport.test.ts`
+- `web/tests/legacyImportClient.test.ts`
+
+### 代码与功能
+
+| 功能 | 说明 |
+|------|------|
+| 服务端 Chat | PostgreSQL 成为会话事实源，浏览器刷新后重新读取完整消息树 |
+| 标题持久化 | 首条问题通过带 `expectedVersion` 的 PATCH 保存，避免刷新退回默认标题 |
+| 显式迁移 | preview 展示可导入/已导入数量，确认按钮才触发服务端写入 |
+| 树保真 | 新 UUID 映射保留父子节点、兄弟回答和活动叶路径 |
+| 输入安全 | 拒绝未知字段、重复 ID、缺失父节点、自引用、环路、非法叶和特权消息角色 |
+| 幂等收据 | `(user_id, source, source_id)` 唯一，重复请求不复制会话 |
+| 失败恢复 | 只有服务端成功后删除 `agent_chat_sessions`，失败可安全重试 |
+| 浏览器回归 | HTTP 模拟服务端证明 UI 不再依赖 localStorage 运行时写入 |
+
+### 验证方法与结果
+
+- Sprint 1.4 封版时：15 个测试文件、69 个测试全部通过。
+- PGlite 集成覆盖两条真实迁移、树保真、活动分支、重复导入、preview 与非法输入拒绝。
+- Conversation API 覆盖标题更新与过期版本冲突；浏览器 Clients 覆盖映射、请求体和失败保留本地源。
+- Microsoft Edge E2E 3/3 通过：服务端会话刷新、早期回答分支、显式导入后 KaTeX 渲染。
+- TypeScript、Lint、生产构建、Drizzle check/generate 均通过。
+- 本 Sprint 未改变依赖锁；沿用 Sprint 1.3 对同一 lockfile 的 0 漏洞结果，并在最终审计再次得到 0。
+
+### localStorage 变化
+
+- `agent_chat_sessions` 不再接收运行时会话写入，只在检测到旧数据时作为待确认迁移源。
+- 用户选择“暂不导入”时保留原值；服务端确认导入成功后删除该键。
+- 历史模型配置键仍按 Sprint 1.3 规则清除。
+
+### 下一步
+
+- Sprint 1.5：用 Docker Compose 提供可重启、可检查、可备份恢复的笔记本自托管基线。
+
+---
+
 ## Sprint 1.3 — 服务端 Model Provider 与 SSE Streaming
 
 **Commit**: `563097e`
