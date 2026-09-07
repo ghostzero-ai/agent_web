@@ -15,11 +15,16 @@ const noop = vi.fn();
 
 describe("chat presentation components", () => {
   it("renders the header and API configuration link", () => {
-    const html = renderToStaticMarkup(<ChatHeader />);
+    const html = renderToStaticMarkup(
+      <ChatHeader onOpenSidebar={noop} sidebarOpen />,
+    );
 
     expect(html).toContain("AI 对话");
     expect(html).toContain('href="/api-key"');
     expect(html).toContain("API 配置");
+    expect(html).toContain("打开对话列表");
+    expect(html).toContain("mobile-session-drawer");
+    expect(html).toContain('aria-expanded="true"');
   });
 
   it("renders a dismissible configuration error", () => {
@@ -64,6 +69,21 @@ describe("chat presentation components", () => {
     expect(populatedHtml).toContain("测试会话");
     expect(populatedHtml).toContain("删除对话");
     expect(populatedHtml).toContain("bg-zinc-200");
+
+    const mobileHtml = renderToStaticMarkup(
+      <SessionSidebar
+        sessions={[session]}
+        activeSessionId={session.id}
+        onCreate={noop}
+        onSelect={noop}
+        onDelete={noop}
+        mobile
+        onClose={noop}
+      />,
+    );
+    expect(mobileHtml).toContain("对话列表");
+    expect(mobileHtml).toContain("关闭对话列表");
+    expect(mobileHtml).toContain("opacity-100");
   });
 
   it("renders the correct message-list empty states", () => {
@@ -88,7 +108,7 @@ describe("chat presentation components", () => {
       />,
     );
 
-    expect(withoutSession).toContain("点击左侧「新建对话」开始");
+    expect(withoutSession).toContain("打开对话列表并点击「新建对话」开始");
     expect(emptySession).toContain("输入问题，AI 将为你提供帮助");
   });
 

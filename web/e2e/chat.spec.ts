@@ -186,6 +186,15 @@ async function installServerDataMock(page: Page) {
 
 test("chat session lifecycle survives reloads", async ({ page }) => {
   await installServerDataMock(page);
+  await page.route("**/api/v1/model/stream", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: { message: "Server model provider is not configured." },
+      }),
+    }),
+  );
   await page.goto("/chat");
   await page.evaluate(() => {
     window.localStorage.clear();
@@ -207,7 +216,9 @@ test("chat session lifecycle survives reloads", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "AI 对话" })).toBeVisible();
   await expect(page.getByText("暂无对话，点击上方按钮开始")).toBeVisible();
-  await expect(page.getByText("点击左侧「新建对话」开始")).toBeVisible();
+  await expect(
+    page.getByText("打开对话列表并点击「新建对话」开始"),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "+ 新建对话" }).click();
   await expect(page.getByPlaceholder("请输入你的问题")).toBeVisible();
@@ -234,6 +245,39 @@ test("chat session lifecycle survives reloads", async ({ page }) => {
   await page.reload();
   await expect(page.getByText("暂无对话，点击上方按钮开始")).toBeVisible();
   await expect(page.getByPlaceholder("请输入你的问题")).toHaveCount(0);
+});
+
+test("mobile chat uses a collapsible conversation drawer", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installServerDataMock(page);
+  await page.goto("/chat");
+
+  const openDrawer = page.getByRole("button", { name: "打开对话列表" });
+  await expect(openDrawer).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "对话列表" })).toHaveCount(0);
+
+  const mainBox = await page.locator("main").boundingBox();
+  expect(mainBox?.width).toBeGreaterThanOrEqual(380);
+
+  await openDrawer.click();
+  const drawer = page.getByRole("dialog", { name: "对话列表" });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("button", { name: "+ 新建对话" }).click();
+
+  await expect(drawer).toHaveCount(0);
+  await expect(page.getByPlaceholder("请输入你的问题")).toBeVisible();
+
+  await openDrawer.click();
+  await expect(page.getByRole("dialog", { name: "对话列表" })).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "对话列表" }).getByText("新对话", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "关闭对话列表", exact: true })
+    .click();
+  await expect(page.getByRole("dialog", { name: "对话列表" })).toHaveCount(0);
 });
 
 test("regenerating an earlier answer creates and restores branches", async ({

@@ -57,6 +57,7 @@ export default function ChatPage() {
   const [importing, setImporting] = useState(false);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const replaceSession = (next: ServerSession) => {
     setSessions((current) =>
@@ -111,6 +112,20 @@ export default function ChatPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSidebarOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [sidebarOpen]);
+
   const resolvedActiveSessionId =
     activeSessionId && sessions.some((session) => session.id === activeSessionId)
       ? activeSessionId
@@ -145,6 +160,7 @@ export default function ChatPage() {
       const session = await createServerSession();
       setSessions((current) => [session, ...current]);
       setActiveSessionId(session.id);
+      setSidebarOpen(false);
     } catch (createError) {
       setError(
         createError instanceof Error ? createError.message : "无法创建会话",
@@ -346,7 +362,10 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen flex-col bg-zinc-50 dark:bg-black">
-      <ChatHeader />
+      <ChatHeader
+        onOpenSidebar={() => setSidebarOpen(true)}
+        sidebarOpen={sidebarOpen}
+      />
 
       {legacySessions.length > 0 && (
         <div className="flex flex-wrap items-center justify-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -381,16 +400,49 @@ export default function ChatPage() {
       )}
 
       <div className="flex flex-1 overflow-hidden">
-        <SessionSidebar
-          sessions={sessions}
-          activeSessionId={resolvedActiveSessionId}
-          onCreate={handleNewSession}
-          onSelect={setActiveSessionId}
-          onDelete={handleDeleteSession}
-        />
+        <div className="hidden shrink-0 md:flex">
+          <SessionSidebar
+            sessions={sessions}
+            activeSessionId={resolvedActiveSessionId}
+            onCreate={handleNewSession}
+            onSelect={setActiveSessionId}
+            onDelete={handleDeleteSession}
+          />
+        </div>
 
-        <main className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6">
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/45 backdrop-blur-[1px]"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="关闭对话列表遮罩"
+            />
+            <div
+              id="mobile-session-drawer"
+              role="dialog"
+              aria-modal="true"
+              aria-label="对话列表"
+              className="relative h-full w-[min(20rem,86vw)] shadow-2xl"
+            >
+              <SessionSidebar
+                sessions={sessions}
+                activeSessionId={resolvedActiveSessionId}
+                onCreate={handleNewSession}
+                onSelect={(id) => {
+                  setActiveSessionId(id);
+                  setSidebarOpen(false);
+                }}
+                onDelete={handleDeleteSession}
+                mobile
+                onClose={() => setSidebarOpen(false)}
+              />
+            </div>
+          </div>
+        )}
+
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex flex-1 flex-col overflow-y-auto px-3 py-4 sm:px-6 sm:py-6">
             <MessageList
               hasActiveSession={Boolean(activeSession)}
               messages={messages}

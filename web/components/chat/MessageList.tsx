@@ -35,7 +35,7 @@ export function MessageList({
           开始你的第一段对话
         </h2>
         <p className="text-sm text-zinc-400 dark:text-zinc-500">
-          点击左侧「新建对话」开始
+          打开对话列表并点击「新建对话」开始
         </p>
       </div>
     );

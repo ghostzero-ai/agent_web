@@ -6,6 +6,8 @@ type SessionSidebarProps = {
   onCreate: () => void;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  mobile?: boolean;
+  onClose?: () => void;
 };
 
 function formatSessionTime(timestamp: number): string {
@@ -26,9 +28,31 @@ export function SessionSidebar({
   onCreate,
   onSelect,
   onDelete,
+  mobile = false,
+  onClose,
 }: SessionSidebarProps) {
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+    <aside
+      className={`flex h-full shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 ${
+        mobile ? "w-full" : "w-64"
+      }`}
+    >
+      {mobile && (
+        <div className="flex items-center justify-between px-4 pt-4">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            对话列表
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            autoFocus
+            className="inline-flex size-9 items-center justify-center rounded-lg text-lg text-zinc-500 hover:bg-zinc-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+            aria-label="关闭对话列表"
+          >
+            ×
+          </button>
+        </div>
+      )}
       <div className="px-3 pt-3">
         <button
           type="button"
@@ -78,7 +102,9 @@ export function SessionSidebar({
                       event.stopPropagation();
                       onDelete(session.id);
                     }}
-                    className="shrink-0 rounded px-1.5 py-1 text-xs text-zinc-400 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100 dark:text-zinc-500 dark:hover:text-red-400"
+                    className={`shrink-0 rounded px-1.5 py-1 text-xs text-zinc-400 transition-opacity hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400 ${
+                      mobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    }`}
                     title="删除对话"
                   >
                     ✕
