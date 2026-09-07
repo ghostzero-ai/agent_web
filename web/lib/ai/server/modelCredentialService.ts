@@ -1,4 +1,5 @@
 import { CredentialCipherError, createApiKeyHint, decryptApiKey, encryptApiKey } from "@/lib/ai/server/credentialCipher";
+import { fetchWithTransientDnsRetry } from "@/lib/ai/server/providerFetch";
 import {
   getModelProviderConfig,
   getModelProviderStatus,
@@ -168,14 +169,19 @@ export function createModelCredentialService(
         : timeoutSignal;
       let response: Response;
       try {
-        response = await fetchProvider(`${normalized.baseUrl}/models`, {
-          method: "GET",
-          headers: {
-            accept: "application/json",
-            authorization: `Bearer ${normalized.apiKey}`,
+        response = await fetchWithTransientDnsRetry(
+          fetchProvider,
+          `${normalized.baseUrl}/models`,
+          {
+            method: "GET",
+            headers: {
+              accept: "application/json",
+              authorization: `Bearer ${normalized.apiKey}`,
+            },
+            signal: providerSignal,
           },
-          signal: providerSignal,
-        });
+          providerSignal,
+        );
       } catch {
         throw new ModelCredentialTestError(
           "PROVIDER_UNAVAILABLE",

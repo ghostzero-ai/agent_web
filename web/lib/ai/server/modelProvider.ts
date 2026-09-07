@@ -1,5 +1,6 @@
 import type { ChatCompletionMessage } from "@/lib/ai/messages";
 import type { ModelProviderConfig } from "./modelConfig";
+import { fetchWithTransientDnsRetry } from "./providerFetch";
 
 export type ModelStreamRequest = {
   messages: ChatCompletionMessage[];
@@ -92,61 +93,6 @@ function parseEventData(frame: string): string | null {
   return data || null;
 }
 
-const DNS_RETRY_DELAYS_MS = [100, 300] as const;
-
-function getNetworkErrorCode(error: unknown): string | null {
-  if (!error || typeof error !== "object") return null;
-  const cause = (error as { cause?: unknown }).cause;
-  if (!cause || typeof cause !== "object") return null;
-  const code = (cause as { code?: unknown }).code;
-  return typeof code === "string" ? code : null;
-}
-
-function pause(milliseconds: number, signal?: AbortSignal): Promise<void> {
-  if (signal?.aborted) {
-    return Promise.reject(
-      signal.reason ?? new DOMException("The operation was aborted.", "AbortError"),
-    );
-  }
-
-  return new Promise((resolve, reject) => {
-    const onAbort = () => {
-      clearTimeout(timeout);
-      reject(
-        signal?.reason ??
-          new DOMException("The operation was aborted.", "AbortError"),
-      );
-    };
-    const timeout = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, milliseconds);
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-async function fetchWithTransientDnsRetry(
-  url: string,
-  init: RequestInit,
-  signal?: AbortSignal,
-): Promise<Response> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await fetch(url, init);
-    } catch (error) {
-      const delay = DNS_RETRY_DELAYS_MS[attempt];
-      if (signal?.aborted || getNetworkErrorCode(error) !== "EAI_AGAIN" || delay === undefined) {
-        throw error;
-      }
-      console.warn("[model-provider] Retrying after transient DNS failure", {
-        code: "EAI_AGAIN",
-        attempt: attempt + 2,
-      });
-      await pause(delay, signal);
-    }
-  }
-}
-
 export class OpenAICompatibleProvider implements ModelProvider {
   constructor(private readonly config: ModelProviderConfig) {}
 
@@ -156,19 +102,24 @@ export class OpenAICompatibleProvider implements ModelProvider {
   ): AsyncIterable<ModelStreamEvent> {
     let response: Response;
     try {
-      response = await fetchWithTransientDnsRetry(`${this.config.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${this.config.apiKey}`,
+      response = await fetchWithTransientDnsRetry(
+        fetch,
+        `${this.config.baseUrl}/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${this.config.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: this.config.model,
+            messages: request.messages,
+            stream: true,
+          }),
+          signal,
         },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages: request.messages,
-          stream: true,
-        }),
         signal,
-      }, signal);
+      );
     } catch (error) {
       if (signal?.aborted) throw error;
       throw new ModelProviderError(

@@ -100,6 +100,30 @@ describe("ModelCredentialService", () => {
     );
   });
 
+  it("retries a transient DNS failure while testing the provider", async () => {
+    const repository = new MemoryCredentialRepository();
+    const fetchProvider = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new TypeError("fetch failed"), {
+          cause: { code: "EAI_AGAIN" },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ data: [{ id: "model" }] }));
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const service = createModelCredentialService(repository, fetchProvider);
+
+    await expect(
+      service.test({
+        apiKey: "sk-test-value",
+        baseUrl: "https://api.deepseek.com",
+        model: "model",
+      }),
+    ).resolves.toEqual({ connected: true, modelAvailable: true });
+
+    expect(fetchProvider).toHaveBeenCalledTimes(2);
+  });
+
   it("maps provider authentication failures without returning its body", async () => {
     const repository = new MemoryCredentialRepository();
     const service = createModelCredentialService(
