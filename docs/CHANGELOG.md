@@ -4,6 +4,46 @@
 
 ---
 
+## 移动端 Chat — 可折叠对话抽屉
+
+**Commit**: `c7565e6`
+
+### 为什么
+
+固定 256px 桌面侧栏在手机上持续占用横向空间，导致消息与输入区过窄；触屏设备也无法可靠触发依赖 hover 的会话删除按钮。
+
+### 怎么做
+
+- `md` 以下默认隐藏会话侧栏，在顶部提供“打开对话列表”菜单图标。
+- 会话历史以 Tailwind 覆盖式抽屉呈现，支持遮罩、关闭按钮和 Escape 关闭。
+- 选择或新建对话后自动收起抽屉，手机抽屉中的删除按钮始终可见。
+- 桌面端继续显示固定侧栏，不改变原有会话树和分支行为。
+- 缩小手机端消息区、Header 和 Composer 横向留白，并为主区域与输入框增加防溢出约束。
+- 端到端测试显式模拟模型错误，不再依赖或消耗个人真实 Provider 配置。
+
+### 修改文件
+
+- `web/app/chat/page.tsx`
+- `web/components/chat/ChatComposer.tsx`
+- `web/components/chat/ChatHeader.tsx`
+- `web/components/chat/MessageList.tsx`
+- `web/components/chat/SessionSidebar.tsx`
+- `web/e2e/chat.spec.ts`
+- `web/tests/chatComponents.test.tsx`
+- `docs/CHANGELOG.md`
+
+### 验证方法与结果
+
+- 390×844 手机视口验证侧栏默认不存在、主区宽度至少 380px、抽屉打开/新建/收起/关闭完整闭环。
+- Microsoft Edge E2E：5 项全部通过，覆盖会话生命周期、移动抽屉、分支重试、数学渲染和凭据设置。
+- `npm test`：23 个测试文件、93 个测试全部通过。
+- `npm run lint`、`npx tsc --noEmit`、Docker 生产构建和 `git diff --check`：通过。
+- Docker Web/PostgreSQL 健康，Tailscale HTTPS 地址继续代理最新 Web 容器。
+
+### localStorage 变化
+
+- 无。
+
 ## Provider 稳定性 — 临时 DNS 故障重试
 
 **Commit**: `7b9f63b`
