@@ -46,7 +46,7 @@
 
 ## Provider 稳定性 — 临时 DNS 故障重试
 
-**Commit**: `7b9f63b`
+**Commits**: `7b9f63b`, `70ee91d`
 
 ### 为什么
 
@@ -54,7 +54,7 @@ Docker 中的 DeepSeek 配置、Key 和模型均有效，但一次 `getaddrinfo 
 
 ### 怎么做
 
-- 仅识别 Node.js `fetch` 的 `EAI_AGAIN` 临时 DNS 错误。
+- 仅识别 Node.js `fetch` 的 `EAI_AGAIN` 临时 DNS 错误，聊天流与 `/api-key` Provider 测试共享同一策略。
 - 首次失败后以 100ms、300ms 退避，最多执行 3 次 DNS 建连尝试。
 - 用户取消会立即终止等待；认证、限流、模型不存在及其他 HTTP 响应完全不重试。
 - 安全日志只记录固定错误码和尝试次数，不记录 Key、消息、URL 或上游正文。
@@ -62,6 +62,9 @@ Docker 中的 DeepSeek 配置、Key 和模型均有效，但一次 `getaddrinfo 
 ### 修改文件
 
 - `web/lib/ai/server/modelProvider.ts`
+- `web/lib/ai/server/modelCredentialService.ts`
+- `web/lib/ai/server/providerFetch.ts`
+- `web/tests/modelCredentialService.test.ts`
 - `web/tests/modelProvider.test.ts`
 - `docs/CHANGELOG.md`
 
@@ -69,7 +72,7 @@ Docker 中的 DeepSeek 配置、Key 和模型均有效，但一次 `getaddrinfo 
 
 - 容器内实际调用 DeepSeek `/chat/completions` 返回 HTTP 200，确认现有 Base URL、Key 与模型名可用。
 - 新增“首次 EAI_AGAIN、第二次成功”的流式响应测试，并验证仅执行一次安全告警。
-- `npm test`：23 个测试文件、93 个测试全部通过。
+- `npm test`：23 个测试文件、94 个测试全部通过。
 - `npm run build`、`npm run lint`、`npx tsc --noEmit`、`git diff --check`：通过。
 
 ## Credential Vault 3/3 — 前端设置页与 Docker 集成
