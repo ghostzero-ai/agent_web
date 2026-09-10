@@ -38,7 +38,13 @@ export function ChatHeader({
           AI 对话
         </h1>
       </div>
-      <nav className="flex items-center gap-4 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+      <nav className="flex items-center gap-2 text-xs font-medium text-zinc-500 sm:gap-4 dark:text-zinc-400">
+        <Link
+          href="/inbox"
+          className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
+        >
+          收件箱
+        </Link>
         <Link
           href="/tasks"
           className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"

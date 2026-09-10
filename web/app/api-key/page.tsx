@@ -13,6 +13,9 @@ export default function ApiKeyPage() {
           模型服务配置
         </h1>
         <nav className="flex gap-4 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          <Link href="/inbox" className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200">
+            收件箱
+          </Link>
           <Link href="/tasks" className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200">
             任务
           </Link>
