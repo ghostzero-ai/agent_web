@@ -4,6 +4,42 @@
 
 ---
 
+## Sprint 2.2a — 幂等 TaskRun Claim 与租约状态机
+
+**Commit**: `116571e`
+
+### 修改文件
+
+- `web/lib/tasks/schedule.ts`
+- `web/lib/repositories/taskRepository.ts`
+- `web/lib/repositories/schedulerRepository.ts`
+- `web/tests/schedulerRepository.test.ts`
+- `web/tests/databaseMigrations.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 到期认领 | PostgreSQL 事务使用 `FOR UPDATE SKIP LOCKED` 锁定到期 Task，并原子创建唯一 TaskRun |
+| 幂等防线 | `(task_id, scheduled_for)` 冲突不重复创建；Task 推进与 Run 创建处于同一事务 |
+| 错过补偿 | 迟到的重复任务只产生一个补偿 Run，下一次时间直接推进到当前时间之后，避免补发风暴 |
+| 租约恢复 | `claimed/running` Run 租约过期后可由其他 Worker 重新认领并递增 attempt |
+| Fencing | start、续租和结束均校验 Worker、attempt 与有效租约，旧 Worker 不能覆盖新 Worker |
+| 用户修改 | Task 编辑或暂停会取消未完成的旧 Run，阻止执行过期内容 |
+| 终态 | 支持 `succeeded` 与 `failed` 结果，终态清空租约并保留审计字段 |
+
+### 验证方法与结果
+
+- Scheduler 测试覆盖迟到重复任务、单次完成、租约回收、旧 attempt 隔离、续租、成功/失败终态及任务修改取消。
+- `npm test`：29 个测试文件、113 个测试全部通过。
+- `npx tsc --noEmit`、`npm run lint`、`npm run db:check`、`git diff --check`：通过。
+- PGlite 迁移集成测试在全量并行时采用 10 秒上限，避免资源竞争导致原 5 秒阈值偶发超时；单独复测耗时约 1 秒。
+
+### localStorage 变化
+
+- 无。
+
 ## Sprint 2.1b–2.1c — 任务规则、CRUD API 与管理页面
 
 **Commit**: `9bff029`
