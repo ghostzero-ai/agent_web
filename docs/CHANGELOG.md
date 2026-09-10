@@ -4,6 +4,46 @@
 
 ---
 
+## Sprint 2.3c — 常驻 Reminder Worker
+
+**Commit**: `20598b2`
+
+### 修改文件
+
+- `web/lib/tasks/reminderWorker.ts`
+- `web/scripts/reminder-worker.ts`
+- `web/worker-entrypoint.sh`
+- `web/Dockerfile`
+- `docker-compose.yml`
+- `web/package.json`
+- `web/.env.example`
+- `.env.selfhost.example`
+- `web/tests/reminderWorker.test.ts`
+- `web/tests/selfHostingArtifacts.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 常驻执行 | 独立 Worker 按默认 5 秒间隔扫描到期任务，浏览器关闭后仍可运行 |
+| 批次隔离 | 单个 Run 暂时失败不会阻止同批其他提醒；失败项依靠租约过期后安全重试 |
+| 优雅停止 | Docker 停止时响应 SIGTERM，中断等待并关闭数据库连接 |
+| 容器部署 | Compose 新增 `worker` 服务，等待 PostgreSQL 健康并先迁移、后启动 Worker |
+| 可配置性 | 支持 Worker ID、轮询间隔、批量大小和租约时长，默认值面向单用户部署 |
+| 日志最小化 | 仅输出状态、计数、Run ID 和错误类型，不输出提醒正文或凭据 |
+
+### 验证方法与结果
+
+- `npm test`：31 个测试文件、121 个测试全部通过。
+- `npx tsc --noEmit`、`npm run lint`、`git diff --check`：通过。
+- `docker compose --env-file .env.selfhost up --build -d`：生产构建通过。
+- Web/PostgreSQL 健康；Worker 完成迁移并持续运行；并发迁移锁正常工作。
+
+### localStorage 变化
+
+- 无；Worker 直接通过服务端数据库处理 TaskRun 和 InboxItem。
+
 ## Sprint 2.3b — 提醒完成原子事务
 
 **Commit**: `5e48986`
