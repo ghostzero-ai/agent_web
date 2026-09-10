@@ -117,6 +117,42 @@ describe("SchedulerRepository", () => {
     expect(claimed.task).toMatchObject({ status: "completed", nextRunAt: null });
   });
 
+  it("repairs a due task when its unique run already exists", async () => {
+    const taskRepository = createTaskRepository(database);
+    const scheduler = createSchedulerRepository(database);
+    const scheduledFor = new Date("2026-09-10T01:00:00.000Z");
+    const task = await taskRepository.create({
+      title: "中断恢复",
+      prompt: null,
+      scheduleType: "once",
+      scheduleValue: { runAt: scheduledFor.toISOString() },
+      timezone: "Asia/Shanghai",
+      nextRunAt: scheduledFor,
+    });
+    await database.insert(schema.taskRuns).values({
+      taskId: task.id,
+      scheduledFor,
+      status: "claimed",
+      claimedBy: "existing-worker",
+      leaseExpiresAt: new Date("2026-09-10T02:00:00.000Z"),
+    });
+
+    await expect(
+      scheduler.claimAvailableRuns({
+        workerId: "repair-worker",
+        now: new Date("2026-09-10T01:00:01.000Z"),
+        leaseDurationMs: 60_000,
+        limit: 1,
+      }),
+    ).resolves.toEqual([]);
+    await expect(taskRepository.get(task.id)).resolves.toMatchObject({
+      status: "completed",
+      nextRunAt: null,
+      version: 2,
+    });
+    await expect(database.select().from(schema.taskRuns)).resolves.toHaveLength(1);
+  });
+
   it("reclaims an expired lease and fences the stale attempt", async () => {
     const taskRepository = createTaskRepository(database);
     const scheduler = createSchedulerRepository(database);

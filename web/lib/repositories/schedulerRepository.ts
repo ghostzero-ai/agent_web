@@ -43,7 +43,10 @@ export type FinishRunInput = {
 
 export class SchedulerRepositoryError extends Error {
   constructor(
-    readonly code: "INVALID_CLAIM_OPTIONS" | "RUN_LEASE_LOST",
+    readonly code:
+      | "INVALID_CLAIM_OPTIONS"
+      | "TASK_ADVANCE_FAILED"
+      | "RUN_LEASE_LOST",
     message: string,
   ) {
     super(message);
@@ -197,12 +200,18 @@ export class SchedulerRepository<
             and(
               eq(scheduledTasks.id, task.id),
               eq(scheduledTasks.status, "active"),
-              eq(scheduledTasks.nextRunAt, scheduledFor),
+              eq(scheduledTasks.version, task.version),
             ),
           )
           .returning();
 
-        if (run && updatedTask) {
+        if (!updatedTask) {
+          throw new SchedulerRepositoryError(
+            "TASK_ADVANCE_FAILED",
+            "Task changed while its scheduled run was being created.",
+          );
+        }
+        if (run) {
           claimed.push({ source: "new", run, task: updatedTask });
         }
       }
