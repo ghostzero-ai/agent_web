@@ -4,6 +4,36 @@
 
 ---
 
+## Sprint 2.3b — 提醒完成原子事务
+
+**Commit**: `5e48986`
+
+### 修改文件
+
+- `web/lib/repositories/inboxRepository.ts`
+- `web/tests/inboxRepository.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 原子完成 | 在同一数据库事务内写入 InboxItem 并将 TaskRun 标记为 succeeded，任一步失败都会整体回滚 |
+| 租约隔离 | 仅当前 worker、当前 attempt 且租约未过期时允许完成，旧 Worker 无法覆盖新执行结果 |
+| 幂等提醒 | 每个 TaskRun 最多对应一个 InboxItem，重复完成不会产生重复提醒 |
+| 内容快照 | 提醒保存执行时的标题和正文；原 Task 删除后提醒仍可阅读 |
+| 收件箱仓储 | 支持按未读/已读筛选、切换状态与删除，并限定为本地用户数据 |
+
+### 验证方法与结果
+
+- `npm test`：30 个测试文件、118 个测试全部通过。
+- 新增 4 项 PostgreSQL 集成测试，覆盖原子完成、幂等、防竞态、已读状态和源任务删除后的快照保留。
+- `npx tsc --noEmit`、`npm run lint`、`git diff --check`：通过。
+
+### localStorage 变化
+
+- 无；提醒和 Run 状态仅存 PostgreSQL。
+
 ## Sprint 2.3a — Durable Inbox 数据模型
 
 **Commit**: `bc3715b`
