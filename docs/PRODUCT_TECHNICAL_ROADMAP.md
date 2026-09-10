@@ -1701,7 +1701,7 @@ toolName, errorCode
 
 | Sprint | 内容 | 验收 |
 |---|---|---|
-| 2.1 | Task/TaskRun Schema + CRUD UI | 单次/每日/每周任务可管理 |
+| 2.1 ✅ | Task/TaskRun Schema + CRUD UI | 已完成：单次/每日/每周提醒可跨设备管理，任务与执行记录分离，使用版本锁防止静默覆盖 |
 | 2.2 | Scheduler Claim + 幂等 Run | 并发触发无重复执行 |
 | 2.3 | Reminder Worker + Inbox | 关闭网页后产生提醒结果 |
 | 2.4 | Web Push + 安静时段 | 推送可控、可降频 |

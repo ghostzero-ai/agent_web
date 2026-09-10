@@ -67,6 +67,8 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 
 服务端会话 API 使用 `/api/v1/conversations` 前缀，具体端点、请求格式和并发规则见 `docs/SERVER_DATA_API.md`。当前 API 没有登录鉴权，只能在本机或可信私有网络使用，不得直接暴露到公网。
 
+任务页面位于 `/tasks`，支持单次、每日和每周提醒的创建、编辑、暂停、恢复与删除。Task/TaskRun 模型、时区规则、API 和“当前尚不自动触发”的边界见 `docs/TASKS.md`。
+
 旧版 `agent_chat_sessions` 的预检、确认、树形迁移、去重和失败恢复规则见 `docs/LEGACY_DATA_IMPORT.md`。
 
 模型配置首选 `/api-key` 写入式设置页：Key 只在保存/测试请求中短暂经过浏览器内存，服务端加密保存，状态接口只返回末四位提示。`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 仅保留为没有数据库凭据时的管理员兜底；Streaming、凭据端点与错误码见 `docs/SERVER_MODEL_PROVIDER.md`。

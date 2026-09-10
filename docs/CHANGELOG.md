@@ -4,6 +4,71 @@
 
 ---
 
+## Sprint 2.1b–2.1c — 任务规则、CRUD API 与管理页面
+
+**Commit**: `9bff029`
+
+### 修改文件
+
+- `web/lib/tasks/schedule.ts`
+- `web/lib/repositories/taskRepository.ts`
+- `web/lib/api/taskApi.ts`
+- `web/lib/api/taskClient.ts`
+- `web/app/api/v1/tasks/route.ts`
+- `web/app/api/v1/tasks/[id]/route.ts`
+- `web/app/tasks/page.tsx`
+- `web/components/tasks/TaskManager.tsx`
+- `web/components/chat/ChatHeader.tsx`
+- `web/app/api-key/page.tsx`
+- `web/playwright.config.ts`
+- `web/tests/taskSchedule.test.ts`
+- `web/tests/taskRepository.test.ts`
+- `web/tests/taskApi.test.ts`
+- `web/tests/taskClient.test.ts`
+- `web/tests/taskComponents.test.tsx`
+- `web/e2e/tasks.spec.ts`
+- `docs/TASKS.md`
+- `docs/adr/ADR-030-TASK-DOMAIN-AND-SCHEDULE-RULES.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `PROJECT.md`
+- `README.md`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 时间规则 | 固定 `Asia/Shanghai`，服务端计算单次、每日、每周规则的下一次 UTC 时间 |
+| Repository | 固定本地用户、事务更新、乐观版本锁与级联删除 |
+| CRUD API | `/api/v1/tasks` 提供严格校验的创建、列表、详情、修改、暂停/恢复和删除 |
+| 管理页面 | `/tasks` 提供响应式任务表单与列表，适配 390px 手机视口 |
+| 安全边界 | 不接受客户端 User ID/nextRunAt，内部错误脱敏，仍限定 localhost/Tailscale 私网 |
+| 运行边界 | 本 Sprint 不自动执行任务；Scheduler、幂等 Run 与错过任务补偿留给 2.2 |
+
+### 验证方法与结果
+
+- `npm test`：28 个测试文件、108 个测试全部通过。
+- `npm run lint`、`npx tsc --noEmit`、`git diff --check`：通过。
+- Microsoft Edge E2E：6 项全部通过；其中新增 390×844 手机视口下创建、编辑、暂停、删除闭环。
+- 生产构建在代码编译前因沙箱无法连接 Google Fonts 失败；开发服务器自动使用 fallback font，页面和 E2E 正常。Docker 实机重建等待本地权限审查恢复。
+
+### localStorage 变化
+
+- 无；Task 与未来 TaskRun 只存 PostgreSQL。
+
+### 当前结构快照
+
+```text
+web/
+├── app/api/v1/tasks/        # Task HTTP 路由
+├── app/tasks/               # 任务管理页
+├── components/tasks/        # 响应式 CRUD UI
+├── lib/api/                 # Task API 服务与浏览器 Client
+├── lib/repositories/        # PostgreSQL Task Repository
+├── lib/tasks/               # 时间规则领域逻辑
+└── tests + e2e/             # 规则、数据、API、UI 与手机闭环
+```
+
 ## Sprint 2.1a — Task/TaskRun 数据模型
 
 **Commit**: `8d25166`
