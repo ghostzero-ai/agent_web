@@ -4,6 +4,89 @@
 
 ---
 
+## Sprint 2.3 — Reminder Worker + Durable Inbox 封版
+
+**Commits**: `bc3715b`, `5e48986`, `20598b2`, `c9cda10`, `1f9a807`, `0d9021f`
+
+### 修改文件
+
+- `README.md`
+- `PROJECT.md`
+- `docker-compose.yml`
+- `.env.selfhost.example`
+- `scripts/selfhost-restore.ps1`
+- `scripts/selfhost-restore.sh`
+- `docs/TASKS.md`
+- `docs/SELF_HOSTING.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `docs/adr/ADR-032-REMINDER-WORKER-AND-DURABLE-INBOX.md`
+- `web/lib/db/schema.ts`
+- `web/drizzle/0004_cold_medusa.sql`
+- `web/drizzle/rollback/0004_cold_medusa.sql`
+- `web/drizzle/meta/0004_snapshot.json`
+- `web/drizzle/meta/_journal.json`
+- `web/lib/repositories/inboxRepository.ts`
+- `web/lib/tasks/reminderWorker.ts`
+- `web/scripts/reminder-worker.ts`
+- `web/worker-entrypoint.sh`
+- `web/Dockerfile`
+- `web/package.json`
+- `web/.env.example`
+- `web/lib/api/inboxApi.ts`
+- `web/lib/api/inboxClient.ts`
+- `web/app/api/v1/inbox/route.ts`
+- `web/app/api/v1/inbox/[id]/route.ts`
+- `web/components/inbox/InboxManager.tsx`
+- `web/app/inbox/page.tsx`
+- `web/components/chat/ChatHeader.tsx`
+- `web/app/tasks/page.tsx`
+- `web/app/api-key/page.tsx`
+- `web/tests/databaseMigrations.test.ts`
+- `web/tests/inboxRepository.test.ts`
+- `web/tests/reminderWorker.test.ts`
+- `web/tests/selfHostingArtifacts.test.ts`
+- `web/tests/inboxApi.test.ts`
+- `web/tests/inboxClient.test.ts`
+- `web/tests/inboxComponents.test.tsx`
+- `web/e2e/inbox.spec.ts`
+- `docs/CHANGELOG.md`
+
+### 交付结果
+
+Sprint 2.3 已把 Sprint 2.2 的安全认领能力变成可日常使用的后台提醒闭环：独立 Worker 不依赖网页生命周期，普通提醒不依赖模型；Run 成功与 Inbox 写入保持原子性和幂等性；手机页面可读取、筛选和管理结果。系统级 Push、安静时段和通知订阅仍明确留在 Sprint 2.4。
+
+封版审查额外发现并修复数据库还原期间 Worker 未暂停的竞态。Windows 与 Linux 还原脚本现在同时停止和恢复所有写入服务。
+
+### 验证摘要
+
+- 单元/集成测试：34 个文件、128 项通过。
+- Microsoft Edge E2E：7 项通过，含任务与 Inbox 的 390×844 移动端流程。
+- TypeScript、ESLint、Drizzle Schema 检查、Git whitespace 检查与 Docker 生产构建通过。
+- 真实 Docker 链路：临时一次性 Task 被独立 Worker 自动执行，Task 进入 completed，产生唯一 unread InboxItem，随后临时数据清理完成。
+- PostgreSQL、Web 容器健康，Worker 常驻运行；日志未出现提醒正文、连接串或 API Key。
+
+### localStorage 变化
+
+- 无。Task、TaskRun 与 InboxItem 均以 PostgreSQL 为事实来源。
+
+### 当前结构快照
+
+```text
+web/
+├── app/
+│   ├── api/v1/tasks/               # Task CRUD API
+│   ├── api/v1/inbox/               # Inbox 查询、已读状态与删除 API
+│   ├── tasks/                       # 任务管理页面
+│   └── inbox/                       # 移动端友好的提醒收件箱
+├── lib/
+│   ├── repositories/
+│   │   ├── schedulerRepository.ts  # Claim、租约与 fencing
+│   │   └── inboxRepository.ts      # Run + Inbox 原子完成
+│   └── tasks/reminderWorker.ts      # 可测试的批次与常驻循环
+├── scripts/reminder-worker.ts       # Worker 进程入口
+└── worker-entrypoint.sh             # 容器迁移后启动 Worker
+```
+
 ## Sprint 2.3e — 数据库还原期间暂停 Worker
 
 **Commit**: `1f9a807`
