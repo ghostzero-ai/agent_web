@@ -97,12 +97,14 @@ describe("single-user self-hosting artifacts", () => {
     expect(powershellRestore).toContain("[switch]$ConfirmRestore");
     expect(powershellRestore).toContain("if (-not $ConfirmRestore)");
     expect(shellRestore).toContain("--confirm-restore");
-    expect(powershellRestore.indexOf("stop web")).toBeLessThan(
+    expect(powershellRestore.indexOf("stop web worker")).toBeLessThan(
       powershellRestore.indexOf("DROP SCHEMA"),
     );
-    expect(shellRestore.indexOf("stop web")).toBeLessThan(
+    expect(shellRestore.indexOf("stop web worker")).toBeLessThan(
       shellRestore.indexOf("DROP SCHEMA"),
     );
+    expect(powershellRestore).toContain("start web worker");
+    expect(shellRestore).toContain("start web worker");
     expect(powershellRestore).toContain("ON_ERROR_STOP=1");
     expect(shellRestore).toContain("ON_ERROR_STOP=1");
   });

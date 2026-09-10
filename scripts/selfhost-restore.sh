@@ -16,11 +16,11 @@ if [ ! -f "$env_file" ] || [ ! -s "$backup_file" ]; then
   exit 1
 fi
 
-docker compose --file "$project_root/docker-compose.yml" --env-file "$env_file" stop web
+docker compose --file "$project_root/docker-compose.yml" --env-file "$env_file" stop web worker
 docker compose --file "$project_root/docker-compose.yml" --env-file "$env_file" exec -T postgres sh -c \
   'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=1 --command "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'
 docker compose --file "$project_root/docker-compose.yml" --env-file "$env_file" exec -T postgres sh -c \
   'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=1' < "$backup_file"
-docker compose --file "$project_root/docker-compose.yml" --env-file "$env_file" start web
+docker compose --file "$project_root/docker-compose.yml" --env-file "$env_file" start web worker
 
 printf 'Restore completed from %s\n' "$backup_file"

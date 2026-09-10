@@ -25,9 +25,9 @@ if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) {
   throw "Missing $envFile."
 }
 
-docker compose --file $composeFile --env-file $envFile stop web
+docker compose --file $composeFile --env-file $envFile stop web worker
 if ($LASTEXITCODE -ne 0) {
-  throw "Could not stop the web service; restore was not started."
+  throw "Could not stop the web and worker services; restore was not started."
 }
 
 docker compose --file $composeFile --env-file $envFile exec -T postgres sh -c 'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=1 --command "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'
@@ -41,9 +41,9 @@ if ($LASTEXITCODE -ne 0) {
   throw "Restore failed with exit code $LASTEXITCODE. Keep the backup file and inspect the container logs."
 }
 
-docker compose --file $composeFile --env-file $envFile start web
+docker compose --file $composeFile --env-file $envFile start web worker
 if ($LASTEXITCODE -ne 0) {
-  throw "Database restore completed, but the web service did not restart."
+  throw "Database restore completed, but the web and worker services did not restart."
 }
 
 Write-Output "Restore completed from $resolvedBackup"
