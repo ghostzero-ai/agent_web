@@ -4,6 +4,35 @@
 
 ---
 
+## Sprint 2.2b — Scheduler 单次认领命令
+
+**Commit**: `6b72cf1`
+
+### 修改文件
+
+- `web/scripts/scheduler-claim.ts`
+- `web/package.json`
+- `web/tests/selfHostingArtifacts.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 运行入口 | `npm run scheduler:claim` 执行一次到期 Run 批量认领，供 Docker 验收和下一阶段 Worker 复用 |
+| 参数 | 支持 `SCHEDULER_WORKER_ID`、`SCHEDULER_BATCH_SIZE`、`SCHEDULER_LEASE_MS` 环境变量 |
+| 日志边界 | 仅输出 Worker/Run/Task ID、attempt、计划时间和租约，不输出任务标题、正文、Key 或连接串 |
+| 生命周期 | 命令完成后主动关闭数据库连接，不创建常驻轮询进程 |
+
+### 验证方法与结果
+
+- `tests/selfHostingArtifacts.test.ts` 与 `tests/schedulerRepository.test.ts` 共 9 项测试通过。
+- `npx tsc --noEmit`、`npm run lint`、`git diff --check`：通过。
+
+### localStorage 变化
+
+- 无。
+
 ## Sprint 2.2a — 幂等 TaskRun Claim 与租约状态机
 
 **Commit**: `116571e`
