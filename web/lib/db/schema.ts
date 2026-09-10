@@ -57,6 +57,8 @@ export const taskRunStatus = pgEnum("task_run_status", [
   "cancelled",
 ]);
 
+export const inboxItemStatus = pgEnum("inbox_item_status", ["unread", "read"]);
+
 export type TaskScheduleValue =
   | { runAt: string }
   | { time: string }
@@ -292,6 +294,50 @@ export const taskRuns = pgTable(
   ],
 );
 
+export const inboxItems = pgTable(
+  "inbox_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    taskId: uuid("task_id").references(() => scheduledTasks.id, {
+      onDelete: "set null",
+    }),
+    taskRunId: uuid("task_run_id").references(() => taskRuns.id, {
+      onDelete: "set null",
+    }),
+    source: text("source").notNull().default("reminder"),
+    title: text("title").notNull(),
+    body: text("body"),
+    occurredAt: timestamp("occurred_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+    status: inboxItemStatus("status").notNull().default("unread"),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("inbox_items_task_run_unique").on(table.taskRunId),
+    index("inbox_items_user_status_occurred_idx").on(
+      table.userId,
+      table.status,
+      table.occurredAt,
+    ),
+    check("inbox_items_source_reminder", sql`${table.source} = 'reminder'`),
+    check(
+      "inbox_items_read_state",
+      sql`(${table.status} = 'unread' AND ${table.readAt} IS NULL) OR (${table.status} = 'read' AND ${table.readAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
 export type UserRecord = typeof users.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
@@ -299,3 +345,4 @@ export type ConversationImportRecord = typeof conversationImports.$inferSelect;
 export type ModelCredentialRecord = typeof modelCredentials.$inferSelect;
 export type ScheduledTaskRecord = typeof scheduledTasks.$inferSelect;
 export type TaskRunRecord = typeof taskRuns.$inferSelect;
+export type InboxItemRecord = typeof inboxItems.$inferSelect;

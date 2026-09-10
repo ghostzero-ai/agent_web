@@ -29,6 +29,13 @@
       "when": 1789016690502,
       "tag": "0003_aspiring_victor_mancha",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789054449594,
+      "tag": "0004_cold_medusa",
+      "breakpoints": true
     }
   ]
 }
