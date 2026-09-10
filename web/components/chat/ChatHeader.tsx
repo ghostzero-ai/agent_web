@@ -38,12 +38,20 @@ export function ChatHeader({
           AI 对话
         </h1>
       </div>
-      <Link
-        href="/api-key"
-        className="text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
-      >
-        API 配置
-      </Link>
+      <nav className="flex items-center gap-4 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+        <Link
+          href="/tasks"
+          className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
+        >
+          任务
+        </Link>
+        <Link
+          href="/api-key"
+          className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
+        >
+          API 配置
+        </Link>
+      </nav>
     </header>
   );
 }

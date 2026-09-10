@@ -12,12 +12,14 @@ export default function ApiKeyPage() {
         <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
           模型服务配置
         </h1>
-        <Link
-          href="/chat"
-          className="text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
-        >
-          返回对话
-        </Link>
+        <nav className="flex gap-4 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          <Link href="/tasks" className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200">
+            任务
+          </Link>
+          <Link href="/chat" className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200">
+            返回对话
+          </Link>
+        </nav>
       </header>
 
       <main className="flex flex-1 items-center justify-center px-6 py-16">
