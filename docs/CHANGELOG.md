@@ -4,6 +4,40 @@
 
 ---
 
+## Sprint 2.3a — Durable Inbox 数据模型
+
+**Commit**: `bc3715b`
+
+### 修改文件
+
+- `web/lib/db/schema.ts`
+- `web/drizzle/0004_cold_medusa.sql`
+- `web/drizzle/rollback/0004_cold_medusa.sql`
+- `web/drizzle/meta/0004_snapshot.json`
+- `web/drizzle/meta/_journal.json`
+- `web/tests/databaseMigrations.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| InboxItem | 保存提醒标题、正文快照、计划发生时间、未读/已读状态和读取时间 |
+| 持久性 | 删除原 Task/TaskRun 时外键设为 null，已经产生的 Inbox 提醒继续保留 |
+| 幂等关联 | `task_run_id` 唯一，阻止同一 Run 生成多个 InboxItem |
+| 查询索引 | 按用户、状态和发生时间支持收件箱读取 |
+| 数据约束 | read 状态必须有 readAt，unread 状态必须没有 readAt；source 当前固定 reminder |
+| 回滚 | `0004_cold_medusa.sql` 可独立删除 Inbox 表和枚举并重新应用 |
+
+### 验证方法与结果
+
+- 迁移测试覆盖 8 张表、Inbox 外键持久性、最新迁移回滚与重新应用。
+- `npm run db:check`、`npx tsc --noEmit`、`npm run lint`、`git diff --check`：通过。
+
+### localStorage 变化
+
+- 无；Inbox 仅存 PostgreSQL。
+
 ## Sprint 2.2 — Scheduler Claim 与幂等 Run 封版
 
 **Commits**: `116571e`, `6b72cf1`, `b9e0624`
