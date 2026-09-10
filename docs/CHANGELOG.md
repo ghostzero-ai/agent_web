@@ -50,7 +50,9 @@
 - `npm test`：28 个测试文件、108 个测试全部通过。
 - `npm run lint`、`npx tsc --noEmit`、`git diff --check`：通过。
 - Microsoft Edge E2E：6 项全部通过；其中新增 390×844 手机视口下创建、编辑、暂停、删除闭环。
-- 生产构建在代码编译前因沙箱无法连接 Google Fonts 失败；开发服务器自动使用 fallback font，页面和 E2E 正常。Docker 实机重建等待本地权限审查恢复。
+- Docker 生产镜像成功完成 Next.js 编译、TypeScript 检查与页面生成；新 Web 容器健康。
+- Docker PostgreSQL 已应用 `0003_aspiring_victor_mancha.sql`，Task/TaskRun 表存在；真实 API 创建、列表、暂停、删除闭环通过且验收数据已清除。
+- Tailscale Serve 仍以 tailnet-only 模式把 HTTPS 根路径代理到 `http://localhost:3000`。
 
 ### localStorage 变化
 
