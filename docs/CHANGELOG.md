@@ -4,6 +4,35 @@
 
 ---
 
+## Sprint 2.2c — PostgreSQL 时间精度原子性修复
+
+**Commit**: `b9e0624`
+
+### 修改文件
+
+- `web/lib/repositories/schedulerRepository.ts`
+- `web/tests/schedulerRepository.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 根因 | PostgreSQL `timestamptz` 保留微秒，而 JavaScript `Date` 只有毫秒；用时间相等条件更新 Task 会在真实库失配 |
+| 修复 | 已持有 Task 行锁时改用整数 `version` 护栏，不再比较往返后丢失精度的时间 |
+| 原子回滚 | Run 插入后若 Task 未推进会抛出 `TASK_ADVANCE_FAILED`，整个事务回滚，不留下半完成状态 |
+| 中断修复 | 若唯一 Run 已存在而 Task 仍停留在到期时间，扫描会推进 Task 且不创建第二个 Run |
+
+### 验证方法与结果
+
+- PGlite Scheduler 测试增至 6 项，新增“已有唯一 Run 时修复到期 Task”路径。
+- `npx tsc --noEmit`、`npm run lint`、`git diff --check`：通过。
+- 真实 PostgreSQL 首次并发验收准确暴露该问题；修复后的隔离库复验在后续部署记录中给出。
+
+### localStorage 变化
+
+- 无。
+
 ## Sprint 2.2b — Scheduler 单次认领命令
 
 **Commit**: `6b72cf1`
