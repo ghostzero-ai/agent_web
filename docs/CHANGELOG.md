@@ -4,6 +4,42 @@
 
 ---
 
+## Sprint 2.1a — Task/TaskRun 数据模型
+
+**Commit**: `8d25166`
+
+### 修改文件
+
+- `web/lib/db/schema.ts`
+- `web/drizzle/0003_aspiring_victor_mancha.sql`
+- `web/drizzle/rollback/0003_aspiring_victor_mancha.sql`
+- `web/drizzle/meta/0003_snapshot.json`
+- `web/drizzle/meta/_journal.json`
+- `web/tests/databaseMigrations.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|------|------|
+| ScheduledTask | 保存单次、每日、每周提醒的结构化计划、状态、时区和 `nextRunAt` |
+| TaskRun | 保存未来每次执行的状态、租约、结果、错误与通知时间 |
+| 幂等约束 | `(task_id, scheduled_for)` 唯一，阻止同一计划时间产生重复 Run |
+| 调度索引 | 支持按用户、任务状态和下一次执行时间查找到期任务 |
+| 数据约束 | Active 任务必须具有 `nextRunAt`，版本和执行次数必须为正数 |
+| 回滚 | 最新迁移可独立删除 TaskRun、ScheduledTask 和对应枚举并重新应用 |
+
+### 验证方法与结果
+
+- `npm run db:check`：Schema 与迁移快照一致。
+- 迁移测试覆盖 7 张表、默认值、Run 唯一约束、回滚和重新应用。
+- `npm test`：23 个测试文件、94 个测试全部通过。
+- `npx tsc --noEmit`、`git diff --check`：通过。
+
+### localStorage 变化
+
+- 无；任务数据只进入 PostgreSQL。
+
 ## 移动端 Chat — 可折叠对话抽屉
 
 **Commit**: `c7565e6`
