@@ -1,7 +1,8 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
   scheduledTasks,
+  taskRuns,
   users,
   type ScheduledTaskRecord,
   type TaskScheduleValue,
@@ -150,6 +151,23 @@ export class TaskRepository<
           "Task changed while it was being updated.",
         );
       }
+
+      await transaction
+        .update(taskRuns)
+        .set({
+          status: "cancelled",
+          leaseExpiresAt: null,
+          finishedAt: new Date(),
+          errorCode: "TASK_UPDATED",
+          errorMessage: "Task changed before this run completed.",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(taskRuns.taskId, id),
+            inArray(taskRuns.status, ["queued", "claimed", "running"]),
+          ),
+        );
       return updated;
     });
   }

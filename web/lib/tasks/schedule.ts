@@ -125,3 +125,15 @@ export function scheduleFromStored(
   }
   throw new TaskScheduleError("Stored task schedule does not match its type.");
 }
+
+export function nextRecurringRunAt(
+  scheduleType: Exclude<TaskSchedule["type"], "once">,
+  value: TaskScheduleValue,
+  after: Date,
+): Date {
+  const schedule = scheduleFromStored(scheduleType, value);
+  if (schedule.type === "once") {
+    throw new TaskScheduleError("One-time schedules do not recur.");
+  }
+  return normalizeTaskSchedule(schedule, after).nextRunAt;
+}
