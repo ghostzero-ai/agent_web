@@ -48,5 +48,24 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  worker:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["./worker-entrypoint.sh"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.selfhost}
+      REMINDER_WORKER_ID: ${REMINDER_WORKER_ID:-}
+      REMINDER_POLL_INTERVAL_MS: ${REMINDER_POLL_INTERVAL_MS:-5000}
+      SCHEDULER_BATCH_SIZE: ${SCHEDULER_BATCH_SIZE:-20}
+      SCHEDULER_LEASE_MS: ${SCHEDULER_LEASE_MS:-60000}
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   postgres-data:

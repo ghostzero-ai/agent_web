@@ -22,8 +22,9 @@ COPY --from=builder --chown=node:node /app/package.json ./package.json
 COPY --from=builder --chown=node:node /app/next.config.ts ./next.config.ts
 COPY --from=builder --chown=node:node /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=node:node /app/docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --from=builder --chown=node:node /app/worker-entrypoint.sh ./worker-entrypoint.sh
 
-RUN chmod +x ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh ./worker-entrypoint.sh
 USER node
 EXPOSE 3000
 ENTRYPOINT ["./docker-entrypoint.sh"]

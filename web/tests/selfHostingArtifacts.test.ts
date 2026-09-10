@@ -40,20 +40,44 @@ describe("single-user self-hosting artifacts", () => {
   });
 
   it("runs migration entry scripts without CommonJS top-level await", async () => {
-    const [migrateScript, rollbackScript, schedulerScript, packageJson] = await Promise.all([
+    const [
+      migrateScript,
+      rollbackScript,
+      schedulerScript,
+      workerScript,
+      workerEntrypoint,
+      compose,
+      packageJson,
+    ] = await Promise.all([
       readProjectFile("web/scripts/db-migrate.ts"),
       readProjectFile("web/scripts/db-rollback.ts"),
       readProjectFile("web/scripts/scheduler-claim.ts"),
+      readProjectFile("web/scripts/reminder-worker.ts"),
+      readProjectFile("web/worker-entrypoint.sh"),
+      readProjectFile("docker-compose.yml"),
       readProjectFile("web/package.json"),
     ]);
 
-    for (const script of [migrateScript, rollbackScript, schedulerScript]) {
+    for (const script of [
+      migrateScript,
+      rollbackScript,
+      schedulerScript,
+      workerScript,
+    ]) {
       expect(script).toContain("async function main(): Promise<void>");
       expect(script).toContain("void main().catch");
     }
     expect(packageJson).toContain('"scheduler:claim"');
+    expect(packageJson).toContain('"worker:reminders"');
     expect(schedulerScript).not.toContain("run.task.prompt");
     expect(schedulerScript).not.toContain("run.task.title");
+    expect(workerScript).not.toContain("task.prompt");
+    expect(workerScript).not.toContain("task.title");
+    expect(workerEntrypoint.indexOf("npm run db:migrate")).toBeLessThan(
+      workerEntrypoint.indexOf("exec npm run worker:reminders"),
+    );
+    expect(compose).toContain("  worker:");
+    expect(compose).toContain('entrypoint: ["./worker-entrypoint.sh"]');
   });
 
   it("excludes secrets and requires explicit confirmation for restore", async () => {
