@@ -12,7 +12,8 @@
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
     "db:migrate": "tsx scripts/db-migrate.ts",
-    "db:rollback": "tsx scripts/db-rollback.ts"
+    "db:rollback": "tsx scripts/db-rollback.ts",
+    "scheduler:claim": "tsx scripts/scheduler-claim.ts"
   },
   "dependencies": {
     "@next/env": "16.3.4",

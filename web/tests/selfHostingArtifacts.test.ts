@@ -40,15 +40,20 @@ describe("single-user self-hosting artifacts", () => {
   });
 
   it("runs migration entry scripts without CommonJS top-level await", async () => {
-    const [migrateScript, rollbackScript] = await Promise.all([
+    const [migrateScript, rollbackScript, schedulerScript, packageJson] = await Promise.all([
       readProjectFile("web/scripts/db-migrate.ts"),
       readProjectFile("web/scripts/db-rollback.ts"),
+      readProjectFile("web/scripts/scheduler-claim.ts"),
+      readProjectFile("web/package.json"),
     ]);
 
-    for (const script of [migrateScript, rollbackScript]) {
+    for (const script of [migrateScript, rollbackScript, schedulerScript]) {
       expect(script).toContain("async function main(): Promise<void>");
       expect(script).toContain("void main().catch");
     }
+    expect(packageJson).toContain('"scheduler:claim"');
+    expect(schedulerScript).not.toContain("run.task.prompt");
+    expect(schedulerScript).not.toContain("run.task.title");
   });
 
   it("excludes secrets and requires explicit confirmation for restore", async () => {
