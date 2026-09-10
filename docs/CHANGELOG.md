@@ -4,6 +4,33 @@
 
 ---
 
+## Sprint 2.3e — 数据库还原期间暂停 Worker
+
+**Commit**: `1f9a807`
+
+### 修改文件
+
+- `scripts/selfhost-restore.ps1`
+- `scripts/selfhost-restore.sh`
+- `web/tests/selfHostingArtifacts.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+- Windows 与 Linux 还原脚本在重建数据库前同时停止 Web 和 Reminder Worker，成功还原后同时恢复两者。
+- 避免 Worker 在 `DROP SCHEMA`、导入备份期间认领任务或写入提醒。
+- 自动化断言固定“停写必须早于破坏性 SQL，Web/Worker 必须共同恢复”的顺序。
+
+### 验证方法与结果
+
+- `npx vitest run tests/selfHostingArtifacts.test.ts`：4 项全部通过。
+- `npx tsc --noEmit`、`npm run lint`、PowerShell 脚本语法解析、`git diff --check`：通过。
+- 出于数据安全考虑，未对用户当前数据库执行破坏性的真实还原。
+
+### localStorage 变化
+
+- 无。
+
 ## Sprint 2.3d — 提醒收件箱体验
 
 **Commit**: `c9cda10`
