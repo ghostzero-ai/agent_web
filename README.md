@@ -50,7 +50,7 @@ Database
 
 开发中：
 
-* Phase 2：可靠 Task/TaskRun 提醒闭环
+* Phase 2：可靠 Task/TaskRun 提醒闭环（Sprint 2.3 已完成）
 
 Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Streaming、显式旧数据导入和 Docker Compose 单用户自托管基线均已建立。Chat 现在以 PostgreSQL 为事实来源；浏览器旧会话只有在用户确认后才会导入，重复请求由导入收据去重。随后完成的 Credential Vault 支持从网页测试和保存自有 Key，服务端使用 AES-256-GCM 加密后写入 PostgreSQL。
 
@@ -67,7 +67,7 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 
 服务端会话 API 使用 `/api/v1/conversations` 前缀，具体端点、请求格式和并发规则见 `docs/SERVER_DATA_API.md`。当前 API 没有登录鉴权，只能在本机或可信私有网络使用，不得直接暴露到公网。
 
-任务页面位于 `/tasks`，支持单次、每日和每周提醒的创建、编辑、暂停、恢复与删除。Scheduler 已具备事务 Claim、唯一 Run、租约恢复和并发 fencing；当前仍是单次扫描命令，尚未常驻执行或发送通知。模型、时区、命令和运行边界见 `docs/TASKS.md`。
+任务页面位于 `/tasks`，支持单次、每日和每周提醒的创建、编辑、暂停、恢复与删除。独立 Reminder Worker 在网页关闭后仍会通过事务 Claim、唯一 Run、租约恢复和并发 fencing 执行到期任务，并将结果原子写入 `/inbox`。当前是应用内提醒，手机系统级 Web Push 尚未实现。模型、时区、命令和运行边界见 `docs/TASKS.md`。
 
 旧版 `agent_chat_sessions` 的预检、确认、树形迁移、去重和失败恢复规则见 `docs/LEGACY_DATA_IMPORT.md`。
 

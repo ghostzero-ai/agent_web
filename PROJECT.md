@@ -34,13 +34,13 @@ Phase 2 — Reliable Task Loop
 
 CURRENT_TASK:
 
-Sprint 2.3 — Reminder Worker and Durable Inbox
+Sprint 2.4 — Web Push and Quiet Hours
 
 ==================================================
 
 NEXT_TASK:
 
-Sprint 2.4 — Web Push and Quiet Hours
+Sprint 2.5 — Agent Prompt Task
 
 ==================================================
 
@@ -154,7 +154,7 @@ Chat UI 已使用 PostgreSQL Conversation/Message API 作为事实来源，并�
 
 Task/TaskRun Schema、Repository、`/api/v1/tasks` 与 `/tasks` 管理页面已建立。当前可管理单次、每日、每周提醒。
 
-Scheduler 已支持事务化到期认领、唯一 Run、租约恢复、attempt fencing 和错过任务合并补偿；当前通过单次命令调用，常驻 Worker 与 Durable Inbox 从 Sprint 2.3 开始。
+Scheduler 已支持事务化到期认领、唯一 Run、租约恢复、attempt fencing 和错过任务合并补偿。独立 Reminder Worker 已常驻运行，普通提醒会原子写入 Durable Inbox；`/inbox` 支持移动端查看、筛选、已读状态和删除。系统级 Web Push 从 Sprint 2.4 开始。
 
 默认不保存云端聊天记录。
 

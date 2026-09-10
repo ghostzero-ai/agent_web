@@ -1,6 +1,6 @@
 # 单用户自托管运行手册
 
-当前基线由 Docker Compose 中的 Next.js Web/API 与 PostgreSQL 组成，面向个人笔记本运行，并保留未来迁移到云主机时不改领域代码的路径。手机远程访问首选 Tailscale 私有网络；数据库不映射宿主机端口，Web 默认只绑定 localhost。
+当前基线由 Docker Compose 中的 Next.js Web/API、独立 Reminder Worker 与 PostgreSQL 组成，面向个人笔记本运行，并保留未来迁移到云主机时不改领域代码的路径。手机远程访问首选 Tailscale 私有网络；数据库不映射宿主机端口，Web 默认只绑定 localhost。
 
 ## 1. 前提
 
@@ -39,9 +39,10 @@ $rng.Dispose()
 docker compose --env-file .env.selfhost up --build -d
 docker compose --env-file .env.selfhost ps
 docker compose --env-file .env.selfhost logs --tail 100 web
+docker compose --env-file .env.selfhost logs --tail 100 worker
 ```
 
-Web 容器会等待 PostgreSQL 健康，然后先执行 `npm run db:migrate`，确认迁移成功后才启动 Next.js。电脑本机打开 `http://127.0.0.1:3000/api-key`，测试并保存模型凭据；之后打开 `/chat`。
+Web 与 Worker 容器都会等待 PostgreSQL 健康，并通过数据库迁移锁安全地先完成迁移。电脑本机打开 `http://127.0.0.1:3000/api-key` 测试并保存模型凭据，之后可使用 `/chat`、`/tasks` 与 `/inbox`。Worker 默认每 5 秒扫描到期任务，网页关闭后仍运行。
 
 ## 3. Tailscale 手机私有访问
 
@@ -52,7 +53,7 @@ tailscale serve --bg localhost:3000
 tailscale serve status
 ```
 
-命令会返回仅 Tailnet 内可访问的 HTTPS 地址。在手机开启 Tailscale 后，访问该地址的 `/api-key` 或 `/chat`。此方案保留 `APP_BIND_ADDRESS=127.0.0.1`，由 Tailscale 提供设备身份、私有路由与 HTTPS。
+命令会返回仅 Tailnet 内可访问的 HTTPS 地址。在手机开启 Tailscale 后，访问该地址的 `/api-key`、`/chat`、`/tasks` 或 `/inbox`。此方案保留 `APP_BIND_ADDRESS=127.0.0.1`，由 Tailscale 提供设备身份、私有路由与 HTTPS。
 
 命令细节与版本变化以 [Tailscale Serve 官方文档](https://tailscale.com/docs/reference/tailscale-cli/serve) 为准。
 
@@ -130,7 +131,7 @@ Linux/macOS：
 ./scripts/selfhost-restore.sh ./backups/agent-web-20260906-120000.sql --confirm-restore
 ```
 
-脚本先验证文件存在且非空、停止 Web 写入，再重建 `public` Schema，并让 `psql` 使用 `ON_ERROR_STOP=1`；成功后重新启动 Web，任何 SQL 错误都会返回失败且 Web 保持停止以避免继续写入不完整数据库。还原时还必须向新环境提供原来的 `CREDENTIAL_MASTER_KEY`，否则模型凭据需要重新保存。
+脚本先验证文件存在且非空、同时停止 Web 与 Worker 写入，再重建 `public` Schema，并让 `psql` 使用 `ON_ERROR_STOP=1`；成功后重新启动 Web 与 Worker。任何 SQL 错误都会返回失败且写入服务保持停止，以避免继续写入不完整数据库。还原时还必须向新环境提供原来的 `CREDENTIAL_MASTER_KEY`，否则模型凭据需要重新保存。
 
 正式数据至少做一次“备份 → 独立测试环境还原 → 核对会话数、分支和凭据状态”的演练，不能只验证备份文件存在。
 
@@ -150,6 +151,7 @@ Linux/macOS：
 
 - 已在 Windows Docker Desktop 实机完成镜像构建、数据库迁移、容器健康检查、网页访问和重启后启动验证。
 - 已用一次性假凭据完成写入、读取公开状态和删除的真实 API/数据库集成检查，并确认数据库密文不包含明文。
-- 自动化测试覆盖私有数据库、持久卷、localhost 绑定、迁移先于启动、Secret 排除、恢复确认和 Credential Vault 行为。
+- 自动化测试覆盖私有数据库、持久卷、localhost 绑定、迁移先于启动、独立 Worker、Secret 排除、恢复确认和 Credential Vault 行为。
+- 已真实验证一次性任务在网页之外由 Worker 自动执行，Task 进入 completed 并产生唯一 unread InboxItem；临时验证数据已清理。
 - 尚未执行正式 `pg_dump → 独立环境还原` 演练；产生重要个人数据前应补做。
 - Tailscale Serve 需要在电脑和手机安装、登录后由用户启用；项目不自动修改系统 VPN、账号或 Tailnet 策略。

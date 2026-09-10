@@ -1,9 +1,9 @@
 # AI Study Companion 产品与技术总规划
 
 > 文档类型：产品需求文档（PRD）+ 技术设计文档（TDD）+ 分阶段路线图
-> 文档版本：1.1
+> 文档版本：1.2
 > 编写日期：2026-09-02
-> 最近修订：2026-09-06
+> 最近修订：2026-09-11
 > 适用项目：AI Study Companion / Personal AI Agent Web Application
 > 状态：规划基线，后续通过 ADR 与 CHANGELOG 持续修订
 
@@ -85,21 +85,20 @@ AI Study Companion 是一个面向个人长期使用的、兼具专业知识工�
 | Framework | Next.js 16 App Router | 保留 |
 | UI | React 19 + Tailwind CSS 4 | 保留 |
 | Language | TypeScript 5 strict | 保留 |
-| 部署设想 | Vercel | 可保留 Web，后台能力需单独验证 |
-| 模型接入 | OpenAI-compatible `/chat/completions` | 作为 Provider 之一保留 |
-| 持久化 | localStorage | 仅适合本地原型，不能承担云端任务 |
-| 后台执行 | 浏览器内 Map + Promise | 只在页面生命周期内有效，不是真正后台 |
+| 部署基线 | Docker Compose + Tailscale | 笔记本自托管已验证，未来可迁移云端 |
+| 模型接入 | 服务端 OpenAI-compatible `/chat/completions` | 加密 Credential Vault，浏览器不持有长期 Key |
+| 持久化 | PostgreSQL + Drizzle | Conversation、Message、Task、Run、Inbox 的事实来源 |
+| 后台执行 | 独立 Reminder Worker | 不依赖页面生命周期，使用租约与 fencing 恢复 |
 
 ### 2.2 当前已有功能
 
-- Landing Page 与 API 配置页。
-- 自带 API Key、Base URL 和 Model 配置。
-- 多 Session 对话、创建、切换和删除。
-- 完整历史消息发送、localStorage 持久化和旧数据迁移。
+- Landing Page、API 配置页、任务页与收件箱页。
+- 网页提交 API Key、Base URL 和 Model，服务端加密保存且不回读完整 Key。
+- PostgreSQL 多 Session 树形对话、创建、切换、删除与显式旧数据导入。
 - 重新生成、回复版本切换、时间戳和停止生成。
-- `chatService` 与 UI 初步解耦。
-- 浏览器内通用任务运行层：任务状态、AbortController、事件订阅。
-- 基于 task type 的完成 Hook。
+- 服务端模型 Streaming 与 UI、Conversation Repository 解耦。
+- 单次/每日/每周 Task、独立 TaskRun、事务 Claim、租约恢复与 Worker fencing。
+- 常驻 Reminder Worker 与 Durable Inbox；网页关闭后仍产生普通提醒结果。
 - 简单长期记忆、启发式上下文压缩、Prompt Builder 和关键词任务规划器。
 
 ### 2.3 当前架构的正确方向
@@ -1703,7 +1702,7 @@ toolName, errorCode
 |---|---|---|
 | 2.1 ✅ | Task/TaskRun Schema + CRUD UI | 已完成：单次/每日/每周提醒可跨设备管理，任务与执行记录分离，使用版本锁防止静默覆盖 |
 | 2.2 ✅ | Scheduler Claim + 幂等 Run | 已完成：事务 Claim、唯一 Run、租约接管、Worker fencing 与合并补偿通过真实 PostgreSQL 并发验证 |
-| 2.3 | Reminder Worker + Inbox | 关闭网页后产生提醒结果 |
+| 2.3 ✅ | Reminder Worker + Inbox | 已完成：独立 Docker Worker 在网页关闭后执行普通提醒，结果与 Run 终态原子写入 Durable Inbox；移动端管理和真实链路通过验证 |
 | 2.4 | Web Push + 安静时段 | 推送可控、可降频 |
 | 2.5 | Agent Prompt Task | 定时生成内容并保存历史 |
 
