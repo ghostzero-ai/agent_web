@@ -1,6 +1,6 @@
 # Task/TaskRun 任务系统
 
-Sprint 2.1 建立任务数据模型、HTTP API 和管理页面。当前版本负责可靠地保存和管理提醒；它**不会自动执行任务或发送通知**。后台认领、执行幂等和错过任务补偿属于 Sprint 2.2。
+Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增加数据库驱动的到期认领、唯一 Run、租约恢复与 Worker fencing。当前版本可以可靠地产生执行记录，但**尚无常驻 Worker，也不会发送提醒或通知**。自动轮询、普通提醒执行和 Durable Inbox 属于 Sprint 2.3。
 
 ## 1. 使用方式
 
@@ -26,9 +26,9 @@ Sprint 2.1 建立任务数据模型、HTTP API 和管理页面。当前版本负
 
 ### `task_runs`
 
-为下一阶段保存每次计划执行的独立事实：计划时间、认领者、租约、尝试次数、执行状态、结果、错误和通知时间。`(task_id, scheduled_for)` 唯一约束是防止同一次计划被重复创建的最后一道数据库防线。
+保存每次计划执行的独立事实：计划时间、认领者、租约、尝试次数、执行状态、结果、错误和通知时间。`(task_id, scheduled_for)` 唯一约束是防止同一次计划被重复创建的最后一道数据库防线。
 
-删除任务会级联删除其 Run。当前 Sprint 不创建 Run。
+删除任务会级联删除其 Run。编辑或暂停任务会把尚未完成的旧 Run 标为 `cancelled`，防止 Worker 执行过期内容。
 
 ## 3. HTTP API
 
@@ -72,8 +72,30 @@ Sprint 2.1 建立任务数据模型、HTTP API 和管理页面。当前版本负
 - Zod 使用严格对象校验，拒绝未知字段、非法 UUID、错误日期、越界星期和非法时间。
 - 数据库错误不会返回连接信息或内部异常；公开错误仅暴露稳定错误码。
 - 当前没有应用登录鉴权，只能通过 localhost 或 Tailscale 可信私网访问，禁止使用 Funnel 公开暴露。
-- 页面关闭后数据不会丢失，但提醒还不会自行触发。不要使用浏览器 `setTimeout` 代替下一阶段的服务端 Scheduler。
+- 页面关闭后数据不会丢失，但当前没有常驻 Worker，提醒还不会自行触发。不要使用浏览器 `setTimeout` 代替下一阶段的服务端 Worker。
 
-## 5. 下一阶段接口边界
+## 5. Scheduler Claim
 
-Sprint 2.2 只通过数据库认领到期的 `active` 任务，在事务内创建唯一 TaskRun 并推进重复任务的 `nextRunAt`。Worker 必须依赖租约和唯一约束实现至少一次扫描、单次有效执行；不能把页面是否打开作为运行条件。
+在 `web/` 中执行一次扫描：
+
+```text
+npm run scheduler:claim
+```
+
+可选环境变量：
+
+| 变量 | 默认值 | 限制 |
+|---|---:|---|
+| `SCHEDULER_WORKER_ID` | 主机名 + PID | 1–200 字符 |
+| `SCHEDULER_BATCH_SIZE` | `20` | 1–100 |
+| `SCHEDULER_LEASE_MS` | `60000` | 5000–900000 毫秒 |
+
+一次扫描先回收租约到期的 `claimed/running` Run，再锁定到期的 `active` Task。认领使用 `FOR UPDATE SKIP LOCKED`，因此多个 Worker 不会等待同一行；`(task_id, scheduled_for)` 唯一索引是第二道幂等防线。创建 Run、推进重复任务的 `nextRunAt` 或完成单次 Task 均处于同一事务。
+
+迟到的每日/每周任务只生成一个补偿 Run，并把下一次计划推进到当前时间后的第一个规则时间，避免电脑关机数日后产生补发风暴。Task 推进使用整数版本护栏，不比较经 JavaScript 往返后可能丢失微秒精度的 PostgreSQL 时间。
+
+Run 的 `workerId + attempt + 未过期 lease` 构成 fencing token。旧 Worker 在 Run 被重新认领后无法 start、续租或写入终态。命令日志不包含任务标题、提醒正文、数据库连接串或 API Key。
+
+## 6. 下一阶段接口边界
+
+Sprint 2.3 将增加常驻 Reminder Worker：周期性调用现有 claim，执行普通提醒，使用租约续期，并把结果写入 Durable Inbox。Worker 不能把页面是否打开作为运行条件；通知投递仍留给 Sprint 2.4。

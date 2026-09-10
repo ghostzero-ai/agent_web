@@ -4,6 +4,67 @@
 
 ---
 
+## Sprint 2.2 — Scheduler Claim 与幂等 Run 封版
+
+**Commits**: `116571e`, `6b72cf1`, `b9e0624`
+
+### 修改文件
+
+- `web/lib/tasks/schedule.ts`
+- `web/lib/repositories/taskRepository.ts`
+- `web/lib/repositories/schedulerRepository.ts`
+- `web/scripts/scheduler-claim.ts`
+- `web/package.json`
+- `web/tests/schedulerRepository.test.ts`
+- `web/tests/databaseMigrations.test.ts`
+- `web/tests/selfHostingArtifacts.test.ts`
+- `docs/TASKS.md`
+- `docs/adr/ADR-031-SCHEDULER-CLAIM-LEASE-AND-CATCHUP.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `PROJECT.md`
+- `README.md`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 并发 Claim | `FOR UPDATE SKIP LOCKED` 让多个 Worker 安全争抢不同记录 |
+| 唯一执行事实 | Task/计划时间唯一约束阻止重复 Run，Run 与 Task 推进在同一事务 |
+| 崩溃恢复 | 过期租约可接管同一 Run，attempt 递增并隔离旧 Worker 写入 |
+| 补偿策略 | 关机错过的重复任务合并成一次补偿，下一时间保持原规则且落在未来 |
+| 用户控制 | 编辑或暂停 Task 取消未完成旧 Run |
+| 运行入口 | Docker 或本机可执行 `npm run scheduler:claim` 单次扫描；不泄露任务正文或凭据 |
+| 当前边界 | 未加入常驻 Worker、Inbox 和通知，因此任务仍不会自动提醒用户 |
+
+### 验证方法与结果
+
+- `npm test`：29 个测试文件、114 个测试全部通过。
+- `npx tsc --noEmit`、`npm run lint`、`npm run db:check`、`git diff --check`：通过。
+- Microsoft Edge E2E：6 项全部通过；Windows 上测试结束后残留的 Next.js 开发子进程已显式终止。
+- Docker 生产构建完成 Next.js 编译和 TypeScript 检查，Web/PostgreSQL 容器健康。
+- 独立 PostgreSQL 测试库中两个 Worker 并发扫描，认领数量为 `1 + 0`，Task 进入 completed 且 Run 总数为 1。
+- 将该 Run 租约设为过期后，第三个 Worker 接管同一 Run ID，attempt 从 1 增至 2，Run 总数仍为 1。
+- 两个明确命名的隔离测试库均已删除；主数据库已有用户任务未被测试 Worker 认领或修改。
+
+### localStorage 变化
+
+- 无；Scheduler 状态仅存 PostgreSQL。
+
+### 当前结构快照
+
+```text
+web/
+├── app/api/v1/tasks/                 # Task CRUD HTTP API
+├── app/tasks/                        # 任务管理 UI
+├── lib/repositories/
+│   ├── taskRepository.ts             # 用户编辑与取消旧 Run
+│   └── schedulerRepository.ts        # Claim、租约、fencing 与终态
+├── lib/tasks/schedule.ts             # 时间规则与下一次计划
+├── scripts/scheduler-claim.ts        # 单次安全扫描入口
+└── tests/schedulerRepository.test.ts # 调度状态机集成测试
+```
+
 ## Sprint 2.2c — PostgreSQL 时间精度原子性修复
 
 **Commit**: `b9e0624`

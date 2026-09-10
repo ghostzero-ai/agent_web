@@ -34,13 +34,13 @@ Phase 2 — Reliable Task Loop
 
 CURRENT_TASK:
 
-Sprint 2.2 — Scheduler Claim and Idempotent Runs
+Sprint 2.3 — Reminder Worker and Durable Inbox
 
 ==================================================
 
 NEXT_TASK:
 
-Sprint 2.3 — Reminder Worker and Durable Inbox
+Sprint 2.4 — Web Push and Quiet Hours
 
 ==================================================
 
@@ -152,7 +152,9 @@ Chat UI 已使用 PostgreSQL Conversation/Message API 作为事实来源，并�
 
 单用户 API Key 从前端写入式设置页提交，由服务端 AES-256-GCM 加密后保存；不进入 localStorage，完整值不通过读取接口返回。环境变量仅作无数据库凭据时的管理员兜底。
 
-Task/TaskRun Schema、Repository、`/api/v1/tasks` 与 `/tasks` 管理页面已建立。当前可管理单次、每日、每周提醒；自动认领和执行从 Sprint 2.2 开始。
+Task/TaskRun Schema、Repository、`/api/v1/tasks` 与 `/tasks` 管理页面已建立。当前可管理单次、每日、每周提醒。
+
+Scheduler 已支持事务化到期认领、唯一 Run、租约恢复、attempt fencing 和错过任务合并补偿；当前通过单次命令调用，常驻 Worker 与 Durable Inbox 从 Sprint 2.3 开始。
 
 默认不保存云端聊天记录。
 
