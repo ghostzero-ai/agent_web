@@ -4,6 +4,50 @@
 
 ---
 
+## Sprint 2.3d — 提醒收件箱体验
+
+**Commit**: `c9cda10`
+
+### 修改文件
+
+- `web/lib/api/inboxApi.ts`
+- `web/lib/api/inboxClient.ts`
+- `web/app/api/v1/inbox/route.ts`
+- `web/app/api/v1/inbox/[id]/route.ts`
+- `web/components/inbox/InboxManager.tsx`
+- `web/app/inbox/page.tsx`
+- `web/components/chat/ChatHeader.tsx`
+- `web/app/tasks/page.tsx`
+- `web/app/api-key/page.tsx`
+- `web/tests/inboxApi.test.ts`
+- `web/tests/inboxClient.test.ts`
+- `web/tests/inboxComponents.test.tsx`
+- `web/e2e/inbox.spec.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| Inbox API | 支持 all/unread/read 列表、已读状态切换和删除，响应禁用缓存并带 request ID |
+| 安全错误 | 严格校验 UUID、筛选值和 JSON；内部数据库错误不会返回给浏览器 |
+| 移动端页面 | 新增 `/inbox`，以单列卡片展示提醒，支持筛选、刷新、已读/未读和删除 |
+| 自动刷新 | 页面打开时每 15 秒读取一次，手动刷新仍可立即同步 |
+| 导航入口 | 对话、任务和 API 配置页均可进入收件箱；窄屏导航缩短标签避免挤压 |
+| 时间语义 | 提醒时间统一按 Asia/Shanghai 展示，正文按纯文本安全渲染 |
+
+### 验证方法与结果
+
+- `npm test`：34 个测试文件、128 个测试全部通过。
+- `npx tsc --noEmit`、`npm run lint`、`npm run db:check`、`git diff --check`：通过。
+- Docker 生产构建通过；新增 Inbox 页面及两个 API 路由进入生产路由表。
+- Microsoft Edge E2E：7 项全部通过，包含 390×844 移动端收件箱完整操作。
+- 真实烟雾测试：HTTP 创建一次性任务后，常驻 Worker 将 Task 置为 completed 并生成 unread InboxItem；测试数据已按精确 ID 清理。
+
+### localStorage 变化
+
+- 无；收件箱读写全部通过服务端 API 和 PostgreSQL。
+
 ## Sprint 2.3c — 常驻 Reminder Worker
 
 **Commit**: `20598b2`
