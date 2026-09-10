@@ -47,7 +47,7 @@ describe("database migrations", () => {
   it("creates, validates and re-applies the current PostgreSQL schema", async () => {
     const migrations = await loadMigrations();
 
-    expect(migrations).toHaveLength(3);
+    expect(migrations).toHaveLength(4);
     expect(migrations.every((migration) => migration.down !== null)).toBe(true);
     await expect(migrateDatabase(database, migrations)).resolves.toEqual(
       migrations.map((migration) => migration.id),
@@ -64,6 +64,8 @@ describe("database migrations", () => {
       "conversations",
       "messages",
       "model_credentials",
+      "scheduled_tasks",
+      "task_runs",
       "users",
     ]);
 
@@ -90,21 +92,41 @@ describe("database migrations", () => {
       status: "complete",
     });
 
+    const taskResult = await pglite.query<{ id: string }>(
+      `INSERT INTO scheduled_tasks (
+         user_id, title, schedule_type, schedule_value, next_run_at
+       ) VALUES ($1, 'Daily review', 'daily', '{"time":"09:00"}', '2030-01-01T01:00:00Z')
+       RETURNING id`,
+      [userResult.rows[0].id],
+    );
+    await pglite.query(
+      `INSERT INTO task_runs (task_id, scheduled_for)
+       VALUES ($1, '2030-01-01T01:00:00Z')`,
+      [taskResult.rows[0].id],
+    );
+    await expect(
+      pglite.query(
+        `INSERT INTO task_runs (task_id, scheduled_for)
+         VALUES ($1, '2030-01-01T01:00:00Z')`,
+        [taskResult.rows[0].id],
+      ),
+    ).rejects.toThrow();
+
     await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
     await expect(rollbackDatabase(database, migrations)).resolves.toBe(
-      migrations[2].id,
+      migrations[3].id,
     );
 
     const tablesAfterRollback = await pglite.query<{ tablename: string }>(`
       SELECT tablename
       FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename = 'model_credentials'
+        AND tablename IN ('scheduled_tasks', 'task_runs')
     `);
     expect(tablesAfterRollback.rows).toEqual([]);
 
     await expect(migrateDatabase(database, migrations)).resolves.toEqual([
-      migrations[2].id,
+      migrations[3].id,
     ]);
   });
 

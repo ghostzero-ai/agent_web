@@ -35,6 +35,33 @@ export const messageStatus = pgEnum("message_status", [
   "failed",
 ]);
 
+export const taskScheduleType = pgEnum("task_schedule_type", [
+  "once",
+  "daily",
+  "weekly",
+]);
+
+export const taskStatus = pgEnum("task_status", [
+  "active",
+  "paused",
+  "completed",
+]);
+
+export const taskRunStatus = pgEnum("task_run_status", [
+  "queued",
+  "claimed",
+  "running",
+  "succeeded",
+  "failed",
+  "skipped",
+  "cancelled",
+]);
+
+export type TaskScheduleValue =
+  | { runAt: string }
+  | { time: string }
+  | { weekday: number; time: string };
+
 export type MessageCitation = {
   title: string;
   url: string;
@@ -183,8 +210,92 @@ export const modelCredentials = pgTable(
   ],
 );
 
+export const scheduledTasks = pgTable(
+  "scheduled_tasks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    prompt: text("prompt"),
+    kind: text("kind").notNull().default("reminder"),
+    scheduleType: taskScheduleType("schedule_type").notNull(),
+    scheduleValue: jsonb("schedule_value").$type<TaskScheduleValue>().notNull(),
+    timezone: text("timezone").notNull().default("Asia/Shanghai"),
+    nextRunAt: timestamp("next_run_at", { withTimezone: true, mode: "date" }),
+    status: taskStatus("status").notNull().default("active"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("scheduled_tasks_user_status_next_idx").on(
+      table.userId,
+      table.status,
+      table.nextRunAt,
+    ),
+    check("scheduled_tasks_version_positive", sql`${table.version} > 0`),
+    check("scheduled_tasks_kind_reminder", sql`${table.kind} = 'reminder'`),
+    check(
+      "scheduled_tasks_active_next_run",
+      sql`${table.status} <> 'active' OR ${table.nextRunAt} IS NOT NULL`,
+    ),
+  ],
+);
+
+export const taskRuns = pgTable(
+  "task_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => scheduledTasks.id, { onDelete: "cascade" }),
+    scheduledFor: timestamp("scheduled_for", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+    status: taskRunStatus("status").notNull().default("queued"),
+    attempt: integer("attempt").notNull().default(1),
+    claimedBy: text("claimed_by"),
+    leaseExpiresAt: timestamp("lease_expires_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
+    finishedAt: timestamp("finished_at", { withTimezone: true, mode: "date" }),
+    resultSummary: text("result_summary"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    notifiedAt: timestamp("notified_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("task_runs_task_scheduled_unique").on(
+      table.taskId,
+      table.scheduledFor,
+    ),
+    index("task_runs_status_scheduled_idx").on(
+      table.status,
+      table.scheduledFor,
+    ),
+    check("task_runs_attempt_positive", sql`${table.attempt} > 0`),
+  ],
+);
+
 export type UserRecord = typeof users.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type ConversationImportRecord = typeof conversationImports.$inferSelect;
 export type ModelCredentialRecord = typeof modelCredentials.$inferSelect;
+export type ScheduledTaskRecord = typeof scheduledTasks.$inferSelect;
+export type TaskRunRecord = typeof taskRuns.$inferSelect;
