@@ -4,6 +4,46 @@
 
 ---
 
+## Sprint 2.4c — 加密 Push 订阅服务与 API
+
+**Commit**: `2e5b4f4`
+
+### 修改文件
+
+- `web/lib/notifications/pushSecretCipher.ts`
+- `web/lib/notifications/pushConfigurationService.ts`
+- `web/lib/repositories/notificationRepository.ts`
+- `web/lib/api/pushApi.ts`
+- `web/app/api/v1/push/config/route.ts`
+- `web/app/api/v1/push/preferences/route.ts`
+- `web/app/api/v1/push/subscriptions/route.ts`
+- `web/app/api/v1/push/subscriptions/[id]/route.ts`
+- `web/tests/pushSecretCipher.test.ts`
+- `web/tests/notificationRepository.test.ts`
+- `web/tests/pushApi.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 自动 VAPID | 首次读取配置时生成一次 VAPID 密钥对，公钥可供浏览器订阅，私钥加密存库 |
+| 用途隔离加密 | subscription 与 VAPID 私钥使用不同 AES-GCM AAD，阻止密文跨用途替换 |
+| 订阅管理 | endpoint SHA-256 去重，完整 endpoint、p256dh 和 auth 作为整体加密载荷保存 |
+| 公开状态 | 只返回 VAPID 公钥、通知偏好、设备标签与健康信息，不返回 userId、endpoint、密钥或密文 |
+| 偏好并发 | Push 开关和安静时段使用 expectedVersion 乐观锁，避免多端静默覆盖 |
+| API 安全 | 严格校验 HTTPS endpoint、base64url key、UUID、时间与未知字段，并使用稳定脱敏错误结构 |
+
+### 验证方法与结果
+
+- `npm test`：37 个测试文件、137 项全部通过。
+- 新增测试覆盖 VAPID 稳定性、加密防篡改/用途隔离、订阅幂等、偏好冲突与 API 脱敏。
+- `npx tsc --noEmit`、`npm run lint`、`git diff --check`：通过。
+
+### localStorage 变化
+
+- 无；浏览器订阅与偏好通过服务端 API 保存至 PostgreSQL。
+
 ## Sprint 2.4b — Push 投递数据模型
 
 **Commit**: `370d626`
