@@ -80,6 +80,22 @@ describe("single-user self-hosting artifacts", () => {
     expect(compose).toContain('entrypoint: ["./worker-entrypoint.sh"]');
   });
 
+  it("ships a visible Push service worker and installable manifest assets", async () => {
+    const [serviceWorker, manifest, icon] = await Promise.all([
+      readProjectFile("web/public/sw.js"),
+      readProjectFile("web/app/manifest.ts"),
+      readProjectFile("web/public/icon.svg"),
+    ]);
+
+    expect(serviceWorker).toContain('addEventListener("push"');
+    expect(serviceWorker).toContain("showNotification");
+    expect(serviceWorker).toContain('addEventListener("notificationclick"');
+    expect(serviceWorker).not.toContain("endpoint");
+    expect(manifest).toContain('display: "standalone"');
+    expect(manifest).toContain('start_url: "/inbox"');
+    expect(icon).toContain("<svg");
+  });
+
   it("excludes secrets and requires explicit confirmation for restore", async () => {
     const [dockerignore, gitignore, attributes, powershellRestore, shellRestore] =
       await Promise.all([

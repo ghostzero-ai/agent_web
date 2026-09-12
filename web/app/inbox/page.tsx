@@ -12,6 +12,7 @@ export default function InboxPage() {
           <p className="hidden text-xs text-zinc-500 sm:block">由后台 Worker 持久保存的任务提醒</p>
         </div>
         <nav className="flex shrink-0 gap-3 text-xs font-medium text-zinc-500 sm:gap-4 sm:text-sm">
+          <Link href="/notifications" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">通知</Link>
           <Link href="/chat" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">对话</Link>
           <Link href="/tasks" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">任务</Link>
           <Link href="/api-key" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">API</Link>
