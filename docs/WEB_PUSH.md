@@ -82,3 +82,10 @@ tailscale serve status
 5. 若设备显示失效或权限被撤销，移除该设备并重新点击启用。
 
 Worker 日志只记录事件、Delivery ID、错误码和计数，不记录通知正文、endpoint 或密钥。正式真机 Push 无法由自动测试替代，因为浏览器权限必须由用户手势授予；每次发布仍应完成一次上述几分钟后的一次性提醒验证。
+
+## 7. 实现依据
+
+- [MDN Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
+- [MDN PushManager.subscribe()](https://developer.mozilla.org/en-US/docs/Web/API/PushManager/subscribe)
+- [WebKit：Web Push for Web Apps on iOS and iPadOS](https://webkit.org/blog/13966/web-push-for-web-apps-on-ios-and-ipados/)
+- [web-push 官方仓库](https://github.com/web-push-libs/web-push)
