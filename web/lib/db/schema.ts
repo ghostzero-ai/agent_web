@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  boolean,
   check,
   index,
   integer,
@@ -58,6 +59,16 @@ export const taskRunStatus = pgEnum("task_run_status", [
 ]);
 
 export const inboxItemStatus = pgEnum("inbox_item_status", ["unread", "read"]);
+
+export const pushSubscriptionStatus = pgEnum("push_subscription_status", [
+  "active",
+  "expired",
+]);
+
+export const notificationDeliveryStatus = pgEnum(
+  "notification_delivery_status",
+  ["pending", "sending", "sent", "failed", "cancelled"],
+);
 
 export type TaskScheduleValue =
   | { runAt: string }
@@ -316,6 +327,10 @@ export const inboxItems = pgTable(
     }).notNull(),
     status: inboxItemStatus("status").notNull().default("unread"),
     readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
+    pushPlannedAt: timestamp("push_planned_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -338,6 +353,126 @@ export const inboxItems = pgTable(
   ],
 );
 
+export const pushVapidConfigurations = pgTable("push_vapid_configurations", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  publicKey: text("public_key").notNull(),
+  encryptedPrivateKey: text("encrypted_private_key").notNull(),
+  subject: text("subject").notNull(),
+  encryptionKeyVersion: integer("encryption_key_version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+}, (table) => [
+  check(
+    "push_vapid_configurations_key_version_positive",
+    sql`${table.encryptionKeyVersion} > 0`,
+  ),
+]);
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  pushEnabled: boolean("push_enabled").notNull().default(false),
+  quietHoursEnabled: boolean("quiet_hours_enabled").notNull().default(true),
+  quietStart: text("quiet_start").notNull().default("22:00"),
+  quietEnd: text("quiet_end").notNull().default("08:00"),
+  timezone: text("timezone").notNull().default("Asia/Shanghai"),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+}, (table) => [
+  check(
+    "notification_preferences_quiet_start_time",
+    sql`${table.quietStart} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`,
+  ),
+  check(
+    "notification_preferences_quiet_end_time",
+    sql`${table.quietEnd} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`,
+  ),
+  check(
+    "notification_preferences_timezone_shanghai",
+    sql`${table.timezone} = 'Asia/Shanghai'`,
+  ),
+  check("notification_preferences_version_positive", sql`${table.version} > 0`),
+]);
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  endpointHash: text("endpoint_hash").notNull(),
+  encryptedSubscription: text("encrypted_subscription").notNull(),
+  deviceLabel: text("device_label").notNull(),
+  status: pushSubscriptionStatus("status").notNull().default("active"),
+  failureCount: integer("failure_count").notNull().default(0),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true, mode: "date" }),
+  lastFailureAt: timestamp("last_failure_at", { withTimezone: true, mode: "date" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+}, (table) => [
+  uniqueIndex("push_subscriptions_user_endpoint_unique").on(
+    table.userId,
+    table.endpointHash,
+  ),
+  index("push_subscriptions_user_status_idx").on(table.userId, table.status),
+  check("push_subscriptions_failure_count_nonnegative", sql`${table.failureCount} >= 0`),
+]);
+
+export const notificationDeliveries = pgTable("notification_deliveries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  inboxItemId: uuid("inbox_item_id")
+    .notNull()
+    .references(() => inboxItems.id, { onDelete: "cascade" }),
+  subscriptionId: uuid("subscription_id")
+    .notNull()
+    .references(() => pushSubscriptions.id, { onDelete: "cascade" }),
+  status: notificationDeliveryStatus("status").notNull().default("pending"),
+  availableAt: timestamp("available_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+  attempt: integer("attempt").notNull().default(0),
+  claimedBy: text("claimed_by"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true, mode: "date" }),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true, mode: "date" }),
+  sentAt: timestamp("sent_at", { withTimezone: true, mode: "date" }),
+  errorCode: text("error_code"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .defaultNow(),
+}, (table) => [
+  uniqueIndex("notification_deliveries_inbox_subscription_unique").on(
+    table.inboxItemId,
+    table.subscriptionId,
+  ),
+  index("notification_deliveries_status_available_idx").on(
+    table.status,
+    table.availableAt,
+  ),
+  check("notification_deliveries_attempt_nonnegative", sql`${table.attempt} >= 0`),
+]);
+
 export type UserRecord = typeof users.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
@@ -346,3 +481,7 @@ export type ModelCredentialRecord = typeof modelCredentials.$inferSelect;
 export type ScheduledTaskRecord = typeof scheduledTasks.$inferSelect;
 export type TaskRunRecord = typeof taskRuns.$inferSelect;
 export type InboxItemRecord = typeof inboxItems.$inferSelect;
+export type PushVapidConfigurationRecord = typeof pushVapidConfigurations.$inferSelect;
+export type NotificationPreferenceRecord = typeof notificationPreferences.$inferSelect;
+export type PushSubscriptionRecord = typeof pushSubscriptions.$inferSelect;
+export type NotificationDeliveryRecord = typeof notificationDeliveries.$inferSelect;

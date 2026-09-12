@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(5);
+      expect(migrations).toHaveLength(6);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -68,10 +68,14 @@ describe("database migrations", () => {
       "conversations",
       "inbox_items",
       "messages",
-      "model_credentials",
-      "scheduled_tasks",
-      "task_runs",
-      "users",
+        "model_credentials",
+        "notification_deliveries",
+        "notification_preferences",
+        "push_subscriptions",
+        "push_vapid_configurations",
+        "scheduled_tasks",
+        "task_runs",
+        "users",
       ]);
 
       const userResult = await pglite.query<{ id: string }>(`
@@ -136,24 +140,88 @@ describe("database migrations", () => {
         task_run_id: null,
       });
 
+      const preferenceResult = await pglite.query<{
+        push_enabled: boolean;
+        quiet_hours_enabled: boolean;
+        quiet_start: string;
+        quiet_end: string;
+      }>(
+        `INSERT INTO notification_preferences (user_id)
+         VALUES ($1)
+         RETURNING push_enabled, quiet_hours_enabled, quiet_start, quiet_end`,
+        [userResult.rows[0].id],
+      );
+      expect(preferenceResult.rows[0]).toEqual({
+        push_enabled: false,
+        quiet_hours_enabled: true,
+        quiet_start: "22:00",
+        quiet_end: "08:00",
+      });
+
+      const inboxResult = await pglite.query<{ id: string }>(
+        `SELECT id FROM inbox_items LIMIT 1`,
+      );
+      const subscriptionResult = await pglite.query<{ id: string }>(
+        `INSERT INTO push_subscriptions (
+           user_id, endpoint_hash, encrypted_subscription, device_label
+         ) VALUES ($1, 'hash', 'encrypted', 'Migration browser')
+         RETURNING id`,
+        [userResult.rows[0].id],
+      );
+      await pglite.query(
+        `INSERT INTO notification_deliveries (
+           user_id, inbox_item_id, subscription_id
+         ) VALUES ($1, $2, $3)`,
+        [
+          userResult.rows[0].id,
+          inboxResult.rows[0].id,
+          subscriptionResult.rows[0].id,
+        ],
+      );
+      await expect(
+        pglite.query(
+          `INSERT INTO notification_deliveries (
+             user_id, inbox_item_id, subscription_id
+           ) VALUES ($1, $2, $3)`,
+          [
+            userResult.rows[0].id,
+            inboxResult.rows[0].id,
+            subscriptionResult.rows[0].id,
+          ],
+        ),
+      ).rejects.toThrow();
+
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
-        migrations[4].id,
+        migrations[5].id,
       );
 
       const tablesAfterRollback = await pglite.query<{ tablename: string }>(`
         SELECT tablename
         FROM pg_tables
         WHERE schemaname = 'public'
-          AND tablename = 'inbox_items'
+          AND tablename IN (
+            'notification_deliveries',
+            'notification_preferences',
+            'push_subscriptions',
+            'push_vapid_configurations'
+          )
       `);
       expect(tablesAfterRollback.rows).toEqual([]);
+      const inboxColumnsAfterRollback = await pglite.query<{ column_name: string }>(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'inbox_items'
+          AND column_name = 'push_planned_at'
+      `);
+      expect(inboxColumnsAfterRollback.rows).toEqual([]);
 
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([
-        migrations[4].id,
+        migrations[5].id,
       ]);
     },
-    10_000,
+    15_000,
   );
 
   it("rejects drift in a migration that has already been applied", async () => {

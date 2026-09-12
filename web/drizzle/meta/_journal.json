@@ -36,6 +36,13 @@
       "when": 1789054449594,
       "tag": "0004_cold_medusa",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789215931478,
+      "tag": "0005_faithful_mystique",
+      "breakpoints": true
     }
   ]
 }
