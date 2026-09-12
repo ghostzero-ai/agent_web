@@ -4,6 +4,8 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../lib/db/schema";
 import { createPushConfigurationService } from "../lib/notifications/pushConfigurationService";
+import { PushProviderRegistry } from "../lib/notifications/pushProvider";
+import { createWebPushProvider } from "../lib/notifications/webPushProvider";
 import { runNotificationWorker } from "../lib/notifications/notificationWorker";
 import { createInboxRepository } from "../lib/repositories/inboxRepository";
 import { createNotificationDeliveryRepository } from "../lib/repositories/notificationDeliveryRepository";
@@ -64,6 +66,9 @@ async function main(): Promise<void> {
     const pushConfiguration = createPushConfigurationService(
       notificationRepository,
     );
+    const pushProviders = new PushProviderRegistry([
+      createWebPushProvider(pushConfiguration.getOrCreateConfiguration),
+    ]);
     await Promise.all([
       runReminderWorker(
         {
@@ -111,7 +116,7 @@ async function main(): Promise<void> {
       runNotificationWorker(
         {
           deliveries: createNotificationDeliveryRepository(database),
-          getPushConfiguration: pushConfiguration.getOrCreateConfiguration,
+          providers: pushProviders,
           onDeliveryError(deliveryId, errorCode) {
             console.error(
               JSON.stringify({

@@ -21,6 +21,7 @@ export type SaveVapidConfigurationInput = {
 };
 
 export type SavePushSubscriptionInput = {
+  provider: string;
   endpointHash: string;
   encryptedSubscription: string;
   deviceLabel: string;
@@ -163,6 +164,7 @@ export class NotificationRepository<
       .onConflictDoUpdate({
         target: [pushSubscriptions.userId, pushSubscriptions.endpointHash],
         set: {
+          provider: input.provider,
           encryptedSubscription: input.encryptedSubscription,
           deviceLabel: input.deviceLabel,
           expiresAt: input.expiresAt,

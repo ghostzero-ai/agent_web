@@ -1,0 +1,1 @@
+ALTER TABLE "push_subscriptions" ADD COLUMN "provider" text DEFAULT 'web-push' NOT NULL;

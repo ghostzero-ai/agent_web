@@ -9,6 +9,7 @@ export type NotificationPreferences = {
 
 export type PublicPushSubscription = {
   id: string;
+  provider: string;
   deviceLabel: string;
   status: "active" | "expired";
   failureCount: number;

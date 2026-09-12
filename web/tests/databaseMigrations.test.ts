@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(7);
+      expect(migrations).toHaveLength(8);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -176,13 +176,14 @@ describe("database migrations", () => {
       const inboxResult = await pglite.query<{ id: string }>(
         `SELECT id FROM inbox_items LIMIT 1`,
       );
-      const subscriptionResult = await pglite.query<{ id: string }>(
+      const subscriptionResult = await pglite.query<{ id: string; provider: string }>(
         `INSERT INTO push_subscriptions (
            user_id, endpoint_hash, encrypted_subscription, device_label
          ) VALUES ($1, 'hash', 'encrypted', 'Migration browser')
-         RETURNING id`,
+         RETURNING id, provider`,
         [userResult.rows[0].id],
       );
+      expect(subscriptionResult.rows[0].provider).toBe("web-push");
       await pglite.query(
         `INSERT INTO notification_deliveries (
            user_id, inbox_item_id, subscription_id
@@ -207,6 +208,19 @@ describe("database migrations", () => {
       ).rejects.toThrow();
 
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[7].id,
+      );
+
+      const providerColumnsAfterRollback = await pglite.query<{ column_name: string }>(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'push_subscriptions'
+          AND column_name = 'provider'
+      `);
+      expect(providerColumnsAfterRollback.rows).toEqual([]);
+
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[6].id,
       );
@@ -250,6 +264,7 @@ describe("database migrations", () => {
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([
         migrations[5].id,
         migrations[6].id,
+        migrations[7].id,
       ]);
     },
     15_000,
@@ -283,6 +298,7 @@ describe("database migrations", () => {
 
     await expect(migrateDatabase(database, migrations)).resolves.toEqual([
       migrations[6].id,
+      migrations[7].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

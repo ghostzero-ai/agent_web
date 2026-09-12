@@ -1,13 +1,15 @@
-import { randomBytes } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   InboxItemRecord,
   NotificationDeliveryRecord,
   NotificationPreferenceRecord,
   PushSubscriptionRecord,
 } from "@/lib/db/schema";
-import { encryptPushSecret } from "@/lib/notifications/pushSecretCipher";
 import { runNotificationBatch } from "@/lib/notifications/notificationWorker";
+import {
+  PushProviderRegistry,
+  type PushProviderOutcome,
+} from "@/lib/notifications/pushProvider";
 import type {
   ClaimedNotificationDelivery,
   NotificationDeliveryRepositoryPort,
@@ -22,14 +24,6 @@ const SUBSCRIPTION_ID = "30000000-0000-4000-8000-000000000001";
 function claim(
   preferences: Partial<NotificationPreferenceRecord> = {},
 ): ClaimedNotificationDelivery {
-  const encryptedSubscription = encryptPushSecret(
-    JSON.stringify({
-      endpoint: "https://push.example.test/subscription/private-token",
-      expirationTime: null,
-      keys: { p256dh: "public-client-key", auth: "auth-secret" },
-    }),
-    "subscription",
-  );
   const delivery: NotificationDeliveryRecord = {
     id: DELIVERY_ID,
     userId: USER_ID,
@@ -64,8 +58,9 @@ function claim(
   const subscription: PushSubscriptionRecord = {
     id: SUBSCRIPTION_ID,
     userId: USER_ID,
+    provider: "web-push",
     endpointHash: "endpoint-hash",
-    encryptedSubscription,
+    encryptedSubscription: "encrypted-provider-subscription",
     deviceLabel: "Test device",
     status: "active",
     failureCount: 0,
@@ -90,6 +85,14 @@ function claim(
   return { delivery, inboxItem, subscription, preferences: preferenceRecord };
 }
 
+function providerRegistry(outcome: PushProviderOutcome = { status: "sent" }) {
+  const send = vi.fn().mockResolvedValue(outcome);
+  return {
+    send,
+    providers: new PushProviderRegistry([{ id: "web-push", send }]),
+  };
+}
+
 function repositoryFor(
   claimed: ClaimedNotificationDelivery,
 ): NotificationDeliveryRepositoryPort & {
@@ -105,41 +108,28 @@ function repositoryFor(
 }
 
 describe("notification worker", () => {
-  const previousKey = process.env.CREDENTIAL_MASTER_KEY;
-
-  beforeEach(() => {
-    process.env.CREDENTIAL_MASTER_KEY = randomBytes(32).toString("base64url");
-  });
-
   afterEach(() => {
-    process.env.CREDENTIAL_MASTER_KEY = previousKey;
     vi.restoreAllMocks();
   });
 
   it("sends only a generic privacy-safe lock-screen payload", async () => {
     const claimed = claim();
     const deliveries = repositoryFor(claimed);
-    const sendPush = vi.fn().mockResolvedValue({ statusCode: 201 });
+    const { providers, send } = providerRegistry();
     const result = await runNotificationBatch(
       {
         deliveries,
-        getPushConfiguration: vi.fn().mockResolvedValue({
-          publicKey: "public-vapid",
-          privateKey: "private-vapid",
-          subject: "https://example.test",
-        }),
-        sendPush,
+        providers,
         now: () => FIXED_NOW,
       },
       { workerId: "worker-test", batchSize: 20, leaseDurationMs: 60_000 },
     );
 
     expect(result).toMatchObject({ claimed: 1, sent: 1, failed: 0 });
-    const payload = sendPush.mock.calls[0][1] as string;
-    expect(payload).toContain("学习提醒");
-    expect(payload).toContain(INBOX_ID);
-    expect(payload).not.toContain(claimed.inboxItem.title);
-    expect(payload).not.toContain(claimed.inboxItem.body);
+    const notification = send.mock.calls[0][0].notification;
+    expect(notification).toMatchObject({ title: "学习提醒", inboxItemId: INBOX_ID });
+    expect(JSON.stringify(notification)).not.toContain(claimed.inboxItem.title);
+    expect(JSON.stringify(notification)).not.toContain(claimed.inboxItem.body);
     expect(deliveries.finishDelivery).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: { status: "sent" } }),
     );
@@ -152,24 +142,19 @@ describe("notification worker", () => {
       quietEnd: "08:00",
     });
     const deliveries = repositoryFor(claimed);
-    const sendPush = vi.fn();
+    const { providers, send } = providerRegistry();
     const quietNow = new Date("2026-09-12T15:00:00.000Z");
     const result = await runNotificationBatch(
       {
         deliveries,
-        getPushConfiguration: vi.fn().mockResolvedValue({
-          publicKey: "public-vapid",
-          privateKey: "private-vapid",
-          subject: "https://example.test",
-        }),
-        sendPush,
+        providers,
         now: () => quietNow,
       },
       { workerId: "worker-test", batchSize: 20, leaseDurationMs: 60_000 },
     );
 
     expect(result).toMatchObject({ deferred: 1, sent: 0 });
-    expect(sendPush).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
     expect(deliveries.deferForQuietHours).toHaveBeenCalledWith(
       DELIVERY_ID,
       "worker-test",
@@ -184,16 +169,12 @@ describe("notification worker", () => {
     const deliveries = repositoryFor(claimed);
     deliveries.finishDelivery.mockRejectedValue(new Error("database unavailable"));
     const onDeliveryError = vi.fn();
+    const { providers } = providerRegistry();
     await expect(
       runNotificationBatch(
         {
           deliveries,
-          getPushConfiguration: vi.fn().mockResolvedValue({
-            publicKey: "public-vapid",
-            privateKey: "private-vapid",
-            subject: "https://example.test",
-          }),
-          sendPush: vi.fn().mockResolvedValue({ statusCode: 201 }),
+          providers,
           now: () => FIXED_NOW,
           onDeliveryError,
         },
@@ -205,21 +186,23 @@ describe("notification worker", () => {
   });
 
   it.each([
-    [410, { status: "expired" }],
-    [503, { status: "failed", errorCode: "PUSH_HTTP_503", retryable: true }],
-  ])("classifies HTTP %s failures", async (statusCode, expectedOutcome) => {
+    [
+      { status: "expired", errorCode: "PUSH_SUBSCRIPTION_EXPIRED" } as const,
+      { status: "expired" },
+    ],
+    [
+      { status: "failed", errorCode: "PUSH_HTTP_503", retryable: true } as const,
+      { status: "failed", errorCode: "PUSH_HTTP_503", retryable: true },
+    ],
+  ])("persists the provider outcome $status", async (providerOutcome, expectedOutcome) => {
     const claimed = claim();
     const deliveries = repositoryFor(claimed);
     const onDeliveryError = vi.fn();
+    const { providers } = providerRegistry(providerOutcome);
     const result = await runNotificationBatch(
       {
         deliveries,
-        getPushConfiguration: vi.fn().mockResolvedValue({
-          publicKey: "public-vapid",
-          privateKey: "private-vapid",
-          subject: "https://example.test",
-        }),
-        sendPush: vi.fn().mockRejectedValue({ statusCode }),
+        providers,
         now: () => FIXED_NOW,
         onDeliveryError,
       },
@@ -232,7 +215,7 @@ describe("notification worker", () => {
     );
     expect(onDeliveryError).toHaveBeenCalledWith(
       DELIVERY_ID,
-      statusCode === 410 ? "PUSH_SUBSCRIPTION_EXPIRED" : "PUSH_HTTP_503",
+      providerOutcome.errorCode,
     );
   });
 });

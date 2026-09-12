@@ -43,6 +43,7 @@ test("updates quiet hours on the mobile notification settings page", async ({ pa
   await page.goto("/notifications");
   await expect(page.getByRole("heading", { name: "系统通知" })).toBeVisible();
   await expect(page.getByText("还没有设备订阅")).toBeVisible();
+  await expect(page.getByText(/HarmonyOS 5：当前网页仍使用 Web Push/)).toBeVisible();
   await page.getByLabel("安静时段开始", { exact: true }).fill("23:15");
   await page.getByLabel("安静时段结束", { exact: true }).fill("07:30");
   await page.getByLabel("允许发送 Push").check();

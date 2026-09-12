@@ -4,6 +4,29 @@
 
 ---
 
+## Push Provider 架构 — HarmonyOS 5 适配预留
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- `push_subscriptions` 增加 `provider`，现有订阅通过迁移自动标记为 `web-push`。
+- Worker 改由 `PushProviderRegistry` 路由；Web Push 协议、VAPID 与错误分类收拢到独立 Provider。
+- 预留 `huawei-push` Token/服务端配置契约及 HarmonyOS 5 V3 endpoint，不伪装为已经完成真机推送。
+- 通知设置显示设备 Provider，并解释 HarmonyOS 5 浏览器限制与后续原生适配要求。
+- 新增 ADR-034，明确 HAP、Push Token、服务端 JWT/V3 调用和真机验收路径。
+
+### 验证方法与结果
+
+- Provider、Worker、Push API、Repository 与迁移共 24 项定向测试通过。
+- TypeScript、ESLint、Drizzle schema check、生产构建通过；全量 43 个测试文件、162 项测试通过。
+- 通知设置移动端 E2E 1 项通过，覆盖 HarmonyOS 说明与偏好保存。
+- 资源密集型数据库测试与构建改为串行，避免并发资源争用造成假超时。
+
+### localStorage 变化
+
+- 无；数据库迁移新增 `push_subscriptions.provider`，默认值为 `web-push`，提供对应 rollback。
+
 ## Engineering Workflow — 风险分级交付
 
 **Commit**: `same delivery commit`

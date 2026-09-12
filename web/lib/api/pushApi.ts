@@ -115,6 +115,7 @@ function parseSubscriptionId(id: string): string {
 
 function publicSubscription(subscription: {
   id: string;
+  provider: string;
   deviceLabel: string;
   status: "active" | "expired";
   failureCount: number;
@@ -125,6 +126,7 @@ function publicSubscription(subscription: {
 }) {
   return {
     id: subscription.id,
+    provider: subscription.provider,
     deviceLabel: subscription.deviceLabel,
     status: subscription.status,
     failureCount: subscription.failureCount,

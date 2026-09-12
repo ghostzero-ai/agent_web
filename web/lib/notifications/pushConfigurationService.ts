@@ -70,6 +70,7 @@ export function createPushConfigurationService(
         },
         subscriptions: subscriptions.map((subscription) => ({
           id: subscription.id,
+          provider: subscription.provider,
           deviceLabel: subscription.deviceLabel,
           status: subscription.status,
           failureCount: subscription.failureCount,
@@ -86,6 +87,7 @@ export function createPushConfigurationService(
       deviceLabel: string,
     ) {
       return repository.saveSubscription({
+        provider: "web-push",
         endpointHash: pushEndpointHash(subscription.endpoint),
         encryptedSubscription: encryptPushSecret(
           JSON.stringify(subscription),

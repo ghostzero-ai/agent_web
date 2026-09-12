@@ -1,6 +1,6 @@
 # Web Push 通知
 
-Sprint 2.4 在 Durable Inbox 之上增加可选的系统级 Web Push。Inbox 仍是提醒事实来源；Push 是可能被系统权限、网络、Push Service、电脑关机或设备策略延迟/丢弃的提示渠道。
+Sprint 2.4 在 Durable Inbox 之上增加可选的系统级 Web Push。Inbox 仍是提醒事实来源；Push 是可能被系统权限、网络、Push Service、电脑关机或设备策略延迟/丢弃的提示渠道。服务端现已按 Provider 分层，当前可发送的是 `web-push`，并为后续 `huawei-push` 留出稳定端口。
 
 ## 1. 启用方式
 
@@ -47,11 +47,13 @@ Reminder Worker 生成 InboxItem
 
 - `push_vapid_configurations`：稳定 VAPID 公钥、加密私钥和 Subject。
 - `notification_preferences`：总开关、安静时段、时区和并发版本。
-- `push_subscriptions`：endpoint hash、加密订阅、设备标签与健康状态。
+- `push_subscriptions`：Provider、endpoint/token hash、加密订阅、设备标签与健康状态；旧记录默认是 `web-push`。
 - `notification_deliveries`：InboxItem/设备唯一的持久投递、attempt、租约、重试和错误码。
 - `inbox_items.push_planned_at`：区分未规划与已评估但无需 Push 的提醒。
 
 Worker 使用行锁、`SKIP LOCKED`、租约和 attempt fencing，让多个实例不会同时完成同一投递。408、429、5xx 和网络故障使用 5 分钟起的指数退避，最多尝试 5 次；404/410 会把订阅标为失效并取消该设备其余投递。新设备不会补推订阅前的历史 InboxItem。
+
+Worker 不再了解 VAPID 或浏览器订阅结构，而是按订阅的 `provider` 交给 `PushProviderRegistry`。协议细节与错误映射由各 Provider 自己处理；未知 Provider 会以 `PUSH_PROVIDER_UNAVAILABLE` 明确失败，不会错误回退。
 
 Web Push 没有端到端 exactly-once 保证：Push Service 可能接受后仍重复或延迟，操作系统也可能聚合通知。产品事实应始终以 `/inbox` 为准。
 
@@ -83,9 +85,17 @@ tailscale serve status
 
 Worker 日志只记录事件、Delivery ID、错误码和计数，不记录通知正文、endpoint 或密钥。正式真机 Push 无法由自动测试替代，因为浏览器权限必须由用户手势授予；每次发布仍应完成一次上述几分钟后的一次性提醒验证。
 
-## 7. 实现依据
+## 7. HarmonyOS 5 说明
+
+HarmonyOS 5 能打开本网页，不代表系统浏览器实现了标准 Web Push。当前页面会继续进行能力检测；若“在此设备启用”不可用或无法生成订阅，网页自身不能绕过系统限制。
+
+服务端已经预留 `huawei-push` Provider 契约，但尚未启用真实发送。完整适配需要 HarmonyOS 原生应用取得用户通知授权与 Push Token，上传到本项目服务端，并由服务端用华为服务账号调用 HarmonyOS 5 的 V3 Push API。它还需要 AppGallery Connect 项目、应用标识、服务账号、签名与真机测试，不能仅靠修改网页 JavaScript 完成。详见 [ADR-034](adr/ADR-034-PROVIDER-AWARE-PUSH-AND-HARMONYOS-PORT.md)。
+
+## 8. 实现依据
 
 - [MDN Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
 - [MDN PushManager.subscribe()](https://developer.mozilla.org/en-US/docs/Web/API/PushManager/subscribe)
 - [WebKit：Web Push for Web Apps on iOS and iPadOS](https://webkit.org/blog/13966/web-push-for-web-apps-on-ios-and-ipados/)
 - [web-push 官方仓库](https://github.com/web-push-libs/web-push)
+- [Huawei Push Kit 简介](https://developer.huawei.com/consumer/cn/doc/doccenter-capabilities/push-kit-introduction)
+- [Huawei Push Kit JWT 与 V3 接口](https://developer.huawei.com/consumer/cn/doc/doccenter-capabilities/push-jwt-token)

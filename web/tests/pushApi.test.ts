@@ -112,6 +112,7 @@ describe("Push API", () => {
       }),
     );
     expect(body.data).toMatchObject({ id: subscriptionId, deviceLabel: "Edge · Windows" });
+    expect(body.data.provider).toBe("web-push");
     expect(JSON.stringify(body)).not.toContain("device-token");
 
     const invalid = await api.saveSubscription(

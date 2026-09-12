@@ -412,6 +412,7 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull().default("web-push"),
   endpointHash: text("endpoint_hash").notNull(),
   encryptedSubscription: text("encrypted_subscription").notNull(),
   deviceLabel: text("device_label").notNull(),

@@ -337,7 +337,7 @@ Scheduler Tick ──> Worker ──> Agent Runtime ──> Model/Search
 
 ### 6.4 Web、PWA 与 Android APK
 
-继续采用 Web-first：Next.js/React 是共享 UI 和业务入口，PWA 用于快速验证移动体验，Capacitor 将静态客户端封装为 Android 工程并生成 APK/AAB。服务端 API 独立部署，APK 不内置模型密钥或 Scheduler。
+继续采用 Web-first：Next.js/React 是共享 UI 和业务入口，PWA 用于快速验证移动体验，Capacitor 将静态客户端封装为 Android 工程并生成 APK/AAB。服务端 API 独立部署，APK 不内置模型密钥或 Scheduler。HarmonyOS 5/NEXT 不默认等同于 Android：共享领域逻辑与页面可以复用，但需要单独的 HarmonyOS 原生壳、HAP 构建与 Huawei Push Kit Adapter。
 
 ```text
 Shared TypeScript Domain / API Client
@@ -1749,6 +1749,7 @@ toolName, errorCode
 | 6.5 | Plugin API v1 复盘 | 两个插件均无需修改 Agent Loop，接口才冻结 |
 | 6.6 | PWA + Capacitor Spike | 同一前端生成 Debug APK，真机连接笔记本 API |
 | 6.7 | Android Storage/Notification Adapter | 安全存储、本地缓存、普通提醒和 Push 验证通过 |
+| 6.8 | HarmonyOS 5 Push Spike | HAP 原生壳取得 Push Token，服务端 Huawei Provider V3 投递与点击深链真机验证通过 |
 
 该阶段仍不支持公开插件市场、任意来源代码包和动态 Android 原生扩展。若第一方插件无法在不修改核心的情况下实现，优先修正扩展点，不提前追求 SDK 美观。
 

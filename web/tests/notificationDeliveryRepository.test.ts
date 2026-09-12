@@ -57,6 +57,7 @@ describe("NotificationDeliveryRepository", () => {
       now: new Date("2026-09-12T01:00:00.000Z"),
     });
     await notifications.saveSubscription({
+      provider: "web-push",
       endpointHash: "endpoint-hash",
       encryptedSubscription: "encrypted-subscription",
       deviceLabel: "Test browser",

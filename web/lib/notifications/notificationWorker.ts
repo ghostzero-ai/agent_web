@@ -1,19 +1,10 @@
-import webPush from "web-push";
-import { decryptPushSecret } from "@/lib/notifications/pushSecretCipher";
 import { nextAllowedPushAt } from "@/lib/notifications/quietHours";
-import type { PushConfiguration } from "@/lib/notifications/pushConfigurationService";
+import { PushProviderRegistry } from "@/lib/notifications/pushProvider";
 import type {
   ClaimedNotificationDelivery,
   NotificationDeliveryRepositoryPort,
 } from "@/lib/repositories/notificationDeliveryRepository";
 import { waitForNextPoll } from "@/lib/tasks/reminderWorker";
-
-class StoredPushSubscriptionError extends Error {
-  constructor() {
-    super("Stored Push subscription is invalid.");
-    this.name = "StoredPushSubscriptionError";
-  }
-}
 
 export type NotificationWorkerOptions = {
   workerId: string;
@@ -30,70 +21,16 @@ export type NotificationBatchResult = {
   failed: number;
 };
 
-export type WebPushSend = typeof webPush.sendNotification;
-
 export type NotificationWorkerDependencies = {
   deliveries: NotificationDeliveryRepositoryPort;
-  getPushConfiguration: () => Promise<PushConfiguration>;
-  sendPush?: WebPushSend;
+  providers: PushProviderRegistry;
   now?: () => Date;
   onDeliveryError?: (deliveryId: string, errorCode: string) => void;
 };
 
-function parseSubscription(encrypted: string) {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(decryptPushSecret(encrypted, "subscription"));
-  } catch {
-    throw new StoredPushSubscriptionError();
-  }
-  if (
-    typeof parsed !== "object" ||
-    parsed === null ||
-    typeof (parsed as { endpoint?: unknown }).endpoint !== "string" ||
-    typeof (parsed as { keys?: { p256dh?: unknown } }).keys?.p256dh !== "string" ||
-    typeof (parsed as { keys?: { auth?: unknown } }).keys?.auth !== "string"
-  ) {
-    throw new StoredPushSubscriptionError();
-  }
-  return parsed as {
-    endpoint: string;
-    expirationTime: number | null;
-    keys: { p256dh: string; auth: string };
-  };
-}
-
-function statusCode(error: unknown): number | null {
-  if (typeof error !== "object" || error === null) return null;
-  const value = (error as { statusCode?: unknown }).statusCode;
-  return typeof value === "number" ? value : null;
-}
-
-function failure(error: unknown): {
-  status: "expired" | "failed";
-  errorCode: string;
-  retryable: boolean;
-} {
-  const status = statusCode(error);
-  if (status === 404 || status === 410) {
-    return { status: "expired", errorCode: "PUSH_SUBSCRIPTION_EXPIRED", retryable: false };
-  }
-  if (status === 408 || status === 429 || (status !== null && status >= 500)) {
-    return { status: "failed", errorCode: `PUSH_HTTP_${status}`, retryable: true };
-  }
-  if (status !== null) {
-    return { status: "failed", errorCode: `PUSH_HTTP_${status}`, retryable: false };
-  }
-  if (error instanceof StoredPushSubscriptionError) {
-    return { status: "expired", errorCode: "PUSH_SUBSCRIPTION_INVALID", retryable: false };
-  }
-  return { status: "failed", errorCode: "PUSH_NETWORK_ERROR", retryable: true };
-}
-
 async function deliverOne(
   dependencies: NotificationWorkerDependencies,
   options: NotificationWorkerOptions,
-  configuration: PushConfiguration,
   claim: ClaimedNotificationDelivery,
 ): Promise<"sent" | "deferred" | "failed"> {
   const now = dependencies.now?.() ?? new Date();
@@ -109,25 +46,18 @@ async function deliverOne(
     return "deferred";
   }
 
-  const sendPush = dependencies.sendPush ?? webPush.sendNotification;
-  try {
-    await sendPush(
-      parseSubscription(claim.subscription.encryptedSubscription),
-      JSON.stringify({
+  const outcome = await dependencies.providers.send(
+    claim.subscription.provider,
+    {
+      encryptedSubscription: claim.subscription.encryptedSubscription,
+      notification: {
         title: "学习提醒",
         body: "你有一条新的任务提醒，点击查看。",
         inboxItemId: claim.inboxItem.id,
-      }),
-      {
-        TTL: 24 * 60 * 60,
-        timeout: 10_000,
-        urgency: "normal",
-        topic: claim.inboxItem.id.replaceAll("-", "").slice(0, 32),
-        vapidDetails: configuration,
       },
-    );
-  } catch (error) {
-    const outcome = failure(error);
+    },
+  );
+  if (outcome.status !== "sent") {
     await dependencies.deliveries.finishDelivery({
       deliveryId: claim.delivery.id,
       workerId: options.workerId,
@@ -177,9 +107,8 @@ export async function runNotificationBatch(
       failed: 0,
     };
   }
-  const configuration = await dependencies.getPushConfiguration();
   const outcomes = await Promise.all(
-    claims.map((claim) => deliverOne(dependencies, options, configuration, claim)),
+    claims.map((claim) => deliverOne(dependencies, options, claim)),
   );
   return {
     plannedInboxItems: planned.inboxItems,

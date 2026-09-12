@@ -221,6 +221,9 @@ export function NotificationSettings() {
                   <p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">{subscription.deviceLabel}</p>
                   <span className={`rounded-full px-2 py-0.5 text-xs ${subscription.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}>{subscription.status === "active" ? "有效" : "已失效"}</span>
                 </div>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {subscription.provider === "web-push" ? "Web Push" : subscription.provider}
+                </p>
                 <button type="button" disabled={busy} onClick={() => void removeDevice(subscription.id)} className="mt-3 text-xs text-red-600 underline underline-offset-2 disabled:opacity-50 dark:text-red-400">移除此设备</button>
               </article>
             ))}
@@ -228,6 +231,9 @@ export function NotificationSettings() {
         )}
         <div className="mt-5 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           iPhone/iPad：先在 Safari 中“添加到主屏幕”，再从主屏幕打开本应用并点击启用。
+        </div>
+        <div className="mt-3 rounded-xl bg-blue-50 p-3 text-xs leading-5 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+          HarmonyOS 5：当前网页仍使用 Web Push；系统浏览器不支持时，需要后续安装接入 Huawei Push Kit 的原生应用。服务端已预留 Huawei Push Provider。
         </div>
       </aside>
     </div>
