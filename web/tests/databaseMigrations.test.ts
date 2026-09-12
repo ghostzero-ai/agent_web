@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(6);
+      expect(migrations).toHaveLength(7);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -158,6 +158,21 @@ describe("database migrations", () => {
         quiet_end: "08:00",
       });
 
+      await pglite.query(
+        `INSERT INTO model_credentials (
+           user_id, provider, base_url, model, encrypted_api_key, api_key_hint
+         ) VALUES ($1, 'deepseek', 'https://api.deepseek.com', 'deepseek-chat', 'encrypted', '••••test')`,
+        [userResult.rows[0].id],
+      );
+      await expect(
+        pglite.query(
+          `INSERT INTO model_credentials (
+             user_id, provider, base_url, model, encrypted_api_key, api_key_hint
+           ) VALUES ($1, 'another-provider', 'https://example.com', 'model', 'encrypted', '••••test')`,
+          [userResult.rows[0].id],
+        ),
+      ).rejects.toThrow();
+
       const inboxResult = await pglite.query<{ id: string }>(
         `SELECT id FROM inbox_items LIMIT 1`,
       );
@@ -193,6 +208,21 @@ describe("database migrations", () => {
 
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[6].id,
+      );
+
+      await pglite.query(
+        `INSERT INTO model_credentials (
+           user_id, provider, base_url, model, encrypted_api_key, api_key_hint
+         ) VALUES ($1, 'another-provider', 'https://example.com', 'model', 'encrypted', '••••test')`,
+        [userResult.rows[0].id],
+      );
+      await pglite.query(
+        `DELETE FROM model_credentials
+         WHERE user_id = $1 AND provider = 'another-provider'`,
+        [userResult.rows[0].id],
+      );
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[5].id,
       );
 
@@ -219,6 +249,7 @@ describe("database migrations", () => {
 
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([
         migrations[5].id,
+        migrations[6].id,
       ]);
     },
     15_000,
@@ -233,5 +264,30 @@ describe("database migrations", () => {
         { ...migrations[0], checksum: "changed-after-apply" },
       ]),
     ).rejects.toThrow("changed after it was applied");
+  });
+
+  it("keeps the most recently updated credential when upgrading old provider rows", async () => {
+    const migrations = await loadMigrations();
+    await migrateDatabase(database, migrations.slice(0, 6));
+    const user = await pglite.query<{ id: string }>(
+      `INSERT INTO users DEFAULT VALUES RETURNING id`,
+    );
+    await pglite.query(
+      `INSERT INTO model_credentials (
+         user_id, provider, base_url, model, encrypted_api_key, api_key_hint, updated_at
+       ) VALUES
+         ($1, 'old-provider', 'https://old.example', 'old', 'old-encrypted', '••••old', '2026-01-01T00:00:00Z'),
+         ($1, 'new-provider', 'https://new.example', 'new', 'new-encrypted', '••••new', '2026-02-01T00:00:00Z')`,
+      [user.rows[0].id],
+    );
+
+    await expect(migrateDatabase(database, migrations)).resolves.toEqual([
+      migrations[6].id,
+    ]);
+    const rows = await pglite.query<{ provider: string; model: string }>(
+      `SELECT provider, model FROM model_credentials WHERE user_id = $1`,
+      [user.rows[0].id],
+    );
+    expect(rows.rows).toEqual([{ provider: "new-provider", model: "new" }]);
   });
 });

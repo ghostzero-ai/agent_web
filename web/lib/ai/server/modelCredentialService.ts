@@ -17,6 +17,7 @@ import {
 
 export type ModelCredentialInput = {
   apiKey: string;
+  provider: string;
   baseUrl: string;
   model: string;
 };
@@ -64,6 +65,7 @@ function publicEnvironmentStatus(): ModelCredentialPublicStatus {
 function normalizeInput(input: ModelCredentialInput): ModelCredentialInput {
   return {
     apiKey: input.apiKey.trim(),
+    provider: input.provider.trim(),
     baseUrl: normalizeBaseUrl(input.baseUrl),
     model: input.model.trim(),
   };
@@ -135,6 +137,7 @@ export function createModelCredentialService(
     ): Promise<ModelCredentialPublicStatus> {
       const normalized = normalizeInput(input);
       const stored = await repository().save({
+        provider: normalized.provider,
         baseUrl: normalized.baseUrl,
         model: normalized.model,
         encryptedApiKey: encryptApiKey(normalized.apiKey),

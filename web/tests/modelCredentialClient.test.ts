@@ -14,7 +14,7 @@ afterEach(() => {
 const status = {
   configured: true,
   source: "stored",
-  provider: "openai-compatible",
+  provider: "deepseek",
   baseUrl: "https://api.deepseek.com",
   model: "deepseek-v4-flash-vision-exp",
   apiKeyHint: "••••1234",
@@ -35,6 +35,7 @@ describe("model credential browser client", () => {
     vi.stubGlobal("fetch", fetchMock);
     const input = {
       apiKey: "sk-private-value",
+      provider: "deepseek",
       baseUrl: "https://api.deepseek.com",
       model: "deepseek-v4-flash-vision-exp",
     };
@@ -80,6 +81,7 @@ describe("model credential browser client", () => {
     await expect(
       testModelCredential({
         apiKey: "sk-wrong-value",
+        provider: "deepseek",
         baseUrl: "https://api.deepseek.com",
         model: "model",
       }),

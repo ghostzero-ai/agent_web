@@ -55,6 +55,7 @@ describe("ModelCredentialRepository", () => {
 
   it("stores one encrypted provider credential and updates it in place", async () => {
     const created = await repository.save({
+      provider: "deepseek",
       baseUrl: "https://api.deepseek.com",
       model: "deepseek-v4-flash-vision-exp",
       encryptedApiKey: "v1.encrypted-first",
@@ -62,6 +63,7 @@ describe("ModelCredentialRepository", () => {
       encryptionKeyVersion: 1,
     });
     const updated = await repository.save({
+      provider: "custom-deepseek",
       baseUrl: "https://api.deepseek.com",
       model: "deepseek-v4-flash",
       encryptedApiKey: "v1.encrypted-second",
@@ -72,21 +74,39 @@ describe("ModelCredentialRepository", () => {
     expect(updated.id).toBe(created.id);
     expect(updated.version).toBe(2);
     await expect(repository.get()).resolves.toMatchObject({
+      provider: "custom-deepseek",
+      baseUrl: "https://api.deepseek.com",
       model: "deepseek-v4-flash",
       encryptedApiKey: "v1.encrypted-second",
       apiKeyHint: "••••5678",
     });
 
-    const rows = await pglite.query<{ count: number; plaintext_count: number }>(
+    const rows = await pglite.query<{
+      count: number;
+      plaintext_count: number;
+      provider: string;
+      base_url: string;
+      model: string;
+    }>(
       `SELECT count(*)::int AS count,
-              count(*) FILTER (WHERE encrypted_api_key LIKE '%private%')::int AS plaintext_count
+              count(*) FILTER (WHERE encrypted_api_key LIKE '%private%')::int AS plaintext_count,
+              max(provider) AS provider,
+              max(base_url) AS base_url,
+              max(model) AS model
        FROM model_credentials`,
     );
-    expect(rows.rows[0]).toEqual({ count: 1, plaintext_count: 0 });
+    expect(rows.rows[0]).toEqual({
+      count: 1,
+      plaintext_count: 0,
+      provider: "custom-deepseek",
+      base_url: "https://api.deepseek.com",
+      model: "deepseek-v4-flash",
+    });
   });
 
   it("deletes only the local user's active provider credential", async () => {
     await repository.save({
+      provider: "provider",
       baseUrl: "https://provider.example",
       model: "model",
       encryptedApiKey: "v1.encrypted",

@@ -3,15 +3,22 @@ import { describe, expect, it } from "vitest";
 import { ModelCredentialSettings } from "@/components/config/ModelCredentialSettings";
 
 describe("ModelCredentialSettings", () => {
-  it("renders a write-only API Key form with DeepSeek defaults", () => {
+  it("renders editable provider fields without hard-coded values", () => {
     const html = renderToStaticMarkup(<ModelCredentialSettings />);
 
     expect(html).toContain("模型凭据");
-    expect(html).toContain("https://api.deepseek.com");
-    expect(html).toContain("deepseek-v4-flash-vision-exp");
+    expect(html).toContain("Provider");
+    expect(html).toContain("Base URL");
+    expect(html).toContain("Model");
+    expect(html).toContain("例如：https://api.deepseek.com");
+    expect(html).not.toContain('value="OpenAI-compatible"');
+    const providerInput = html.match(/Provider<input([^>]*)>/)?.[1];
+    expect(providerInput).toBeDefined();
+    expect(providerInput).not.toContain("disabled");
     expect(html).toContain('type="password"');
     expect(html).toContain("测试连接");
-    expect(html).toContain("加密保存");
+    expect(html).toContain("保存配置");
+    expect(html).toContain("Provider、Base URL 和 Model 不加密");
     expect(html).toContain("不写入浏览器存储");
     expect(html).not.toContain("服务端环境变量中配置");
   });

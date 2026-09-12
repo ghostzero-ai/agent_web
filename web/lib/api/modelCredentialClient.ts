@@ -11,6 +11,7 @@ export type ModelCredentialStatus = {
 
 export type ModelCredentialInput = {
   apiKey: string;
+  provider: string;
   baseUrl: string;
   model: string;
 };

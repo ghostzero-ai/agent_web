@@ -22,6 +22,12 @@ type ModelCredentialApiDependencies = {
 const credentialInputSchema = z
   .object({
     apiKey: z.string().trim().min(8).max(10_000),
+    provider: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
     baseUrl: z.string().trim().url().max(2_048),
     model: z.string().trim().min(1).max(200),
   })

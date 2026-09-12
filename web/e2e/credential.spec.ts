@@ -5,6 +5,7 @@ test("tests, saves and deletes a write-only model credential", async ({
 }) => {
   let stored = false;
   let receivedApiKey: string | null = null;
+  let receivedConfiguration: Record<string, unknown> | null = null;
 
   await page.route("**/api/v1/model/credentials**", async (route) => {
     const request = route.request();
@@ -31,9 +32,19 @@ test("tests, saves and deletes a write-only model credential", async ({
       return respond({ connected: true, modelAvailable: true });
     }
     if (request.method() === "PUT") {
-      receivedApiKey = request.postDataJSON().apiKey;
+      const input = request.postDataJSON();
+      receivedApiKey = input.apiKey;
+      receivedConfiguration = input;
       stored = true;
-      return respond({ ...status, configured: true, source: "stored", apiKeyHint: "••••alue" });
+      return respond({
+        ...status,
+        configured: true,
+        source: "stored",
+        provider: input.provider,
+        baseUrl: input.baseUrl,
+        model: input.model,
+        apiKeyHint: "••••alue",
+      });
     }
     if (request.method() === "DELETE") {
       stored = false;
@@ -43,17 +54,28 @@ test("tests, saves and deletes a write-only model credential", async ({
   });
 
   await page.goto("/api-key");
-  const apiKey = page.getByLabel("API Key");
+  await page.getByLabel("Provider", { exact: true }).fill("deepseek");
+  await page
+    .getByLabel("Base URL", { exact: true })
+    .fill("https://api.deepseek.com");
+  await page.getByLabel("Model", { exact: true }).fill("deepseek-chat");
+  const apiKey = page.getByLabel("API Key", { exact: true });
   await apiKey.fill("sk-private-value");
 
   await page.getByRole("button", { name: "测试连接" }).click();
   await expect(page.getByText("连接成功，目标模型当前可用。")).toBeVisible();
   expect(receivedApiKey).toBe("sk-private-value");
 
-  await page.getByRole("button", { name: "加密保存" }).click();
+  await page.getByRole("button", { name: "保存配置" }).click();
   await expect(page.getByText("服务端加密存储")).toBeVisible();
   await expect(page.getByText("••••alue")).toBeVisible();
   await expect(apiKey).toHaveValue("");
+  expect(receivedConfiguration).toEqual({
+    apiKey: "sk-private-value",
+    provider: "deepseek",
+    baseUrl: "https://api.deepseek.com",
+    model: "deepseek-chat",
+  });
   await expect
     .poll(() =>
       page.evaluate(() =>

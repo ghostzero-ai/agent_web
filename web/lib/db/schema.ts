@@ -211,9 +211,10 @@ export const modelCredentials = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("model_credentials_user_provider_unique").on(
-      table.userId,
-      table.provider,
+    uniqueIndex("model_credentials_user_unique").on(table.userId),
+    check(
+      "model_credentials_provider_nonempty",
+      sql`length(btrim(${table.provider})) > 0`,
     ),
     check(
       "model_credentials_encryption_key_version_positive",

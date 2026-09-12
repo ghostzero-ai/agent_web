@@ -9,17 +9,15 @@ import {
   type ModelCredentialStatus,
 } from "@/lib/api/modelCredentialClient";
 
-const DEFAULT_BASE_URL = "https://api.deepseek.com";
-const DEFAULT_MODEL = "deepseek-v4-flash-vision-exp";
-
 function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : "操作失败，请稍后重试。";
 }
 
 export function ModelCredentialSettings() {
   const [status, setStatus] = useState<ModelCredentialStatus | null>(null);
-  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL);
-  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [provider, setProvider] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -35,8 +33,9 @@ export function ModelCredentialSettings() {
     try {
       const nextStatus = await getModelCredentialStatus();
       setStatus(nextStatus);
-      if (nextStatus.baseUrl) setBaseUrl(nextStatus.baseUrl);
-      if (nextStatus.model) setModel(nextStatus.model);
+      setProvider(nextStatus.provider ?? "");
+      setBaseUrl(nextStatus.baseUrl ?? "");
+      setModel(nextStatus.model ?? "");
     } catch (error) {
       setFeedback({ kind: "error", message: messageFrom(error) });
     } finally {
@@ -50,8 +49,9 @@ export function ModelCredentialSettings() {
       .then((nextStatus) => {
         if (!active) return;
         setStatus(nextStatus);
-        if (nextStatus.baseUrl) setBaseUrl(nextStatus.baseUrl);
-        if (nextStatus.model) setModel(nextStatus.model);
+        setProvider(nextStatus.provider ?? "");
+        setBaseUrl(nextStatus.baseUrl ?? "");
+        setModel(nextStatus.model ?? "");
       })
       .catch((error: unknown) => {
         if (active) {
@@ -66,7 +66,7 @@ export function ModelCredentialSettings() {
     };
   }, []);
 
-  const input = () => ({ apiKey, baseUrl, model });
+  const input = () => ({ apiKey, provider, baseUrl, model });
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -75,11 +75,15 @@ export function ModelCredentialSettings() {
     try {
       const nextStatus = await saveModelCredential(input());
       setStatus(nextStatus);
+      setProvider(nextStatus.provider ?? "");
+      setBaseUrl(nextStatus.baseUrl ?? "");
+      setModel(nextStatus.model ?? "");
       setApiKey("");
       setShowApiKey(false);
       setFeedback({
         kind: "success",
-        message: "凭据已在服务端加密保存，完整 Key 不会再次显示。",
+        message:
+          "配置已保存：API Key 已加密，Provider、Base URL 和 Model 以明文保存在服务端。",
       });
     } catch (error) {
       setFeedback({ kind: "error", message: messageFrom(error) });
@@ -128,7 +132,10 @@ export function ModelCredentialSettings() {
 
   const busy = operation !== null;
   const canSubmit = Boolean(
-    apiKey.trim().length >= 8 && baseUrl.trim() && model.trim(),
+    apiKey.trim().length >= 8 &&
+      provider.trim() &&
+      baseUrl.trim() &&
+      model.trim(),
   );
   const feedbackClass =
     feedback?.kind === "success"
@@ -146,6 +153,7 @@ export function ModelCredentialSettings() {
         <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
           Key 仅在保存或测试时通过当前站点发送给服务端。保存后使用
           AES-256-GCM 加密，不写入浏览器存储，也不会从服务端完整返回。
+          Provider、Base URL 和 Model 不加密，便于读取和修改。
         </p>
       </div>
 
@@ -191,21 +199,33 @@ export function ModelCredentialSettings() {
         <label className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Provider
           <input
-            value="OpenAI-compatible"
-            disabled
-            className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-zinc-100 px-3 py-2 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
+            aria-label="Provider"
+            value={provider}
+            onChange={(event) => setProvider(event.target.value)}
+            required
+            maxLength={100}
+            pattern="[A-Za-z0-9][A-Za-z0-9._-]*"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="例如：deepseek"
+            className="mt-1.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-950 outline-none transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
           />
+          <span className="mt-1 block text-xs font-normal text-zinc-500">
+            当前连接协议仍为 OpenAI-compatible；这里填写厂商标识。
+          </span>
         </label>
 
         <label className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Base URL
           <input
+            aria-label="Base URL"
             type="url"
             value={baseUrl}
             onChange={(event) => setBaseUrl(event.target.value)}
             required
             autoComplete="url"
             spellCheck={false}
+            placeholder="例如：https://api.deepseek.com"
             className="mt-1.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-950 outline-none transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
           />
         </label>
@@ -213,11 +233,13 @@ export function ModelCredentialSettings() {
         <label className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Model
           <input
+            aria-label="Model"
             value={model}
             onChange={(event) => setModel(event.target.value)}
             required
             autoComplete="off"
             spellCheck={false}
+            placeholder="例如：deepseek-chat"
             className="mt-1.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-950 outline-none transition focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
           />
         </label>
@@ -226,6 +248,7 @@ export function ModelCredentialSettings() {
           API Key
           <div className="mt-1.5 flex rounded-lg border border-zinc-300 bg-white focus-within:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950">
             <input
+              aria-label="API Key"
               type={showApiKey ? "text" : "password"}
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
@@ -245,7 +268,7 @@ export function ModelCredentialSettings() {
             </button>
           </div>
           <span className="mt-1 block text-xs font-normal text-zinc-500">
-            更新 Base URL 或 Model 时，需要重新输入 Key。
+            更新 Provider、Base URL 或 Model 时，需要重新输入 Key。
           </span>
         </label>
 
@@ -269,7 +292,7 @@ export function ModelCredentialSettings() {
             disabled={busy || !canSubmit}
             className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
           >
-            {operation === "save" ? "保存中…" : "加密保存"}
+            {operation === "save" ? "保存中…" : "保存配置"}
           </button>
           {status?.source === "stored" && (
             <button

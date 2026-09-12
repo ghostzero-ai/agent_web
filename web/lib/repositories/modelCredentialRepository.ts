@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
   modelCredentials,
@@ -11,6 +11,7 @@ import { LOCAL_USER_ID } from "@/lib/repositories/conversationRepository";
 export const OPENAI_COMPATIBLE_PROVIDER = "openai-compatible";
 
 export type SaveModelCredentialInput = {
+  provider: string;
   baseUrl: string;
   model: string;
   encryptedApiKey: string;
@@ -43,12 +44,7 @@ export class ModelCredentialRepository<
     const [credential] = await this.database
       .select()
       .from(modelCredentials)
-      .where(
-        and(
-          eq(modelCredentials.userId, LOCAL_USER_ID),
-          eq(modelCredentials.provider, OPENAI_COMPATIBLE_PROVIDER),
-        ),
-      )
+      .where(eq(modelCredentials.userId, LOCAL_USER_ID))
       .limit(1);
     return credential ?? null;
   }
@@ -59,12 +55,12 @@ export class ModelCredentialRepository<
       .insert(modelCredentials)
       .values({
         userId: LOCAL_USER_ID,
-        provider: OPENAI_COMPATIBLE_PROVIDER,
         ...input,
       })
       .onConflictDoUpdate({
-        target: [modelCredentials.userId, modelCredentials.provider],
+        target: modelCredentials.userId,
         set: {
+          provider: input.provider,
           baseUrl: input.baseUrl,
           model: input.model,
           encryptedApiKey: input.encryptedApiKey,
@@ -82,12 +78,7 @@ export class ModelCredentialRepository<
     await this.ensureLocalUser();
     const deleted = await this.database
       .delete(modelCredentials)
-      .where(
-        and(
-          eq(modelCredentials.userId, LOCAL_USER_ID),
-          eq(modelCredentials.provider, OPENAI_COMPATIBLE_PROVIDER),
-        ),
-      )
+      .where(eq(modelCredentials.userId, LOCAL_USER_ID))
       .returning({ id: modelCredentials.id });
     return deleted.length > 0;
   }

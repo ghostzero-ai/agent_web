@@ -5,7 +5,7 @@ import { CredentialCipherError } from "@/lib/ai/server/credentialCipher";
 const publicStatus = {
   configured: true,
   source: "stored" as const,
-  provider: "openai-compatible",
+  provider: "deepseek",
   baseUrl: "https://api.deepseek.com",
   model: "deepseek-v4-flash-vision-exp",
   apiKeyHint: "••••1234",
@@ -37,6 +37,7 @@ describe("Model Credential API", () => {
     const response = await api.put(
       request({
         apiKey: "sk-private-value",
+        provider: "deepseek",
         baseUrl: "https://api.deepseek.com",
         model: "deepseek-v4-flash-vision-exp",
       }),
@@ -47,6 +48,7 @@ describe("Model Credential API", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(save).toHaveBeenCalledWith({
       apiKey: "sk-private-value",
+      provider: "deepseek",
       baseUrl: "https://api.deepseek.com",
       model: "deepseek-v4-flash-vision-exp",
     });
@@ -70,6 +72,7 @@ describe("Model Credential API", () => {
     const invalid = await api.put(
       request({
         apiKey: "sk-private-value",
+        provider: "deepseek",
         baseUrl: "https://api.deepseek.com",
         model: "model",
         userId: "forbidden",
@@ -81,6 +84,7 @@ describe("Model Credential API", () => {
     const unavailable = await api.put(
       request({
         apiKey: "sk-private-value",
+        provider: "deepseek",
         baseUrl: "https://api.deepseek.com",
         model: "model",
       }),
@@ -108,11 +112,36 @@ describe("Model Credential API", () => {
       "https://user:password@api.deepseek.com",
     ]) {
       const response = await api.put(
-        request({ apiKey: "sk-private-value", baseUrl, model: "model" }),
+        request({
+          apiKey: "sk-private-value",
+          provider: "deepseek",
+          baseUrl,
+          model: "model",
+        }),
       );
       expect(response.status).toBe(400);
       expect((await response.json()).error.code).toBe("INVALID_REQUEST");
     }
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid provider identifiers", async () => {
+    const save = vi.fn().mockResolvedValue(publicStatus);
+    const api = createModelCredentialApi({
+      getStatus: vi.fn().mockResolvedValue(publicStatus),
+      save,
+      delete: vi.fn().mockResolvedValue(false),
+      test: vi.fn().mockResolvedValue({ connected: true, modelAvailable: true }),
+    });
+    const response = await api.put(
+      request({
+        apiKey: "sk-private-value",
+        provider: "deep seek<script>",
+        baseUrl: "https://api.deepseek.com",
+        model: "model",
+      }),
+    );
+    expect(response.status).toBe(400);
     expect(save).not.toHaveBeenCalled();
   });
 });

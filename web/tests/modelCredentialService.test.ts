@@ -22,7 +22,6 @@ class MemoryCredentialRepository implements ModelCredentialRepositoryPort {
     this.record = {
       id: this.record?.id ?? "00000000-0000-4000-8000-000000000002",
       userId: "00000000-0000-4000-8000-000000000001",
-      provider: "openai-compatible",
       ...input,
       version: (this.record?.version ?? 0) + 1,
       createdAt: this.record?.createdAt ?? now,
@@ -51,6 +50,7 @@ describe("ModelCredentialService", () => {
 
     const status = await service.save({
       apiKey: "sk-secret-value",
+      provider: "deepseek",
       baseUrl: "https://api.deepseek.com/",
       model: "deepseek-v4-flash-vision-exp",
     });
@@ -58,6 +58,7 @@ describe("ModelCredentialService", () => {
     expect(status).toMatchObject({
       configured: true,
       source: "stored",
+      provider: "deepseek",
       apiKeyHint: "••••alue",
       baseUrl: "https://api.deepseek.com",
     });
@@ -85,6 +86,7 @@ describe("ModelCredentialService", () => {
     await expect(
       service.test({
         apiKey: "sk-test-value",
+        provider: "deepseek",
         baseUrl: "https://api.deepseek.com",
         model: "deepseek-v4-flash-vision-exp",
       }),
@@ -116,6 +118,7 @@ describe("ModelCredentialService", () => {
     await expect(
       service.test({
         apiKey: "sk-test-value",
+        provider: "deepseek",
         baseUrl: "https://api.deepseek.com",
         model: "model",
       }),
@@ -136,6 +139,7 @@ describe("ModelCredentialService", () => {
     await expect(
       service.test({
         apiKey: "sk-wrong-value",
+        provider: "deepseek",
         baseUrl: "https://api.deepseek.com",
         model: "model",
       }),
