@@ -1,9 +1,9 @@
 # AI Study Companion 产品与技术总规划
 
 > 文档类型：产品需求文档（PRD）+ 技术设计文档（TDD）+ 分阶段路线图
-> 文档版本：1.2
+> 文档版本：1.3
 > 编写日期：2026-09-02
-> 最近修订：2026-09-11
+> 最近修订：2026-09-13
 > 适用项目：AI Study Companion / Personal AI Agent Web Application
 > 状态：规划基线，后续通过 ADR 与 CHANGELOG 持续修订
 
@@ -20,6 +20,7 @@
 5. DeepSeek Harness、OpenAI Codex 和 ChatGPT 定时任务有哪些可借鉴之处。
 6. 短期应该先写什么代码，长期如何扩展而不过早复杂化。
 7. 如何把项目建设过程转化为可展示的软件工程作品集。
+8. 娱乐模式、Prompt 导出、语音、APK 与 HarmonyOS 如何共享架构而不形成多套业务代码。
 
 本文档不是一次性功能清单。每个阶段开始前仍需拆成小型 Sprint，并遵守“一个目标、可验证、可回滚”的开发原则。
 
@@ -38,6 +39,8 @@ AI Study Companion 是一个面向个人长期使用的、兼具专业知识工�
 - 在时间中持续工作：任务、提醒、定期研究和主动联系。
 - 保持关系感：自然、温暖、有连续性，但不牺牲事实严谨性。
 - 按需扩展学习方式：通过受控插件增加背书、解题、阅读和其他学习活动，而不污染核心 Agent。
+- 在独立娱乐空间中进行角色扮演、AI 跑团和互动故事，不污染专业对话与真实记忆。
+- 通过 Web、Android APK 和未来 HarmonyOS 原生壳提供一致体验，平台能力可替换。
 
 ### 1.2 目标用户
 
@@ -335,22 +338,26 @@ Scheduler Tick ──> Worker ──> Agent Runtime ──> Model/Search
 
 迁移云端时只应更换部署目标、数据库连接、附件存储和公开域名，不修改领域模型与 Agent Runtime。
 
-### 6.4 Web、PWA 与 Android APK
+### 6.4 Web、PWA、Android APK 与 HarmonyOS
 
-继续采用 Web-first：Next.js/React 是共享 UI 和业务入口，PWA 用于快速验证移动体验，Capacitor 将静态客户端封装为 Android 工程并生成 APK/AAB。服务端 API 独立部署，APK 不内置模型密钥或 Scheduler。HarmonyOS 5/NEXT 不默认等同于 Android：共享领域逻辑与页面可以复用，但需要单独的 HarmonyOS 原生壳、HAP 构建与 Huawei Push Kit Adapter。
+继续采用 Web-first，但将“共享客户端”与“Next.js 服务端”明确分层。短期 Capacitor Debug APK 通过 Tailscale HTTPS 加载现有 Next.js 页面，用于卓易通兼容验证；Capacitor 官方把 `server.url` 定位为 Live Reload，因此正式 APK 必须改用本地 Web Bundle，并通过受认证 API 连接服务端。
+
+项目不进行完整双端开发：React 页面、领域类型和 API Client 共享；Android APK 与后期 ArkTS + ArkWeb HAP 只实现平台生命周期、文件、语音、本地通知、Push、深链和安全存储 Adapter。APK 不内置模型密钥、Scheduler 或 Huawei 服务端凭据。
 
 ```text
 Shared TypeScript Domain / API Client
         ├── Web/PWA Adapter
         │   ├── IndexedDB / Web Push
         │   └── Browser File / Share
-        └── Android Adapter（Capacitor）
-            ├── SQLite / Secure Storage
-            ├── Local Notification / Push
-            └── Camera / Microphone / File / Share
+        ├── Android Adapter（Capacitor APK）
+        │   ├── Local Notification / HMS Push
+        │   └── File / Share / Audio / Deep Link
+        └── HarmonyOS Adapter（ArkTS + ArkWeb HAP）
+            ├── Notification Kit / Push Kit
+            └── File / Audio / ArkWeb Bridge
 ```
 
-业务层不得直接散落调用 `localStorage`、`window`、`navigator` 或具体 Capacitor API，统一通过 `StorageAdapter`、`NotificationAdapter`、`SecureStorageAdapter`、`FileAdapter` 和 `ShareAdapter`。
+业务层不得直接散落调用 `localStorage`、`window`、`navigator` 或具体 Capacitor/ArkTS API，统一通过 Storage、FileExport、SpeechOutput、LocalNotification、NativePush 与 Share Adapter。详细边界见 `FEATURE_AND_MOBILE_EXPANSION_PLAN.md` 与 ADR-036。
 
 动态产品插件与 Capacitor 原生插件必须区分：产品插件可在服务端或沙箱 Web UI 中安装；相机、麦克风、通知等 Android 原生能力必须预编译进 APK，动态插件只能申请调用，不能安装新的原生二进制。
 
@@ -1490,11 +1497,12 @@ agent_web/
 │   │   ├── integration/
 │   │   ├── e2e/
 │   │   └── evals/
-│   └── worker/
-│       └── index.ts
-├── mobile/                     # Capacitor Spike 时引入
-│   ├── capacitor.config.ts
-│   └── android/
+│   ├── worker/
+│   │   └── index.ts
+│   ├── capacitor.config.ts     # M0 remote-shell；M1 后指向本地客户端产物
+│   ├── mobile-shell/           # M0 离线兜底页
+│   └── android/                # 安装 Capacitor 依赖后由 CLI 生成
+├── harmony/                    # M3 才引入 ArkTS + ArkWeb HAP
 └── README.md
 ```
 
@@ -1708,14 +1716,15 @@ toolName, errorCode
 
 短期里程碑：到这里，产品已经从“聊天网页”升级为“能在时间中持续工作的个人 Agent”。
 
-### Phase 3：专业回答（2–4 周）
+### Phase 3：模式、Prompt 与专业回答（3–5 周）
 
 | Sprint | 内容 | 验收 |
 |---|---|---|
-| 3.1 | Mode Router + Prompt Layer | 专业/陪伴模式边界测试通过 |
-| 3.2 | Web Search Tool + Citation Model | 最新问题有可点击来源 |
-| 3.3 | Response Verifier | 推断、时效和引用检查可见 |
-| 3.4 | 专业问答评测集 | Prompt 修改有回归分数 |
+| 3.1 | Mode Registry + Policy Layer | 专业/陪伴/娱乐模式可注册，事实与安全策略不可被模式覆盖 |
+| 3.2 | Prompt Envelope + Export | 模型实际输入可安全导出 JSON/Markdown，API Key 与私有数据不泄露 |
+| 3.3 | Web Search Tool + Citation Model | 最新问题有可点击来源 |
+| 3.4 | Response Verifier | 推断、时效和引用检查可见 |
+| 3.5 | 专业问答与模式边界评测集 | Prompt 或模式修改有回归分数 |
 
 ### Phase 4：新闻、书籍与思考问题（2–4 周）
 
@@ -1726,34 +1735,57 @@ toolName, errorCode
 | 4.3 | 书籍资料与阅读画像 | 推荐有难度和目的说明 |
 | 4.4 | Reflection Question 生成与评分 | 问题相关、少而精、可关闭 |
 
-### Phase 5：记忆与陪伴（3–4 周）
+### Phase 5：记忆、陪伴与语音（4–6 周）
 
 | Sprint | 内容 | 验收 |
 |---|---|---|
 | 5.1 | MemoryCandidate 与确认机制 | 不再直接把用户问题记为事实 |
 | 5.2 | Memory 管理页面与相关性检索 | 可查看、编辑、删除并立即生效 |
 | 5.3 | Persona Profile | 语气稳定且不影响专业评测 |
-| 5.4 | Proactivity Policy 与主动问候 | 有理由、有预算、无负罪感表达 |
-| 5.5 | 情绪支持安全评测 | 关键高风险场景通过 |
+| 5.4 | Voice Profile + TTS Provider | 可试听、停止和切换音线，TTS 失败不影响文字答案 |
+| 5.5 | Proactivity Policy 与主动问候 | 有理由、有预算、无负罪感表达 |
+| 5.6 | 情绪支持安全评测 | 关键高风险场景通过 |
 
-### Phase 6：插件验证与移动端交付（3–5 周）
-
-目标：用两个真实学习活动验证最小插件 API，并生成可连接笔记本服务端的 Android APK。
+### Phase 6：娱乐模式（3–5 周）
 
 | Sprint | 内容 | 验收 |
 |---|---|---|
-| 6.1 | Plugin Manifest、Registry、Compatibility Check | 第一方插件可发现、启用、禁用，版本不兼容时安全失败 |
-| 6.2 | Capability Gateway、隔离存储、配额和审计 | 插件不能绕过核心访问数据库、通知、网络和记忆 |
-| 6.3 | 背书插件 MVP | 材料→复习→评分→下次任务形成闭环 |
-| 6.4 | 解题插件 MVP | 支持提示/引导/检查/讲解并记录错因，可请求生成复习卡 |
-| 6.5 | Plugin API v1 复盘 | 两个插件均无需修改 Agent Loop，接口才冻结 |
-| 6.6 | PWA + Capacitor Spike | 同一前端生成 Debug APK，真机连接笔记本 API |
-| 6.7 | Android Storage/Notification Adapter | 安全存储、本地缓存、普通提醒和 Push 验证通过 |
-| 6.8 | HarmonyOS 5 Push Spike | HAP 原生壳取得 Push Token，服务端 Huawei Provider V3 投递与点击深链真机验证通过 |
+| 6.1 | GameSession、角色卡与世界设定 | 虚构状态不污染普通 Conversation 或长期记忆 |
+| 6.2 | 角色扮演 MVP | 可创建、暂停、继续、分支和导出角色扮演记录 |
+| 6.3 | Dice Tool 与结构化状态补丁 | 掷骰可复现，非法状态补丁被拒绝 |
+| 6.4 | AI 跑团 MVP | 角色、场景、物品、检定与检查点形成完整闭环 |
+| 6.5 | 娱乐 Activity 扩展点 | 新规则包不修改核心 Agent Loop 即可接入 |
+
+### Phase 7：插件验证（3–5 周）
+
+目标：用两个真实学习活动验证最小插件 API。
+
+| Sprint | 内容 | 验收 |
+|---|---|---|
+| 7.1 | Plugin Manifest、Registry、Compatibility Check | 第一方插件可发现、启用、禁用，版本不兼容时安全失败 |
+| 7.2 | Capability Gateway、隔离存储、配额和审计 | 插件不能绕过核心访问数据库、通知、网络和记忆 |
+| 7.3 | 背书插件 MVP | 材料→复习→评分→下次任务形成闭环 |
+| 7.4 | 解题插件 MVP | 支持提示/引导/检查/讲解并记录错因，可请求生成复习卡 |
+| 7.5 | Plugin API v1 复盘 | 两个插件均无需修改 Agent Loop，接口才冻结 |
 
 该阶段仍不支持公开插件市场、任意来源代码包和动态 Android 原生扩展。若第一方插件无法在不修改核心的情况下实现，优先修正扩展点，不提前追求 SDK 美观。
 
-### Phase 7：作品集化（2 周）
+### Mobile Track：与 Core Track 并行
+
+| Sprint | 内容 | 验收 |
+|---|---|---|
+| M0.1 ✅ | 平台契约、Capacitor remote-shell 基线 | 危险 URL 被拒绝，普通 Web 构建不受影响 |
+| M0.2 | Capacitor 8 + Android Studio + Debug APK | APK 经 Tailscale 打开现有应用 |
+| M0.3 | 卓易通兼容验证 | SSE、公式、文件、音频、前后台行为形成真机矩阵 |
+| M1.1 | 本地可打包 React Client | 正式 APK 不使用 `server.url`，共享 API Client |
+| M1.2 | Prompt 文件导出 + Share | JSON/Markdown 可保存和分享 |
+| M1.3 | APK Local Notification | 已同步普通提醒断网仍通知，修改/删除可撤销 |
+| M1.4 | Speech Output Adapter | 播放、停止、锁屏和耳机行为通过真机验证 |
+| M2.1 | HMS Push Capacitor Plugin Spike | 卓易通下 Token、后台 Push 与点击深链有实测结论 |
+| M2.2 | 服务端 Huawei Provider | 主动聊天、新闻与书籍复用 Inbox + Huawei Push |
+| M3.x | ArkTS + ArkWeb HAP | 替换平台 Adapter，不重写共享服务端和产品逻辑 |
+
+### Phase 8：作品集化（2 周）
 
 - 完整 README：问题、决策、架构、演示和限制。
 - 架构图、Sequence Diagram、数据模型图。
@@ -1931,20 +1963,18 @@ Proposed / Accepted / Superseded
 
 ## 27. 下一步执行建议
 
-不要直接从“新闻、语音、人物形象”开始。建议下一个开发周期严格按以下顺序：
+Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次只交付一个可验收任务：
 
-1. 修复当前状态一致性和消息角色问题。
-2. 给现有 Runtime、Service、Memory 增加测试。
-3. 写 ADR-001 至 ADR-004。
-4. 引入 PostgreSQL 和最小 Conversation/Message Schema。
-5. 把 API 调用迁到服务端并实现 Streaming。
-6. 实现 Task/TaskRun，而不是继续扩展浏览器 `taskStore`。
-7. 先完成普通提醒闭环，再让定时任务调用 Agent。
-8. 同时建立 Docker Compose 自托管基线，并验证数据库备份恢复。
-9. 任务可靠后，再开始专业搜索、新闻和陪伴主动性。
-10. 只先定义最小 Plugin Manifest 和 Capability 接口，不立即支持外部安装。
-11. 记忆与任务稳定后实现背书插件，再用解题插件验证扩展点。
-12. 核心移动体验稳定后做 Capacitor Spike，而不是重写 React 页面。
+1. 完成 M0.2：安装 Capacitor/Android 工具链，生成 Debug APK，经 Tailscale 打开现有服务。
+2. 完成 M0.3：在目标华为手机的卓易通环境记录 SSE、公式、文件、音频和前后台兼容矩阵。
+3. 回到 Core 3.1：实现可注册 Mode 与不可覆盖的事实/安全 Policy Layer。
+4. 完成 Core 3.2：建立 Prompt Envelope、版本与安全导出，再开始大规模修改 Prompt。
+5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
+6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
+7. 实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
+8. 建立独立 GameSession 后再实现角色扮演与 AI 跑团，禁止把虚构状态混入普通长期记忆。
+9. 用背书、解题和娱乐规则包共同验证 Capability Gateway 后，再冻结 Plugin API v1。
+10. M1–M3 按需穿插：正式本地 Bundle、本地提醒/Huawei Push，最后 ArkTS + ArkWeb；不重写共享业务。
 
 第一个可以对外演示的关键版本应是：
 

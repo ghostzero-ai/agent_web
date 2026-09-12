@@ -12,6 +12,8 @@
 * 学习辅导
 * Prompt实践
 * AI Agent开发
+* 角色扮演与 AI 跑团
+* Web、Android APK 与 HarmonyOS 多端体验
 
 ---
 
@@ -31,7 +33,8 @@ UI
 
 Deploy
 
-* Vercel
+* Docker Compose + Tailscale
+* Vercel（可选）
 
 Database
 
@@ -54,7 +57,8 @@ Database
 
 开发中：
 
-* Phase 3：专业回答、搜索与引用
+* Phase 3：模式、Prompt、专业回答、搜索与引用
+* Mobile Track：Capacitor Android 与 HarmonyOS 演进
 
 Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Streaming、显式旧数据导入和 Docker Compose 单用户自托管基线均已建立。Chat 现在以 PostgreSQL 为事实来源；浏览器旧会话只有在用户确认后才会导入，重复请求由导入收据去重。随后完成的 Credential Vault 支持从网页测试和保存自有 Key，服务端使用 AES-256-GCM 加密后写入 PostgreSQL。
 
@@ -78,6 +82,8 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 模型配置首选 `/api-key` 写入式设置页：Provider、Base URL 与 Model 均由用户输入并以普通字段保存，Key 只在保存/测试请求中短暂经过浏览器内存并由服务端加密，状态接口只返回末四位提示。`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 仅保留为没有数据库凭据时的管理员兜底；Streaming、凭据端点与错误码见 `docs/SERVER_MODEL_PROVIDER.md`。
 
 笔记本自托管的启动、健康检查、凭据主密钥、重启恢复、备份还原与 Tailscale 私有访问见 `docs/SELF_HOSTING.md`。默认只绑定 localhost，当前无应用登录鉴权，不可使用 Funnel 或端口转发直接暴露公网。
+
+移动端采用“共享 React 客户端 + 薄平台壳”：近期先用 Capacitor Debug APK 经 Tailscale 连接现有服务，并在华为手机上验证卓易通兼容；之后加入 APK 本地提醒、Prompt 文件导出、语音与 HMS Push，最终以 ArkTS + ArkWeb HAP 替换 HarmonyOS 平台能力而不重写服务端。娱乐模式、移动端和语音的设计见 `docs/FEATURE_AND_MOBILE_EXPANSION_PLAN.md`。
 
 ---
 
@@ -133,4 +139,4 @@ Commit
 
 ## 长期目标
 
-完成一个可以部署、可以持续迭代、可以扩展为移动端应用的AI Agent网站。
+完成一个可以部署、持续迭代并运行于 Web、Android APK 与 HarmonyOS 的个人 AI Agent；在专业性不被人格影响的前提下，支持任务、主动内容、语音、娱乐活动和受控插件扩展。

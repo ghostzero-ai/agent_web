@@ -28,19 +28,19 @@ GOAL:
 
 CURRENT_PHASE:
 
-Phase 3 — Professional Answering
+Phase 3 — Professional Answering + Mobile Foundation Track
 
 ==================================================
 
 CURRENT_TASK:
 
-Sprint 3.1 — Answer Policy and Citation Contract
+Mobile M0.2 — Capacitor Dependencies, Android Toolchain and Debug APK
 
 ==================================================
 
 NEXT_TASK:
 
-Sprint 3.2 — Web Search Tool and Citation Model
+Sprint 3.1 — Mode Registry, Policy Layer and Prompt Envelope
 
 ==================================================
 
@@ -65,6 +65,18 @@ Chat
 Emotion Agent
 
 Study Agent
+
+Professional / Companion / Entertainment Modes
+
+Task / Agent Run / Durable Inbox
+
+News / Books / Reflection
+
+Prompt Export / Voice Output
+
+First-party Activity Plugins
+
+Web / Capacitor Android / HarmonyOS Adapters
 
 ==================================================
 
@@ -136,7 +148,11 @@ OUT_OF_SCOPE:
 
 多Agent协作
 
-插件系统
+公开第三方插件市场
+
+当前阶段的 iOS 客户端
+
+当前阶段完整 ArkTS 原生 UI 重写
 
 ==================================================
 
@@ -155,6 +171,8 @@ Chat UI 已使用 PostgreSQL Conversation/Message API 作为事实来源，并�
 Task/TaskRun Schema、Repository、`/api/v1/tasks` 与 `/tasks` 管理页面已建立。当前可管理单次、每日、每周的普通提醒与 AI 定时任务。
 
 Scheduler 已支持事务化到期认领、唯一 Run、租约恢复、attempt fencing 和错过任务合并补偿。独立 Worker 常驻运行，普通提醒与 Agent Prompt 结果会原子写入 Durable Inbox；长模型调用周期续租，永久失败记录在 TaskRun。`/inbox` 支持安全 Markdown/公式和移动端管理。通知层提供加密设备订阅、Provider 路由、持久 Push 投递、安静时段、重试与失效隔离。
+
+客户端平台契约与 Capacitor M0 remote-shell 基线已经建立。Debug APK 将先通过 Tailscale HTTPS 复用现有 Next.js UI；正式 APK 后续使用本地 Web Bundle。普通提醒可由 APK 本地通知冗余投递，AI 主动联系与新闻/书籍仍由服务端生成并经 Huawei Push/Web Push 投递。HarmonyOS 先验证 APK + 卓易通，后续以 ArkTS + ArkWeb 薄壳替换平台 Adapter。
 
 默认不保存云端聊天记录。
 

@@ -15,6 +15,7 @@ out/
 .env.local
 .env.*
 !.env.selfhost.example
+!.env.mobile.example
 
 # Logs
 *.log

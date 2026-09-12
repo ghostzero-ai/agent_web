@@ -4,6 +4,31 @@
 
 ---
 
+## Product Surface + Mobile M0.1
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 产品表层扩展为专业、陪伴、娱乐三类模式；娱乐状态与现实对话/长期记忆隔离。
+- 新增 Prompt Envelope/安全导出、Voice Profile/TTS、AI 跑团与主动内容的分阶段方案。
+- 确立“共享 React 客户端 + Capacitor Android + ArkTS/ArkWeb Adapter”边界，不建立两套业务逻辑。
+- 新增文件导出、语音、本地提醒和原生 Push 的 TypeScript 平台契约。
+- 建立 Capacitor M0 remote-shell 配置与离线兜底页；只允许显式 Spike 配置加载 HTTPS 服务端。
+- 华为路线调整为先验证 APK + 卓易通 + HMS Push，再以 ArkTS + ArkWeb 完成原生交付。
+- 路线图拆分 Core Track 与 Mobile Track，Prompt 导出、语音、娱乐模式和移动端拥有独立验收条件。
+
+### 验证方法与结果
+
+- Capacitor 配置与自托管产物定向测试共 14 项通过。
+- TypeScript、ESLint、生产构建与 `git diff --check` 通过。
+- 环境审计确认 Node.js 24 已满足要求；Android Studio/SDK 尚未安装，未伪造 APK 构建成功。
+- Capacitor npm 依赖下载因运行环境安全审核拒绝而未执行，仓库没有留下不完整依赖变更。
+
+### localStorage 变化
+
+- 无。移动端服务器地址只在构建/同步阶段由环境变量注入，不写入浏览器存储。
+
 ## Sprint 2.5 — Agent Prompt Task
 
 **Commit**: `same delivery commit`
