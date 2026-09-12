@@ -78,6 +78,11 @@ describe("single-user self-hosting artifacts", () => {
     );
     expect(compose).toContain("  worker:");
     expect(compose).toContain('entrypoint: ["./worker-entrypoint.sh"]');
+    const workerSection = compose.split("  worker:")[1].split("volumes:")[0];
+    expect(workerSection).toContain(
+      "${CREDENTIAL_MASTER_KEY:?Set CREDENTIAL_MASTER_KEY in .env.selfhost}",
+    );
+    expect(workerScript).toContain("runNotificationWorker");
   });
 
   it("ships a visible Push service worker and installable manifest assets", async () => {

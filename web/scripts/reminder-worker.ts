@@ -3,7 +3,11 @@ import { loadEnvConfig } from "@next/env";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../lib/db/schema";
+import { createPushConfigurationService } from "../lib/notifications/pushConfigurationService";
+import { runNotificationWorker } from "../lib/notifications/notificationWorker";
 import { createInboxRepository } from "../lib/repositories/inboxRepository";
+import { createNotificationDeliveryRepository } from "../lib/repositories/notificationDeliveryRepository";
+import { createNotificationRepository } from "../lib/repositories/notificationRepository";
 import { createSchedulerRepository } from "../lib/repositories/schedulerRepository";
 import { runReminderWorker } from "../lib/tasks/reminderWorker";
 
@@ -56,49 +60,98 @@ async function main(): Promise<void> {
   console.log(JSON.stringify({ event: "reminder-worker-started", workerId }));
 
   try {
-    await runReminderWorker(
-      {
-        scheduler: createSchedulerRepository(database),
-        inbox: createInboxRepository(database),
-        onRunDeferred(runId, error) {
-          console.error(
-            JSON.stringify({
-              event: "reminder-run-deferred",
-              workerId,
-              runId,
-              error: errorName(error),
-            }),
-          );
-        },
-      },
-      {
-        workerId,
-        batchSize,
-        leaseDurationMs,
-        pollIntervalMs,
-        signal: abortController.signal,
-        onBatch(result) {
-          if (result.claimed > 0) {
-            console.log(
+    const notificationRepository = createNotificationRepository(database);
+    const pushConfiguration = createPushConfigurationService(
+      notificationRepository,
+    );
+    await Promise.all([
+      runReminderWorker(
+        {
+          scheduler: createSchedulerRepository(database),
+          inbox: createInboxRepository(database),
+          onRunDeferred(runId, error) {
+            console.error(
               JSON.stringify({
-                event: "reminder-batch-finished",
+                event: "reminder-run-deferred",
                 workerId,
-                ...result,
+                runId,
+                error: errorName(error),
               }),
             );
-          }
+          },
         },
-        onBatchError(error) {
-          console.error(
-            JSON.stringify({
-              event: "reminder-batch-deferred",
-              workerId,
-              error: errorName(error),
-            }),
-          );
+        {
+          workerId,
+          batchSize,
+          leaseDurationMs,
+          pollIntervalMs,
+          signal: abortController.signal,
+          onBatch(result) {
+            if (result.claimed > 0) {
+              console.log(
+                JSON.stringify({
+                  event: "reminder-batch-finished",
+                  workerId,
+                  ...result,
+                }),
+              );
+            }
+          },
+          onBatchError(error) {
+            console.error(
+              JSON.stringify({
+                event: "reminder-batch-deferred",
+                workerId,
+                error: errorName(error),
+              }),
+            );
+          },
         },
-      },
-    );
+      ),
+      runNotificationWorker(
+        {
+          deliveries: createNotificationDeliveryRepository(database),
+          getPushConfiguration: pushConfiguration.getOrCreateConfiguration,
+          onDeliveryError(deliveryId, errorCode) {
+            console.error(
+              JSON.stringify({
+                event: "push-delivery-deferred",
+                workerId,
+                deliveryId,
+                errorCode,
+              }),
+            );
+          },
+        },
+        {
+          workerId,
+          batchSize,
+          leaseDurationMs,
+          pollIntervalMs,
+          signal: abortController.signal,
+          onBatch(result) {
+            if (result.plannedInboxItems > 0 || result.claimed > 0) {
+              console.log(
+                JSON.stringify({
+                  event: "push-batch-finished",
+                  workerId,
+                  ...result,
+                }),
+              );
+            }
+          },
+          onBatchError(error) {
+            console.error(
+              JSON.stringify({
+                event: "push-batch-deferred",
+                workerId,
+                error: errorName(error),
+              }),
+            );
+          },
+        },
+      ),
+    ]);
   } finally {
     process.removeListener("SIGINT", stop);
     process.removeListener("SIGTERM", stop);
