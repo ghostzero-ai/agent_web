@@ -4,6 +4,47 @@
 
 ---
 
+## Sprint 2.4d — PWA Push 设置体验
+
+**Commit**: `dc26b36`
+
+### 修改文件
+
+- `web/lib/api/pushClient.ts`
+- `web/public/sw.js`
+- `web/public/icon.svg`
+- `web/app/manifest.ts`
+- `web/components/notifications/NotificationSettings.tsx`
+- `web/app/notifications/page.tsx`
+- `web/app/inbox/page.tsx`
+- `web/tests/pushClient.test.ts`
+- `web/tests/notificationComponents.test.tsx`
+- `web/tests/selfHostingArtifacts.test.ts`
+- `web/e2e/notifications.spec.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 权限手势 | 仅在用户点击“在此设备启用”后请求 Notification 权限，不自动弹窗 |
+| Service Worker | 接收 Push、显示可见系统通知，并在点击后聚焦或打开对应 InboxItem |
+| PWA | 提供 standalone manifest、应用图标和 `/inbox` 启动入口 |
+| 通知设置 | `/notifications` 管理全局开关、22:00–08:00 默认安静时段与设备订阅 |
+| 设备控制 | 可单独移除设备；全局暂停保留订阅和 Inbox，便于恢复 |
+| 移动说明 | 明确提示 iPhone/iPad 需先添加到主屏幕，再从主屏幕应用中授权 |
+
+### 验证方法与结果
+
+- PWA/客户端专项测试 9 项通过；Microsoft Edge E2E 8 项全部通过。
+- Next.js 本机及 Docker 生产构建通过，Push API 与 PWA 路由进入生产清单。
+- 真实 manifest、Service Worker、Push 配置 API 可访问；VAPID 公钥长度正确且响应未暴露私钥或密文。
+- `npx tsc --noEmit`、`npm run lint`、`git diff --check`：通过。
+
+### localStorage 变化
+
+- 无；PushSubscription 由浏览器 PushManager 管理，服务端副本加密存 PostgreSQL。
+
 ## Sprint 2.4c — 加密 Push 订阅服务与 API
 
 **Commit**: `2e5b4f4`
