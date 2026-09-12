@@ -4,6 +4,28 @@
 
 ---
 
+## Credential Vault 文档 — 可编辑配置与加密边界
+
+**Commit**: `0090628`
+
+### 修改文件
+
+- `README.md`
+- `docs/SERVER_MODEL_PROVIDER.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `docs/adr/ADR-029-MODEL-CREDENTIAL-VAULT.md`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+- 文档同步为 Provider/Base URL/Model 可输入、可回读且不加密，只有 API Key 加密且不可回读。
+- 明确单用户单配置、旧多行迁移策略，以及 Provider 目前是厂商标识而不是原生协议选择器。
+- 更新 PUT 请求示例、输入限制、表单保存后的展示行为与 Credential Vault 架构修订。
+
+### localStorage 变化
+
+- 无。
+
 ## Credential Vault — 用户可编辑 Provider 配置
 
 **Commit**: `3707199`
