@@ -6,7 +6,7 @@
 
 ## Sprint 2.4e — Web Push 后台投递闭环
 
-**Commit**: `1a46e3b`
+**Commits**: `1a46e3b`, `4b979b1`
 
 ### 修改文件
 
@@ -34,10 +34,11 @@
 | 隐私载荷 | 锁屏仅显示通用提醒文案与 InboxItem ID，不发送任务标题、正文、prompt、endpoint 或密钥 |
 | 历史隔离 | 新设备只接收其订阅后产生的 InboxItem，首次启用不会补推全部历史消息 |
 | 容器配置 | Worker 显式接收 `CREDENTIAL_MASTER_KEY` 解密订阅/VAPID 私钥，并支持可选 `VAPID_SUBJECT` |
+| 错误隔离 | Push Service 请求错误与数据库落账错误分别处理；落账失败交给租约恢复，不伪装成网络故障 |
 
 ### 验证方法与结果
 
-- 后台投递专项测试 17 项全部通过，覆盖静默边界、退避上限、幂等、租约 fencing、410/503、隐私载荷及历史隔离。
+- 后台投递专项测试 18 项全部通过，覆盖静默边界、退避上限、幂等、租约 fencing、410/503、落账异常、隐私载荷及历史隔离。
 - `npx tsc --noEmit`、`npm run lint`、`git diff --check`：通过。
 
 ### localStorage 变化
