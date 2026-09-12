@@ -61,3 +61,10 @@ Phase 0 将 API Key、Base URL 和 Model 放在浏览器 localStorage，容易�
 - 当前没有应用登录，凭据端点只能用于 localhost 或仅本人设备加入的 Tailscale 私有网络。
 - 任意自定义 HTTPS Base URL 仍有 SSRF/DNS 重绑定风险；公开多用户前必须加入认证、Provider/出口白名单和云端 KMS。
 - JavaScript 字符串无法保证立即从进程内存清零，但 Key 不进入持久客户端存储、普通响应或日志。
+
+## 2026-09-12 修订
+
+- Provider、Base URL 与 Model 改为用户可输入的非敏感配置，以普通文本列与加密 Key 一起保存在服务端。
+- `model_credentials` 从 `userId + 固定 Provider` 唯一改为 `userId` 唯一，表示每个用户一条当前模型配置；修改 Provider 原位更新。
+- Provider 当前仅作为厂商标识，连接协议仍为 OpenAI-compatible。未来加入原生 Provider Adapter 时，再让该字段参与适配器选择。
+- 迁移若发现旧约束下存在多条 Provider 记录，会保留最近更新项后建立用户唯一索引。

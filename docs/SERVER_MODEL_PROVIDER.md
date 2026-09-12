@@ -12,10 +12,10 @@ CREDENTIAL_MASTER_KEY=<32 个随机字节的无填充 base64url 字符串>
 
 该变量不能带 `NEXT_PUBLIC_` 前缀，也不能提交到 Git。启动服务后打开 `/api-key`：
 
-1. 填写 API Key、OpenAI-compatible Base URL 和模型名。
+1. 填写 Provider 厂商标识、OpenAI-compatible Base URL、模型名和 API Key。
 2. 先执行连接测试；测试只查询 Provider `/models`，不会保存。
-3. 保存后，服务端使用 AES-256-GCM 加密 Key 并写入 PostgreSQL。
-4. 页面及读取接口只显示 Key 末四位提示，永不返回明文或密文。
+3. 保存后，服务端使用 AES-256-GCM 加密 Key 并写入 PostgreSQL；Provider、Base URL 和 Model 作为可读取的普通文本列保存。
+4. 页面及读取接口返回三个非敏感配置字段，但 Key 只显示末四位提示，永不返回明文或密文。
 
 数据库凭据优先。以下服务端环境变量只在数据库中没有已保存凭据时作为管理员兜底：
 
@@ -40,17 +40,18 @@ AI_ALLOW_INSECURE_HTTP=false
 
 ### `PUT /api/v1/model/credentials`
 
-保存或替换单用户 OpenAI-compatible 凭据：
+保存或替换单用户当前模型配置。Provider 是可编辑的厂商标识，当前请求协议仍由 OpenAI-compatible Adapter 处理：
 
 ```json
 {
   "apiKey": "<仅在本次请求中使用>",
+  "provider": "deepseek",
   "baseUrl": "https://api.deepseek.com",
   "model": "deepseek-v4-flash-vision-exp"
 }
 ```
 
-请求使用严格 Schema，拒绝未知字段、不安全 URL 和 URL 内嵌认证信息。成功响应仅返回公开状态。
+请求使用严格 Schema，Provider 只接受 1–100 字符的字母数字、点、下划线或连字符标识，并拒绝未知字段、不安全 URL 和 URL 内嵌认证信息。成功响应仅返回公开状态。每个用户只有一条当前配置，修改 Provider 会原位更新同一条记录。
 
 ### `DELETE /api/v1/model/credentials`
 
@@ -116,7 +117,7 @@ Chat 的“停止生成”会中止浏览器 fetch；Route Handler 监听请求 
 ## 6. 浏览器与数据行为
 
 - `agent_api_key`、`agent_api_base_url`、`agent_api_model` 不再被读取；打开 Chat 或模型配置页时会清理这些旧 localStorage 项。
-- `/api-key` 表单中的明文只存在于组件状态与当次 HTTPS/本机请求中；保存完成后输入框会清空。
+- `/api-key` 表单中的 Key 明文只存在于组件状态与当次 HTTPS/本机请求中；保存完成后 Key 输入框会清空。Provider、Base URL 与 Model 会从服务端读取并继续显示，方便修改。
 - Chat 会话、消息树与分支存入 PostgreSQL；重试仍建立兄弟分支，不会为每个 Token 创建消息节点。
 - `CREDENTIAL_MASTER_KEY` 只存在于服务端运行环境。数据库备份与该主密钥必须分别安全备份；丢失主密钥后，已加密的 API Key 无法恢复。
 

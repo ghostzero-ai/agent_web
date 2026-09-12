@@ -93,7 +93,7 @@ AI Study Companion 是一个面向个人长期使用的、兼具专业知识工�
 ### 2.2 当前已有功能
 
 - Landing Page、API 配置页、任务页与收件箱页。
-- 网页提交 API Key、Base URL 和 Model，服务端加密保存且不回读完整 Key。
+- 网页提交 Provider、Base URL、Model 和 API Key；服务端只加密 Key，三个非敏感配置字段以普通列保存且可回读，完整 Key 永不回读。
 - PostgreSQL 多 Session 树形对话、创建、切换、删除与显式旧数据导入。
 - 重新生成、回复版本切换、时间戳和停止生成。
 - 服务端模型 Streaming 与 UI、Conversation Repository 解耦。

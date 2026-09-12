@@ -71,7 +71,7 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 
 旧版 `agent_chat_sessions` 的预检、确认、树形迁移、去重和失败恢复规则见 `docs/LEGACY_DATA_IMPORT.md`。
 
-模型配置首选 `/api-key` 写入式设置页：Key 只在保存/测试请求中短暂经过浏览器内存，服务端加密保存，状态接口只返回末四位提示。`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 仅保留为没有数据库凭据时的管理员兜底；Streaming、凭据端点与错误码见 `docs/SERVER_MODEL_PROVIDER.md`。
+模型配置首选 `/api-key` 写入式设置页：Provider、Base URL 与 Model 均由用户输入并以普通字段保存，Key 只在保存/测试请求中短暂经过浏览器内存并由服务端加密，状态接口只返回末四位提示。`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 仅保留为没有数据库凭据时的管理员兜底；Streaming、凭据端点与错误码见 `docs/SERVER_MODEL_PROVIDER.md`。
 
 笔记本自托管的启动、健康检查、凭据主密钥、重启恢复、备份还原与 Tailscale 私有访问见 `docs/SELF_HOSTING.md`。默认只绑定 localhost，当前无应用登录鉴权，不可使用 Funnel 或端口转发直接暴露公网。
 
