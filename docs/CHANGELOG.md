@@ -4,6 +4,32 @@
 
 ---
 
+## Sprint 2.4f — Web Push 运维文档与封版状态
+
+**Commit**: `156d29c`
+
+### 修改文件
+
+- `README.md`
+- `PROJECT.md`
+- `docs/TASKS.md`
+- `docs/SELF_HOSTING.md`
+- `docs/WEB_PUSH.md`
+- `docs/PRODUCT_TECHNICAL_ROADMAP.md`
+- `docs/adr/ADR-033-WEB-PUSH-AS-BEST-EFFORT-DELIVERY.md`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+- 增加手机/电脑启用步骤、iOS 主屏幕限制、数据流、API、数据表、可靠性、隐私、密钥备份和排障手册。
+- 记录 Inbox 为事实源、Push 为 best-effort Delivery 的架构决策及 PostgreSQL 队列取舍。
+- 将路线图的 Sprint 2.4 标记完成，并把当前任务推进到 Sprint 2.5 Agent Prompt Task。
+- 清理 README、任务手册和自托管手册中“尚无系统 Push”的过期描述。
+
+### localStorage 变化
+
+- 无。
+
 ## Sprint 2.4e — Web Push 后台投递闭环
 
 **Commits**: `1a46e3b`, `4b979b1`
