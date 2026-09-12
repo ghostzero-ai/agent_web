@@ -67,6 +67,8 @@
 - 凭据与迁移专项测试：6 个文件、16 项通过；移动端 Microsoft Edge 凭据 E2E 通过。
 - 全量 Vitest：42 个文件、157 项通过；Next.js 生产构建通过。
 - `npx tsc --noEmit`、`npm run lint`、`npm run db:check`、`git diff --check`：通过。
+- Docker 生产镜像重建成功，真实 PostgreSQL 已应用 `0006`；非敏感三列保持明文、Key 保持版本化密文，读取 API 不含密文字段。
+- 部署后 Microsoft Edge 全套 E2E 8 项通过。
 
 ### localStorage变化
 
