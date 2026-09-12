@@ -75,6 +75,9 @@ export type TaskScheduleValue =
   | { time: string }
   | { weekday: number; time: string };
 
+export type TaskKind = "reminder" | "agent_prompt";
+export type InboxSource = TaskKind;
+
 export type MessageCitation = {
   title: string;
   url: string;
@@ -233,7 +236,7 @@ export const scheduledTasks = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     prompt: text("prompt"),
-    kind: text("kind").notNull().default("reminder"),
+    kind: text("kind").$type<TaskKind>().notNull().default("reminder"),
     scheduleType: taskScheduleType("schedule_type").notNull(),
     scheduleValue: jsonb("schedule_value").$type<TaskScheduleValue>().notNull(),
     timezone: text("timezone").notNull().default("Asia/Shanghai"),
@@ -254,7 +257,14 @@ export const scheduledTasks = pgTable(
       table.nextRunAt,
     ),
     check("scheduled_tasks_version_positive", sql`${table.version} > 0`),
-    check("scheduled_tasks_kind_reminder", sql`${table.kind} = 'reminder'`),
+    check(
+      "scheduled_tasks_kind_supported",
+      sql`${table.kind} IN ('reminder', 'agent_prompt')`,
+    ),
+    check(
+      "scheduled_tasks_agent_prompt_required",
+      sql`${table.kind} <> 'agent_prompt' OR coalesce(length(btrim(${table.prompt})), 0) > 0`,
+    ),
     check(
       "scheduled_tasks_active_next_run",
       sql`${table.status} <> 'active' OR ${table.nextRunAt} IS NOT NULL`,
@@ -319,7 +329,7 @@ export const inboxItems = pgTable(
     taskRunId: uuid("task_run_id").references(() => taskRuns.id, {
       onDelete: "set null",
     }),
-    source: text("source").notNull().default("reminder"),
+    source: text("source").$type<InboxSource>().notNull().default("reminder"),
     title: text("title").notNull(),
     body: text("body"),
     occurredAt: timestamp("occurred_at", {
@@ -346,7 +356,10 @@ export const inboxItems = pgTable(
       table.status,
       table.occurredAt,
     ),
-    check("inbox_items_source_reminder", sql`${table.source} = 'reminder'`),
+    check(
+      "inbox_items_source_supported",
+      sql`${table.source} IN ('reminder', 'agent_prompt')`,
+    ),
     check(
       "inbox_items_read_state",
       sql`(${table.status} = 'unread' AND ${table.readAt} IS NULL) OR (${table.status} = 'read' AND ${table.readAt} IS NOT NULL)`,

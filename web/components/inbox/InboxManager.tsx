@@ -8,6 +8,7 @@ import {
   type InboxFilter,
   type InboxItem,
 } from "@/lib/api/inboxClient";
+import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 
 const FILTERS: Array<{ value: InboxFilter; label: string }> = [
   { value: "all", label: "全部" },
@@ -174,14 +175,17 @@ export function InboxManager() {
                     <h3 className="break-words font-semibold text-zinc-950 dark:text-zinc-50">
                       {item.title}
                     </h3>
+                    <span className="text-xs text-zinc-500">
+                      {item.source === "agent_prompt" ? "AI 定时任务" : "普通提醒"}
+                    </span>
                     <time className="shrink-0 text-xs text-zinc-500" dateTime={item.occurredAt}>
                       {inboxTimeLabel(item.occurredAt)}
                     </time>
                   </div>
                   {item.body && (
-                    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                      {item.body}
-                    </p>
+                    <div className="mt-2 break-words text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                      <MarkdownMessage content={item.body} />
+                    </div>
                   )}
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button

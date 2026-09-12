@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-test("creates, edits, pauses and deletes a reminder on mobile", async ({
+test("creates, edits, pauses and deletes an Agent task on mobile", async ({
   page,
 }) => {
   type MockTask = {
     id: string;
     title: string;
     prompt: string | null;
-    kind: "reminder";
+    kind: "reminder" | "agent_prompt";
     scheduleType: "once" | "daily" | "weekly";
     scheduleValue: Record<string, string | number>;
     timezone: string;
@@ -37,7 +37,7 @@ test("creates, edits, pauses and deletes a reminder on mobile", async ({
         id: "task-1",
         title: input.title,
         prompt: input.prompt,
-        kind: "reminder",
+        kind: input.kind,
         scheduleType: input.schedule.type,
         scheduleValue:
           input.schedule.type === "daily"
@@ -80,12 +80,14 @@ test("creates, edits, pauses and deletes a reminder on mobile", async ({
   });
 
   await page.goto("/tasks");
-  await expect(page.getByText("还没有提醒")).toBeVisible();
+  await expect(page.getByText("还没有任务")).toBeVisible();
 
+  await page.getByLabel("任务类型").selectOption("agent_prompt");
   await page.getByLabel("标题").fill("复习英语");
-  await page.getByLabel("提醒内容（可选）").fill("背诵 20 个单词");
-  await page.getByRole("button", { name: "创建提醒" }).click();
+  await page.getByLabel("给 AI 的任务要求").fill("生成 20 个英语单词练习");
+  await page.getByRole("button", { name: "创建任务" }).click();
   await expect(page.getByRole("heading", { name: "复习英语" })).toBeVisible();
+  await expect(page.getByText("AI 生成", { exact: true })).toBeVisible();
   await expect(page.getByText("每天 20:00")).toBeVisible();
 
   await page.getByRole("button", { name: "编辑" }).click();
@@ -100,5 +102,5 @@ test("creates, edits, pauses and deletes a reminder on mobile", async ({
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "删除" }).click();
-  await expect(page.getByText("还没有提醒")).toBeVisible();
+  await expect(page.getByText("还没有任务")).toBeVisible();
 });

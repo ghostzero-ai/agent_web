@@ -28,19 +28,19 @@ GOAL:
 
 CURRENT_PHASE:
 
-Phase 2 — Reliable Task Loop
+Phase 3 — Professional Answering
 
 ==================================================
 
 CURRENT_TASK:
 
-Sprint 2.5 — Agent Prompt Task
+Sprint 3.1 — Answer Policy and Citation Contract
 
 ==================================================
 
 NEXT_TASK:
 
-Sprint 3.1 — Answer Policy and Citation Contract
+Sprint 3.2 — Web Search Tool and Citation Model
 
 ==================================================
 
@@ -152,9 +152,9 @@ Chat UI 已使用 PostgreSQL Conversation/Message API 作为事实来源，并�
 
 单用户 API Key 从前端写入式设置页提交，由服务端 AES-256-GCM 加密后保存；不进入 localStorage，完整值不通过读取接口返回。环境变量仅作无数据库凭据时的管理员兜底。
 
-Task/TaskRun Schema、Repository、`/api/v1/tasks` 与 `/tasks` 管理页面已建立。当前可管理单次、每日、每周提醒。
+Task/TaskRun Schema、Repository、`/api/v1/tasks` 与 `/tasks` 管理页面已建立。当前可管理单次、每日、每周的普通提醒与 AI 定时任务。
 
-Scheduler 已支持事务化到期认领、唯一 Run、租约恢复、attempt fencing 和错过任务合并补偿。独立 Reminder Worker 已常驻运行，普通提醒会原子写入 Durable Inbox；`/inbox` 支持移动端管理。Sprint 2.4 已增加加密设备订阅、持久 Web Push 投递、安静时段、重试与失效订阅隔离；`/notifications` 提供用户可控设置。
+Scheduler 已支持事务化到期认领、唯一 Run、租约恢复、attempt fencing 和错过任务合并补偿。独立 Worker 常驻运行，普通提醒与 Agent Prompt 结果会原子写入 Durable Inbox；长模型调用周期续租，永久失败记录在 TaskRun。`/inbox` 支持安全 Markdown/公式和移动端管理。通知层提供加密设备订阅、Provider 路由、持久 Push 投递、安静时段、重试与失效隔离。
 
 默认不保存云端聊天记录。
 

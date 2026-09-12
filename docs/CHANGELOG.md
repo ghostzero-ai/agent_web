@@ -4,6 +4,33 @@
 
 ---
 
+## Sprint 2.5 — Agent Prompt Task
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- Task/API/UI 支持普通提醒与 AI 定时任务；AI prompt 由 API 和数据库双层强制必填。
+- 新增服务端 Agent Prompt Generator，复用 Credential Vault 和 OpenAI-compatible Provider，用户输入保持 `user` 角色。
+- 长模型调用周期续租并在保存前再次续租；同批 Run 并发执行，保留 attempt fencing。
+- 临时 Provider 错误通过租约恢复重试，永久错误写入失败 Run；单次输出限制为 100,000 字符。
+- AI 结果与 Run 成功终态原子写入 Inbox，记录模型摘要，并复用 Push Provider 通知。
+- Inbox 增加来源标识并复用安全 Markdown、表格和数学公式渲染。
+- Worker 容器继承与 Web 一致的 `AI_*` 环境变量后备配置；首选配置仍来自服务端 Credential Vault。
+- Phase 2 标记完成，当前任务推进到 Sprint 3.1。
+
+### 验证方法与结果
+
+- Vitest 全量 44 个测试文件、170 项测试通过。
+- TypeScript、ESLint、Drizzle schema check 与生产构建通过。
+- Task、Inbox 移动端关键路径 E2E 共 2 项通过。
+- Docker Compose 实机运行通过：PostgreSQL/Web/Worker 正常，健康 API 返回 200，最新迁移为 `0008_oval_kang.sql`。
+- 未自动调用真实付费模型，避免消耗用户额度或写入伪造个人数据；Provider 行为由受控流式测试覆盖。
+
+### localStorage 变化
+
+- 无；迁移 `0008_oval_kang` 扩展现有 Task/Inbox kind 约束，不新增数据表。
+
 ## Push Provider 架构 — HarmonyOS 5 适配预留
 
 **Commit**: `same delivery commit`

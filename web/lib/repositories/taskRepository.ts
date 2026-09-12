@@ -13,6 +13,7 @@ import { LOCAL_USER_ID } from "@/lib/repositories/conversationRepository";
 export type CreateTaskInput = {
   title: string;
   prompt: string | null;
+  kind?: ScheduledTaskRecord["kind"];
   scheduleType: ScheduledTaskRecord["scheduleType"];
   scheduleValue: TaskScheduleValue;
   timezone: string;
@@ -88,6 +89,7 @@ export class TaskRepository<
         userId: LOCAL_USER_ID,
         title: input.title,
         prompt: input.prompt,
+        kind: input.kind ?? "reminder",
         scheduleType: input.scheduleType,
         scheduleValue: input.scheduleValue,
         timezone: input.timezone,
@@ -104,7 +106,10 @@ export class TaskRepository<
   ): Promise<ScheduledTaskRecord> {
     return this.database.transaction(async (transaction) => {
       const [current] = await transaction
-        .select({ version: scheduledTasks.version })
+        .select({
+          version: scheduledTasks.version,
+          kind: scheduledTasks.kind,
+        })
         .from(scheduledTasks)
         .where(
           and(
@@ -129,6 +134,7 @@ export class TaskRepository<
         .set({
           title: input.title,
           prompt: input.prompt,
+          kind: input.kind ?? current.kind,
           scheduleType: input.scheduleType,
           scheduleValue: input.scheduleValue,
           timezone: input.timezone,

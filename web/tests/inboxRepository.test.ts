@@ -50,12 +50,13 @@ describe("InboxRepository", () => {
     await pglite.close();
   });
 
-  async function runningReminder() {
+  async function runningReminder(kind: "reminder" | "agent_prompt" = "reminder") {
     const tasks = createTaskRepository(database);
     const scheduler = createSchedulerRepository(database);
     const task = await tasks.create({
-      title: "喝水提醒",
-      prompt: "起来活动并喝一杯水",
+      title: kind === "agent_prompt" ? "每日总结" : "喝水提醒",
+      prompt: kind === "agent_prompt" ? "总结今天的学习" : "起来活动并喝一杯水",
+      kind,
       scheduleType: "once",
       scheduleValue: { runAt: "2026-09-10T01:00:00.000Z" },
       timezone: "Asia/Shanghai",
@@ -140,6 +141,29 @@ describe("InboxRepository", () => {
     expect(unread).toMatchObject({ status: "unread", readAt: null });
     await expect(inbox.delete(inboxItem.id)).resolves.toBe(true);
     await expect(inbox.delete(inboxItem.id)).resolves.toBe(false);
+  });
+
+  it("stores an Agent Prompt result and model on its completed Run", async () => {
+    const inbox = createInboxRepository(database);
+    const { run } = await runningReminder("agent_prompt");
+    const completed = await inbox.completeAgentPromptRun({
+      runId: run.id,
+      workerId: "worker-a",
+      expectedAttempt: run.attempt,
+      now: new Date("2026-09-10T01:00:02.000Z"),
+      content: "# 今日总结\n\n完成了数学复习。",
+      model: "deepseek-test",
+    });
+
+    expect(completed.inboxItem).toMatchObject({
+      source: "agent_prompt",
+      title: "每日总结",
+      body: "# 今日总结\n\n完成了数学复习。",
+    });
+    expect(completed.run).toMatchObject({
+      status: "succeeded",
+      resultSummary: "Agent response stored in durable inbox (deepseek-test).",
+    });
   });
 
   it("keeps the inbox snapshot after its source task is deleted", async () => {

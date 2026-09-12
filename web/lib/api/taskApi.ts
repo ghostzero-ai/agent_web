@@ -55,14 +55,28 @@ const taskFields = {
   prompt: z.string().trim().max(10_000).nullable().default(null),
   schedule: taskScheduleSchema,
 };
-const createTaskSchema = z.object(taskFields).strict();
+const taskKindSchema = z.enum(["reminder", "agent_prompt"]);
+const taskPromptRule = (input: { kind?: "reminder" | "agent_prompt"; prompt: string | null }) =>
+  input.kind !== "agent_prompt" || Boolean(input.prompt?.trim());
+const createTaskSchema = z
+  .object({ ...taskFields, kind: taskKindSchema.default("reminder") })
+  .strict()
+  .refine(taskPromptRule, {
+    message: "Agent Prompt tasks require a prompt.",
+    path: ["prompt"],
+  });
 const updateTaskSchema = z
   .object({
     ...taskFields,
+    kind: taskKindSchema.optional(),
     status: z.enum(["active", "paused"]),
     expectedVersion: z.number().int().positive(),
   })
-  .strict();
+  .strict()
+  .refine(taskPromptRule, {
+    message: "Agent Prompt tasks require a prompt.",
+    path: ["prompt"],
+  });
 
 function responseHeaders(requestId: string): HeadersInit {
   return { "cache-control": "no-store", "x-request-id": requestId };
@@ -206,6 +220,7 @@ export function createTaskApi(
         const task = await repository().create({
           title: input.title,
           prompt: input.prompt,
+          kind: input.kind,
           ...schedule,
         });
         return jsonResponse(requestId, { data: task }, 201, {
@@ -240,6 +255,7 @@ export function createTaskApi(
         const task = await repository().update(taskId, {
           title: input.title,
           prompt: input.prompt,
+          kind: input.kind,
           status: input.status,
           expectedVersion: input.expectedVersion,
           ...schedule,

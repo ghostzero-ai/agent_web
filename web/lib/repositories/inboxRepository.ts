@@ -19,6 +19,11 @@ export type CompleteReminderRunInput = {
   now: Date;
 };
 
+export type CompleteAgentPromptRunInput = CompleteReminderRunInput & {
+  content: string;
+  model: string;
+};
+
 export type CompletedReminderRun = {
   inboxItem: InboxItemRecord;
   run: TaskRunRecord;
@@ -29,6 +34,7 @@ export class InboxRepositoryError extends Error {
     readonly code:
       | "INBOX_ITEM_NOT_FOUND"
       | "RUN_LEASE_LOST"
+      | "RUN_KIND_MISMATCH"
       | "INBOX_WRITE_FAILED",
     message: string,
   ) {
@@ -47,6 +53,9 @@ export interface InboxRepositoryPort {
   delete(id: string): Promise<boolean>;
   completeReminderRun(
     input: CompleteReminderRunInput,
+  ): Promise<CompletedReminderRun>;
+  completeAgentPromptRun(
+    input: CompleteAgentPromptRunInput,
   ): Promise<CompletedReminderRun>;
 }
 
@@ -116,6 +125,31 @@ export class InboxRepository<
   completeReminderRun(
     input: CompleteReminderRunInput,
   ): Promise<CompletedReminderRun> {
+    return this.completeRun(input, {
+      kind: "reminder",
+      body: (prompt) => prompt,
+      resultSummary: "Reminder stored in durable inbox.",
+    });
+  }
+
+  completeAgentPromptRun(
+    input: CompleteAgentPromptRunInput,
+  ): Promise<CompletedReminderRun> {
+    return this.completeRun(input, {
+      kind: "agent_prompt",
+      body: () => input.content,
+      resultSummary: `Agent response stored in durable inbox (${input.model}).`,
+    });
+  }
+
+  private completeRun(
+    input: CompleteReminderRunInput,
+    completion: {
+      kind: "reminder" | "agent_prompt";
+      body: (prompt: string | null) => string | null;
+      resultSummary: string;
+    },
+  ): Promise<CompletedReminderRun> {
     return this.database.transaction(async (transaction) => {
       const [owned] = await transaction
         .select({
@@ -125,6 +159,7 @@ export class InboxRepository<
             userId: scheduledTasks.userId,
             title: scheduledTasks.title,
             prompt: scheduledTasks.prompt,
+            kind: scheduledTasks.kind,
           },
         })
         .from(taskRuns)
@@ -146,6 +181,12 @@ export class InboxRepository<
           "Run is no longer owned by this worker attempt.",
         );
       }
+      if (owned.task.kind !== completion.kind) {
+        throw new InboxRepositoryError(
+          "RUN_KIND_MISMATCH",
+          "Run task kind does not match the requested completion path.",
+        );
+      }
 
       const [created] = await transaction
         .insert(inboxItems)
@@ -153,8 +194,9 @@ export class InboxRepository<
           userId: owned.task.userId,
           taskId: owned.task.id,
           taskRunId: owned.run.id,
+          source: completion.kind,
           title: owned.task.title,
-          body: owned.task.prompt,
+          body: completion.body(owned.task.prompt),
           occurredAt: owned.run.scheduledFor,
         })
         .onConflictDoNothing({ target: inboxItems.taskRunId })
@@ -186,7 +228,7 @@ export class InboxRepository<
           status: "succeeded",
           leaseExpiresAt: null,
           finishedAt: input.now,
-          resultSummary: "Reminder stored in durable inbox.",
+          resultSummary: completion.resultSummary,
           errorCode: null,
           errorMessage: null,
           updatedAt: input.now,

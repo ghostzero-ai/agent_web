@@ -24,11 +24,13 @@ describe("task client", () => {
     await listTasks();
     await createTask({
       title: "阅读",
+      kind: "reminder",
       prompt: null,
       schedule: { type: "daily", time: "20:00" },
     });
     await updateTask("task-2", {
       title: "阅读",
+      kind: "reminder",
       prompt: null,
       schedule: { type: "daily", time: "21:00" },
       status: "active",

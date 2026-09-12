@@ -59,7 +59,12 @@ describe("TaskRepository", () => {
       nextRunAt: new Date("2030-01-01T12:00:00Z"),
     };
     const created = await repository.create(base);
-    expect(created).toMatchObject({ status: "active", version: 1, ...base });
+    expect(created).toMatchObject({
+      status: "active",
+      kind: "reminder",
+      version: 1,
+      ...base,
+    });
     await expect(repository.list()).resolves.toHaveLength(1);
 
     const paused = await repository.update(created.id, {

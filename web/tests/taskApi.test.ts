@@ -73,6 +73,7 @@ describe("Task API", () => {
     );
     expect(created).toMatchObject({
       title: "晚间复习",
+      kind: "reminder",
       scheduleType: "daily",
       scheduleValue: { time: "20:00" },
       nextRunAt: "2026-09-10T12:00:00.000Z",
@@ -134,6 +135,14 @@ describe("Task API", () => {
       }),
     );
     const invalidId = await api.get("not-a-uuid");
+    const missingAgentPrompt = await api.create(
+      jsonRequest("POST", {
+        title: "每日总结",
+        kind: "agent_prompt",
+        prompt: null,
+        schedule: { type: "daily", time: "20:00" },
+      }),
+    );
 
     expect(malformed.status).toBe(400);
     expect((await malformed.json()).error).toMatchObject({
@@ -143,6 +152,26 @@ describe("Task API", () => {
     expect(past.status).toBe(400);
     expect((await past.json()).error.message).toContain("future");
     expect(invalidId.status).toBe(400);
+    expect(missingAgentPrompt.status).toBe(400);
+    expect((await missingAgentPrompt.json()).error.details[0].path).toEqual([
+      "prompt",
+    ]);
+  });
+
+  it("creates an Agent Prompt task with a required prompt", async () => {
+    const response = await api.create(
+      jsonRequest("POST", {
+        title: "每日学习总结",
+        kind: "agent_prompt",
+        prompt: "总结今天值得复习的知识点",
+        schedule: { type: "daily", time: "21:00" },
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect((await response.json()).data).toMatchObject({
+      kind: "agent_prompt",
+      prompt: "总结今天值得复习的知识点",
+    });
   });
 
   it("does not expose an internal database error", async () => {

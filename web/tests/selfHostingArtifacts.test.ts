@@ -82,6 +82,14 @@ describe("single-user self-hosting artifacts", () => {
     expect(workerSection).toContain(
       "${CREDENTIAL_MASTER_KEY:?Set CREDENTIAL_MASTER_KEY in .env.selfhost}",
     );
+    for (const variable of [
+      "AI_API_KEY",
+      "AI_BASE_URL",
+      "AI_MODEL",
+      "AI_ALLOW_INSECURE_HTTP",
+    ]) {
+      expect(workerSection).toContain(`${variable}:`);
+    }
     expect(workerScript).toContain("runNotificationWorker");
   });
 

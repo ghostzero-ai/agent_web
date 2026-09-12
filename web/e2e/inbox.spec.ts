@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-test("reads, filters and deletes reminders on mobile", async ({ page }) => {
+test("renders and manages Agent task results on mobile", async ({ page }) => {
   type MockInboxItem = {
     id: string;
     taskId: string;
     taskRunId: string;
-    source: "reminder";
+    source: "reminder" | "agent_prompt";
     title: string;
     body: string;
     occurredAt: string;
@@ -19,9 +19,9 @@ test("reads, filters and deletes reminders on mobile", async ({ page }) => {
       id: "item-1",
       taskId: "task-1",
       taskRunId: "run-1",
-      source: "reminder",
+      source: "agent_prompt",
       title: "复习今日错题",
-      body: "先回顾三道典型题",
+      body: "## AI 复习建议\n\n先回顾三道典型题",
       occurredAt: "2026-09-10T12:30:00.000Z",
       status: "unread",
       readAt: null,
@@ -70,6 +70,8 @@ test("reads, filters and deletes reminders on mobile", async ({ page }) => {
 
   await page.goto("/inbox");
   await expect(page.getByRole("heading", { name: "复习今日错题" })).toBeVisible();
+  await expect(page.getByText("AI 定时任务", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "AI 复习建议" })).toBeVisible();
   await expect(page.getByText("先回顾三道典型题")).toBeVisible();
 
   await page.getByRole("button", { name: "标为已读" }).click();

@@ -13,6 +13,7 @@ function repository(overrides: Partial<InboxRepositoryPort> = {}): InboxReposito
     markStatus: vi.fn(),
     delete: vi.fn().mockResolvedValue(false),
     completeReminderRun: vi.fn(),
+    completeAgentPromptRun: vi.fn(),
     ...overrides,
   };
 }

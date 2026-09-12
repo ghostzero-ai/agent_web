@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(8);
+      expect(migrations).toHaveLength(9);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -121,6 +121,33 @@ describe("database migrations", () => {
           [taskResult.rows[0].id],
         ),
       ).rejects.toThrow();
+
+      const agentTask = await pglite.query<{ id: string }>(
+        `INSERT INTO scheduled_tasks (
+           user_id, title, kind, prompt, schedule_type, schedule_value, next_run_at
+         ) VALUES (
+           $1, 'AI review', 'agent_prompt', 'Summarize learning', 'once',
+           '{"runAt":"2030-02-01T01:00:00.000Z"}', '2030-02-01T01:00:00Z'
+         ) RETURNING id`,
+        [userResult.rows[0].id],
+      );
+      await expect(
+        pglite.query(
+          `INSERT INTO scheduled_tasks (
+             user_id, title, kind, prompt, schedule_type, schedule_value, next_run_at
+           ) VALUES (
+             $1, 'Invalid AI task', 'agent_prompt', NULL, 'once',
+             '{"runAt":"2030-02-02T01:00:00.000Z"}', '2030-02-02T01:00:00Z'
+           )`,
+          [userResult.rows[0].id],
+        ),
+      ).rejects.toThrow();
+      const agentInbox = await pglite.query<{ id: string }>(
+        `INSERT INTO inbox_items (user_id, source, title, occurred_at)
+         VALUES ($1, 'agent_prompt', 'AI result', '2030-02-01T01:00:00Z')
+         RETURNING id`,
+        [userResult.rows[0].id],
+      );
 
       await pglite.query(
         `INSERT INTO inbox_items (
@@ -208,6 +235,23 @@ describe("database migrations", () => {
       ).rejects.toThrow();
 
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
+      await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
+      await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[8].id,
+      );
+      await expect(
+        pglite.query(
+          `INSERT INTO scheduled_tasks (
+             user_id, title, kind, prompt, schedule_type, schedule_value, next_run_at
+           ) VALUES (
+             $1, 'Old schema AI task', 'agent_prompt', 'prompt', 'once',
+             '{"runAt":"2030-02-03T01:00:00.000Z"}', '2030-02-03T01:00:00Z'
+           )`,
+          [userResult.rows[0].id],
+        ),
+      ).rejects.toThrow();
+
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[7].id,
       );
@@ -265,6 +309,7 @@ describe("database migrations", () => {
         migrations[5].id,
         migrations[6].id,
         migrations[7].id,
+        migrations[8].id,
       ]);
     },
     15_000,
@@ -299,6 +344,7 @@ describe("database migrations", () => {
     await expect(migrateDatabase(database, migrations)).resolves.toEqual([
       migrations[6].id,
       migrations[7].id,
+      migrations[8].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

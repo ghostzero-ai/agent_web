@@ -1,12 +1,13 @@
 import type { TaskSchedule } from "@/lib/tasks/schedule";
 
 export type TaskStatus = "active" | "paused" | "completed";
+export type TaskKind = "reminder" | "agent_prompt";
 
 export type TaskRecord = {
   id: string;
   title: string;
   prompt: string | null;
-  kind: "reminder";
+  kind: TaskKind;
   scheduleType: TaskSchedule["type"];
   scheduleValue: { runAt: string } | { time: string } | { weekday: number; time: string };
   timezone: string;
@@ -19,6 +20,7 @@ export type TaskRecord = {
 
 export type TaskInput = {
   title: string;
+  kind: TaskKind;
   prompt: string | null;
   schedule: TaskSchedule;
 };

@@ -11,6 +11,7 @@ import { createInboxRepository } from "../lib/repositories/inboxRepository";
 import { createNotificationDeliveryRepository } from "../lib/repositories/notificationDeliveryRepository";
 import { createNotificationRepository } from "../lib/repositories/notificationRepository";
 import { createSchedulerRepository } from "../lib/repositories/schedulerRepository";
+import { createAgentPromptGenerator } from "../lib/tasks/agentPromptGenerator";
 import { runReminderWorker } from "../lib/tasks/reminderWorker";
 
 function integerSetting(
@@ -74,6 +75,7 @@ async function main(): Promise<void> {
         {
           scheduler: createSchedulerRepository(database),
           inbox: createInboxRepository(database),
+          agent: createAgentPromptGenerator(),
           onRunDeferred(runId, error) {
             console.error(
               JSON.stringify({
@@ -81,6 +83,16 @@ async function main(): Promise<void> {
                 workerId,
                 runId,
                 error: errorName(error),
+              }),
+            );
+          },
+          onRunFailed(runId, errorCode) {
+            console.error(
+              JSON.stringify({
+                event: "agent-run-failed",
+                workerId,
+                runId,
+                errorCode,
               }),
             );
           },

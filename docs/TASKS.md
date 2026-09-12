@@ -1,14 +1,14 @@
 # Task/TaskRun 任务系统
 
-Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增加数据库驱动的到期认领、唯一 Run、租约恢复与 Worker fencing；Sprint 2.3 完成独立 Reminder Worker 与 Durable Inbox；Sprint 2.4 已增加用户可控的系统级 Web Push 和安静时段。当前版本在网页关闭后仍能执行普通提醒、保存到应用内收件箱，并向已授权设备尝试发送通知。
+Sprint 2.1–2.4 建立任务模型、数据库调度、Durable Inbox 与系统 Push；Sprint 2.5 增加 Agent Prompt Task。当前版本在网页关闭后仍能执行普通提醒或调用服务端模型，把结果保存到应用内收件箱，并向已授权设备尝试发送通知。
 
 ## 1. 使用方式
 
 1. 执行数据库迁移：在 `web/` 运行 `npm run db:migrate`。
 2. 推荐用仓库根目录的 Docker Compose 同时启动 Web、Worker 和 PostgreSQL；本机开发也可分别启动 Web 与 `npm run worker:reminders`。
-3. 访问 `/tasks` 创建、编辑、暂停、恢复或删除提醒，访问 `/inbox` 查看执行结果，访问 `/notifications` 启用系统通知并管理安静时段和设备。
+3. 访问 `/tasks` 创建、编辑、暂停、恢复或删除任务，访问 `/inbox` 查看执行结果，访问 `/notifications` 启用系统通知并管理安静时段和设备。
 
-当前仅支持固定单用户和 `reminder` 类型。可选时间规则：
+当前支持固定单用户的 `reminder` 与 `agent_prompt`。AI 定时任务必须填写任务要求，并使用 `/api-key` 中保存的服务端模型配置。可选时间规则：
 
 | 类型 | 输入 | 含义 |
 |---|---|---|
@@ -22,7 +22,7 @@ Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增�
 
 ### `scheduled_tasks`
 
-保存用户意图和下一次计划时间：标题、可选提醒内容、结构化时间规则、时区、`next_run_at`、状态与乐观锁版本。`active` 任务必须具有 `next_run_at`；暂停任务会清空它。
+保存用户意图和下一次计划时间：类型、标题、任务要求、结构化时间规则、时区、`next_run_at`、状态与乐观锁版本。`active` 任务必须具有 `next_run_at`；`agent_prompt` 必须具有非空 prompt；暂停任务会清空下一次时间。
 
 ### `task_runs`
 
@@ -32,7 +32,7 @@ Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增�
 
 ### `inbox_items`
 
-保存已发生提醒的标题、正文快照、计划发生时间和已读状态。每个 TaskRun 最多生成一条 InboxItem。删除源 Task/TaskRun 后外键设为 null，但快照继续保留，避免历史提醒随任务清理而消失。
+保存已发生提醒或 AI 结果的来源、标题、正文快照、计划发生时间和已读状态。每个 TaskRun 最多生成一条 InboxItem。删除源 Task/TaskRun 后外键设为 null，但快照继续保留，避免历史结果随任务清理而消失。
 
 ## 3. HTTP API
 
@@ -58,8 +58,20 @@ Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增�
 ```json
 {
   "title": "复习英语",
+  "kind": "reminder",
   "prompt": "背诵今天的 20 个单词",
   "schedule": { "type": "daily", "time": "20:00" }
+}
+```
+
+创建 AI 定时任务示例：
+
+```json
+{
+  "title": "每日学习总结",
+  "kind": "agent_prompt",
+  "prompt": "生成一份今天值得复习的知识清单，并提出一个思考问题",
+  "schedule": { "type": "daily", "time": "21:00" }
 }
 ```
 
@@ -68,6 +80,7 @@ Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增�
 ```json
 {
   "title": "复习英语",
+  "kind": "reminder",
   "prompt": "背诵今天的 20 个单词",
   "schedule": { "type": "daily", "time": "21:00" },
   "status": "active",
@@ -79,11 +92,11 @@ Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增�
 
 ## 4. 安全与当前边界
 
-- API 不接受 `userId`、`kind`、`nextRunAt` 或任意任务状态；这些值由服务端计算或限制。
+- API 不接受 `userId`、`nextRunAt` 或任意任务状态；`kind` 只允许 `reminder`/`agent_prompt`，后者必须具有非空 prompt。
 - Zod 使用严格对象校验，拒绝未知字段、非法 UUID、错误日期、越界星期和非法时间。
 - 数据库错误不会返回连接信息或内部异常；公开错误仅暴露稳定错误码。
 - 当前没有应用登录鉴权，只能通过 localhost 或 Tailscale 可信私网访问，禁止使用 Funnel 公开暴露。
-- Worker 日志不输出任务标题、正文、数据库连接串或 API Key；收件箱正文由 React 作为纯文本渲染，不执行 HTML。
+- Worker 日志不输出任务标题、正文、数据库连接串或 API Key；收件箱使用安全 Markdown/KaTeX 渲染，不启用原始 HTML。
 - 页面关闭不影响 Worker；但笔记本关机或休眠时无法执行。恢复后重复任务只补偿一次，避免提醒风暴。
 - Inbox 是提醒事实来源，Web Push 只是可失败的提示渠道；页面打开时 `/inbox` 每 15 秒自动刷新。
 - 锁屏 Push 使用通用文案，不包含任务标题、正文或 prompt；完整订阅与 VAPID 私钥使用主密钥加密存库。
@@ -113,9 +126,9 @@ Run 的 `workerId + attempt + 未过期 lease` 构成 fencing token。旧 Worker
 
 ## 6. Reminder Worker 与 Durable Inbox
 
-Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler Claim 领取最多 20 个 Run。普通提醒无需调用模型：Worker 将 Run 切换到 `running`，随后在一个数据库事务中创建 InboxItem 并把 Run 标为 `succeeded`。只有当前 `workerId + attempt + 未过期 lease` 可以完成事务。
+Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler Claim 领取最多 20 个 Run。普通提醒无需调用模型；Agent Prompt Task 直接复用服务端 Credential Vault 与 OpenAI-compatible Provider。AI prompt 作为 `user` 消息发送，固定执行规则才是 `system` 消息。
 
-如果某项暂时失败，其余同批 Run 继续执行；失败项保留为非终态，租约到期后由当前或其他 Worker 接管。同一 TaskRun 的唯一约束保证重试不会产生重复 InboxItem。普通提醒执行很短，因此当前不需要周期续租；Sprint 2.5 的长耗时 AI 任务必须在执行期间续租。
+同批 Run 并发进入执行，避免长模型调用耗尽其他 Run 的租约。AI 生成期间约每个租约三分之一周期续租，并在写结果前再次续租。临时 Provider 错误保留非终态并在租约过期后接管；配置缺失、空输出或超长输出等永久错误写为 `failed`。成功结果与 Run 终态在同一事务保存，最多 100,000 字符。
 
 可选环境变量：
 
@@ -134,6 +147,6 @@ Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler
 
 浏览器权限必须由用户在 `/notifications` 明确点击后授予。iOS/iPadOS 16.4+ 还需要先把网站添加到主屏幕，再从主屏幕应用内启用。详细启用、数据流、安全与排障见 `WEB_PUSH.md`。
 
-## 8. 下一阶段接口边界
+## 8. Agent Prompt 当前边界
 
-Sprint 2.5 将在普通 reminder 之外增加 Agent Prompt Task。长耗时模型调用必须续租或拆分阶段，并将生成结果写入 Inbox；通知层仍只消费 Inbox，不直接承担 AI 任务执行。
+当前 AI 定时任务是独立上下文，不自动读取聊天、长期记忆、搜索结果或插件。Phase 3 将增加专业回答策略、搜索与引用；通知层仍只消费 Inbox，不直接承担 AI 任务执行。详细决策见 `adr/ADR-035-AGENT-PROMPT-TASK-EXECUTION.md`。

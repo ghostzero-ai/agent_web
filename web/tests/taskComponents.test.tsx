@@ -12,7 +12,8 @@ describe("task presentation", () => {
   it("renders the task form and loading state", () => {
     const html = renderToStaticMarkup(<TaskManager />);
     expect(html).toContain("安排一件事");
-    expect(html).toContain("创建提醒");
+    expect(html).toContain("创建任务");
+    expect(html).toContain("AI 定时任务");
     expect(html).toContain("正在读取任务");
     expect(html).toContain("Asia/Shanghai");
   });

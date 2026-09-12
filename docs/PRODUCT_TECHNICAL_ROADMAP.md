@@ -1704,7 +1704,7 @@ toolName, errorCode
 | 2.2 ✅ | Scheduler Claim + 幂等 Run | 已完成：事务 Claim、唯一 Run、租约接管、Worker fencing 与合并补偿通过真实 PostgreSQL 并发验证 |
 | 2.3 ✅ | Reminder Worker + Inbox | 已完成：独立 Docker Worker 在网页关闭后执行普通提醒，结果与 Run 终态原子写入 Durable Inbox；移动端管理和真实链路通过验证 |
 | 2.4 ✅ | Web Push + 安静时段 | 已完成：明确手势授权、加密设备订阅、持久投递、静默延后、指数重试、失效隔离和通用隐私锁屏载荷 |
-| 2.5 | Agent Prompt Task | 定时生成内容并保存历史 |
+| 2.5 ✅ | Agent Prompt Task | 已完成：AI 定时任务复用 Credential Vault 与服务端 Provider，模型调用周期续租，结果与 Run 终态原子写入 Inbox 并安全渲染 |
 
 短期里程碑：到这里，产品已经从“聊天网页”升级为“能在时间中持续工作的个人 Agent”。
 

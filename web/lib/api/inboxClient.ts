@@ -5,7 +5,7 @@ export type InboxItem = {
   id: string;
   taskId: string | null;
   taskRunId: string | null;
-  source: "reminder";
+  source: "reminder" | "agent_prompt";
   title: string;
   body: string | null;
   occurredAt: string;

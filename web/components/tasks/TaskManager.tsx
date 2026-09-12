@@ -7,6 +7,7 @@ import {
   listTasks,
   TaskClientError,
   updateTask,
+  type TaskKind,
   type TaskInput,
   type TaskRecord,
 } from "@/lib/api/taskClient";
@@ -14,6 +15,7 @@ import type { TaskSchedule } from "@/lib/tasks/schedule";
 
 type FormState = {
   title: string;
+  kind: TaskKind;
   prompt: string;
   scheduleType: TaskSchedule["type"];
   onceRunAt: string;
@@ -23,6 +25,7 @@ type FormState = {
 
 const EMPTY_FORM: FormState = {
   title: "",
+  kind: "reminder",
   prompt: "",
   scheduleType: "daily",
   onceRunAt: "",
@@ -77,6 +80,7 @@ function formFromTask(task: TaskRecord): FormState {
   const schedule = scheduleFromTask(task);
   return {
     title: task.title,
+    kind: task.kind,
     prompt: task.prompt ?? "",
     scheduleType: schedule.type,
     onceRunAt: schedule.type === "once" ? isoToShanghaiLocal(schedule.runAt) : "",
@@ -96,6 +100,7 @@ function inputFromForm(form: FormState): TaskInput {
   }
   return {
     title: form.title.trim(),
+    kind: form.kind,
     prompt: form.prompt.trim() || null,
     schedule,
   };
@@ -208,6 +213,7 @@ export function TaskManager() {
     try {
       await updateTask(task.id, {
         title: task.title,
+        kind: task.kind,
         prompt: task.prompt,
         schedule: scheduleFromTask(task),
         status: task.status === "active" ? "paused" : "active",
@@ -251,6 +257,20 @@ export function TaskManager() {
 
         <form className="space-y-4" onSubmit={submit}>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            任务类型
+            <select
+              value={form.kind}
+              onChange={(event) =>
+                setForm({ ...form, kind: event.target.value as TaskKind })
+              }
+              className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-950"
+            >
+              <option value="reminder">普通提醒</option>
+              <option value="agent_prompt">AI 定时任务</option>
+            </select>
+          </label>
+
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
             标题
             <input
               required
@@ -263,14 +283,15 @@ export function TaskManager() {
           </label>
 
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            提醒内容（可选）
+            {form.kind === "agent_prompt" ? "给 AI 的任务要求" : "提醒内容（可选）"}
             <textarea
+              required={form.kind === "agent_prompt"}
               rows={3}
               maxLength={10_000}
               value={form.prompt}
               onChange={(event) => setForm({ ...form, prompt: event.target.value })}
               className="mt-1.5 w-full resize-y rounded-xl border border-zinc-300 bg-transparent px-3 py-2.5 outline-none focus:border-zinc-900 dark:border-zinc-700 dark:focus:border-zinc-300"
-              placeholder="提醒时希望看到的具体内容"
+              placeholder={form.kind === "agent_prompt" ? "例如：总结三个值得关注的国际科技趋势" : "提醒时希望看到的具体内容"}
             />
           </label>
 
@@ -345,7 +366,7 @@ export function TaskManager() {
               disabled={submitting}
               className="flex-1 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950"
             >
-              {submitting ? "保存中…" : editingId ? "保存修改" : "创建提醒"}
+              {submitting ? "保存中…" : editingId ? "保存修改" : "创建任务"}
             </button>
             {editingId && (
               <button
@@ -364,7 +385,7 @@ export function TaskManager() {
         <div className="mb-4 flex items-end justify-between">
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">My tasks</p>
-            <h2 className="mt-1 text-xl font-semibold text-zinc-950 dark:text-zinc-50">我的提醒</h2>
+            <h2 className="mt-1 text-xl font-semibold text-zinc-950 dark:text-zinc-50">我的任务</h2>
           </div>
           <span className="text-sm text-zinc-500">{tasks.length} 项</span>
         </div>
@@ -378,7 +399,7 @@ export function TaskManager() {
           <p className="rounded-2xl border border-zinc-200 bg-white p-8 text-center text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">正在读取任务…</p>
         ) : tasks.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/60 p-10 text-center dark:border-zinc-700 dark:bg-zinc-950/60">
-            <p className="font-medium text-zinc-800 dark:text-zinc-200">还没有提醒</p>
+            <p className="font-medium text-zinc-800 dark:text-zinc-200">还没有任务</p>
             <p className="mt-1 text-sm text-zinc-500">在左侧创建第一项学习任务。</p>
           </div>
         ) : (
@@ -389,6 +410,9 @@ export function TaskManager() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="break-words font-semibold text-zinc-950 dark:text-zinc-50">{task.title}</h3>
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        {task.kind === "agent_prompt" ? "AI 生成" : "普通提醒"}
+                      </span>
                       <span className={`rounded-full px-2 py-0.5 text-xs ${task.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}>
                         {task.status === "active" ? "运行中" : task.status === "paused" ? "已暂停" : "已完成"}
                       </span>
