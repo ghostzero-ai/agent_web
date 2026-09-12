@@ -4,6 +4,52 @@
 
 ---
 
+## Credential Vault — 用户可编辑 Provider 配置
+
+**Commit**: `3707199`
+
+### 修改文件
+
+- `web/components/config/ModelCredentialSettings.tsx`
+- `web/lib/api/modelCredentialClient.ts`
+- `web/lib/api/modelCredentialApi.ts`
+- `web/lib/ai/server/modelCredentialService.ts`
+- `web/lib/repositories/modelCredentialRepository.ts`
+- `web/lib/db/schema.ts`
+- `web/drizzle/0006_brainy_lady_bullseye.sql`
+- `web/drizzle/rollback/0006_brainy_lady_bullseye.sql`
+- `web/drizzle/meta/0006_snapshot.json`
+- `web/drizzle/meta/_journal.json`
+- `web/tests/databaseMigrations.test.ts`
+- `web/tests/modelCredentialRepository.test.ts`
+- `web/tests/modelCredentialService.test.ts`
+- `web/tests/modelCredentialApi.test.ts`
+- `web/tests/modelCredentialClient.test.ts`
+- `web/tests/modelCredentialSettings.test.tsx`
+- `web/e2e/credential.spec.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 可编辑表单 | Provider、Base URL、Model 不再使用写死值，均由用户输入；无已存配置时保持空白并提供示例占位 |
+| 服务端保存 | 四字段在一次请求中提交；API Key 使用 AES-256-GCM 加密，Provider/Base URL/Model 以普通文本列保存 |
+| 单配置语义 | 唯一约束改为每用户一条当前模型配置；修改 Provider 原位更新，不新增不可达旧凭据 |
+| 升级兼容 | 若旧库异常存在多 Provider 行，迁移确定性保留最近更新项后建立用户唯一索引，并提供回滚 SQL |
+| 输入边界 | Provider 使用 1–100 字符安全标识格式；Base URL 继续要求安全 URL，禁止内嵌账号密码 |
+| 协议边界 | Provider 当前是用户可配置厂商标识，实际连接仍使用 OpenAI-compatible 协议适配器 |
+
+### 验证方法与结果
+
+- 凭据与迁移专项测试：6 个文件、16 项通过；移动端 Microsoft Edge 凭据 E2E 通过。
+- 全量 Vitest：42 个文件、157 项通过；Next.js 生产构建通过。
+- `npx tsc --noEmit`、`npm run lint`、`npm run db:check`、`git diff --check`：通过。
+
+### localStorage变化
+
+- 无；四项配置均只通过同源 API 保存到 PostgreSQL，浏览器仍会清理旧版模型配置 localStorage。
+
 ## Sprint 2.4g — 封版验证与总结报告
 
 **Commit**: `e5149ed`
