@@ -4,6 +4,40 @@
 
 ---
 
+## Sprint 2.4b — Push 投递数据模型
+
+**Commit**: `370d626`
+
+### 修改文件
+
+- `web/lib/db/schema.ts`
+- `web/drizzle/0005_faithful_mystique.sql`
+- `web/drizzle/rollback/0005_faithful_mystique.sql`
+- `web/drizzle/meta/0005_snapshot.json`
+- `web/drizzle/meta/_journal.json`
+- `web/tests/databaseMigrations.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| VAPID 配置 | 每个用户保存稳定公钥和加密私钥，随 PostgreSQL 备份迁移 |
+| 设备订阅 | 保存 endpoint hash、加密订阅载荷、设备标签、失效状态和失败计数 |
+| 通知偏好 | 默认 Push 关闭、安静时段 22:00–08:00、时区固定 Asia/Shanghai，并带乐观锁版本 |
+| 投递记录 | InboxItem/设备唯一，记录 pending/sending/sent/failed/cancelled、可用时间、attempt 与租约 |
+| Inbox 规划 | `push_planned_at` 区分尚未规划与已评估但无需发送的提醒 |
+| 回滚 | 最新迁移可删除 Push 相关表、枚举和 Inbox 新列，不破坏原 Inbox 数据 |
+
+### 验证方法与结果
+
+- PostgreSQL 兼容迁移测试覆盖 12 张表、默认偏好、投递唯一性、回滚和重新应用。
+- `npm run db:check`、`npx tsc --noEmit`、`npm run lint`、`git diff --check`：通过。
+
+### localStorage 变化
+
+- 无；Push 配置、订阅与投递状态只存 PostgreSQL。
+
 ## Sprint 2.4a — Web Push 服务端依赖
 
 **Commit**: `7eb39a1`
