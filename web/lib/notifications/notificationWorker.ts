@@ -109,8 +109,8 @@ async function deliverOne(
     return "deferred";
   }
 
+  const sendPush = dependencies.sendPush ?? webPush.sendNotification;
   try {
-    const sendPush = dependencies.sendPush ?? webPush.sendNotification;
     await sendPush(
       parseSubscription(claim.subscription.encryptedSubscription),
       JSON.stringify({
@@ -126,14 +126,6 @@ async function deliverOne(
         vapidDetails: configuration,
       },
     );
-    await dependencies.deliveries.finishDelivery({
-      deliveryId: claim.delivery.id,
-      workerId: options.workerId,
-      expectedAttempt: claim.delivery.attempt,
-      now: dependencies.now?.() ?? new Date(),
-      outcome: { status: "sent" },
-    });
-    return "sent";
   } catch (error) {
     const outcome = failure(error);
     await dependencies.deliveries.finishDelivery({
@@ -153,6 +145,14 @@ async function deliverOne(
     dependencies.onDeliveryError?.(claim.delivery.id, outcome.errorCode);
     return "failed";
   }
+  await dependencies.deliveries.finishDelivery({
+    deliveryId: claim.delivery.id,
+    workerId: options.workerId,
+    expectedAttempt: claim.delivery.attempt,
+    now: dependencies.now?.() ?? new Date(),
+    outcome: { status: "sent" },
+  });
+  return "sent";
 }
 
 export async function runNotificationBatch(

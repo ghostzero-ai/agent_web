@@ -179,6 +179,31 @@ describe("notification worker", () => {
     );
   });
 
+  it("does not misclassify a delivery-state write failure as a Push failure", async () => {
+    const claimed = claim();
+    const deliveries = repositoryFor(claimed);
+    deliveries.finishDelivery.mockRejectedValue(new Error("database unavailable"));
+    const onDeliveryError = vi.fn();
+    await expect(
+      runNotificationBatch(
+        {
+          deliveries,
+          getPushConfiguration: vi.fn().mockResolvedValue({
+            publicKey: "public-vapid",
+            privateKey: "private-vapid",
+            subject: "https://example.test",
+          }),
+          sendPush: vi.fn().mockResolvedValue({ statusCode: 201 }),
+          now: () => FIXED_NOW,
+          onDeliveryError,
+        },
+        { workerId: "worker-test", batchSize: 20, leaseDurationMs: 60_000 },
+      ),
+    ).rejects.toThrow("database unavailable");
+    expect(deliveries.finishDelivery).toHaveBeenCalledTimes(1);
+    expect(onDeliveryError).not.toHaveBeenCalled();
+  });
+
   it.each([
     [410, { status: "expired" }],
     [503, { status: "failed", errorCode: "PUSH_HTTP_503", retryable: true }],
