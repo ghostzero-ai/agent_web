@@ -4,6 +4,32 @@
 
 ---
 
+## Sprint 2.4g — 封版验证与总结报告
+
+**Commit**: `e5149ed`
+
+### 修改文件
+
+- `docs/WEB_PUSH.md`
+- `docs/reports/SPRINT_2_4_REPORT.md`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+- 记录 Sprint 目标、架构、功能、安全边界、主要文件、审查修复、提交与下一步。
+- 增加 MDN、WebKit 与 web-push 官方实现依据。
+- 明确区分已完成的自动化/Docker 验证与必须由用户手势完成的真机通知授权验收。
+
+### 验证方法与结果
+
+- 全量 Vitest：42 个文件、155 项通过；Microsoft Edge E2E：8 项通过。
+- TypeScript、ESLint、Drizzle、Next.js 本机/Docker 生产构建和 `git diff --check` 通过。
+- Docker 实机：PostgreSQL/Web healthy、Worker 常驻、实时 Push API/PWA 正常；生产依赖 0 漏洞。
+
+### localStorage 变化
+
+- 无。
+
 ## Sprint 2.4f — Web Push 运维文档与封版状态
 
 **Commit**: `156d29c`
