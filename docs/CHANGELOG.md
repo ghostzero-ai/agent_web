@@ -4,6 +4,30 @@
 
 ---
 
+## Engineering Workflow — 风险分级交付
+
+**Commit**: `same delivery commit`
+
+### 修改文件
+
+- `CLAUDE.md`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+- 将机械的文件数/行数授权改为按产品语义、外部影响和可逆性判断。
+- 增加 L0–L3 验证矩阵；低风险改动不再重复执行全量测试、Docker、审计与 E2E。
+- 同一逻辑任务默认一次实现提交、一次充分验证、一次 Push，微小修正不再拆分为多次提交和 CHANGELOG。
+- 仅在假设会改变产品方向、造成外部影响、破坏数据或不可逆时暂停询问。
+
+### 验证方法与结果
+
+- `git diff --check` 与规则冲突复核通过。
+
+### localStorage 变化
+
+- 无。
+
 ## Credential Vault 文档 — 可编辑配置与加密边界
 
 **Commit**: `0090628`
