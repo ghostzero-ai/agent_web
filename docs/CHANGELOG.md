@@ -4,6 +4,33 @@
 
 ---
 
+## Sprint 2.4a — Web Push 服务端依赖
+
+**Commit**: `7eb39a1`
+
+### 修改文件
+
+- `web/package.json`
+- `web/package-lock.json`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| Web Push | 增加 `web-push` 3.6.7，负责标准 VAPID 签名、负载加密与 Push Service 请求 |
+| TypeScript | 增加 `@types/web-push` 3.6.4，保持 strict 类型检查 |
+| 供应链检查 | 生产依赖审计为 0 漏洞；现有测试工具 Vitest 有 2 个 moderate，修复需跨大版本升级，未进入生产依赖 |
+
+### 验证方法与结果
+
+- `npm audit --omit=dev`：0 vulnerabilities。
+- `npx tsc --noEmit`、`git diff --check`：通过。
+
+### localStorage 变化
+
+- 无。
+
 ## Sprint 2.3 — Reminder Worker + Durable Inbox 封版
 
 **Commits**: `bc3715b`, `5e48986`, `20598b2`, `c9cda10`, `1f9a807`, `0d9021f`
