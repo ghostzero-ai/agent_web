@@ -42,7 +42,7 @@ docker compose --env-file .env.selfhost logs --tail 100 web
 docker compose --env-file .env.selfhost logs --tail 100 worker
 ```
 
-Web 与 Worker 容器都会等待 PostgreSQL 健康，并通过数据库迁移锁安全地先完成迁移。电脑本机打开 `http://127.0.0.1:3000/api-key` 测试并保存模型凭据，之后可使用 `/chat`、`/tasks` 与 `/inbox`。Worker 默认每 5 秒扫描到期任务，网页关闭后仍运行。
+Web 与 Worker 容器都会等待 PostgreSQL 健康，并通过数据库迁移锁安全地先完成迁移。电脑本机打开 `http://127.0.0.1:3000/api-key` 测试并保存模型凭据，之后可使用 `/chat`、`/tasks`、`/inbox` 与 `/notifications`。Worker 默认每 5 秒扫描到期任务和待投递通知，网页关闭后仍运行。Web Push 启用与真机排障见 `WEB_PUSH.md`。
 
 ## 3. Tailscale 手机私有访问
 
@@ -115,7 +115,7 @@ Linux/macOS：
 
 脚本通过容器内 `pg_dump` 生成 `backups/agent-web-<timestamp>.sql`。`backups/` 与真实 `.env.selfhost` 均被 Git 忽略。
 
-数据库备份包含加密后的模型凭据，但不包含 `CREDENTIAL_MASTER_KEY`。必须把主密钥另存到密码管理器或其他受保护位置；不要把它直接附在数据库备份旁。丢失主密钥不会影响会话正文，但现有 API Key 密文无法解密，只能删除并重新保存新的 Key。
+数据库备份包含加密后的模型凭据、Push 订阅与 VAPID 私钥，但不包含 `CREDENTIAL_MASTER_KEY`。必须把主密钥另存到密码管理器或其他受保护位置；不要把它直接附在数据库备份旁。丢失主密钥不会影响会话和 Inbox 正文，但现有 API Key、Push 订阅与 VAPID 私钥密文无法解密；模型 Key 需重新保存，所有设备需重新启用系统通知。
 
 至少定期把数据库备份复制到另一块磁盘或受保护的云存储；只保存在同一笔记本上不能防范磁盘损坏。
 
@@ -153,5 +153,6 @@ Linux/macOS：
 - 已用一次性假凭据完成写入、读取公开状态和删除的真实 API/数据库集成检查，并确认数据库密文不包含明文。
 - 自动化测试覆盖私有数据库、持久卷、localhost 绑定、迁移先于启动、独立 Worker、Secret 排除、恢复确认和 Credential Vault 行为。
 - 已真实验证一次性任务在网页之外由 Worker 自动执行，Task 进入 completed 并产生唯一 unread InboxItem；临时验证数据已清理。
+- Web Push 自动化测试已覆盖订阅加密、权限手势、安静时段、租约幂等、重试、失效设备和隐私载荷；正式真机 Push 仍需用户在 `/notifications` 授权后完成一次到期提醒验收。
 - 尚未执行正式 `pg_dump → 独立环境还原` 演练；产生重要个人数据前应补做。
 - Tailscale Serve 需要在电脑和手机安装、登录后由用户启用；项目不自动修改系统 VPN、账号或 Tailnet 策略。

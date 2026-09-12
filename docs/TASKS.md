@@ -1,12 +1,12 @@
 # Task/TaskRun 任务系统
 
-Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增加数据库驱动的到期认领、唯一 Run、租约恢复与 Worker fencing；Sprint 2.3 已完成独立 Reminder Worker 与 Durable Inbox。当前版本在网页关闭后仍能执行普通提醒并保存到应用内收件箱，但**尚无手机系统级 Push 通知**。
+Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增加数据库驱动的到期认领、唯一 Run、租约恢复与 Worker fencing；Sprint 2.3 完成独立 Reminder Worker 与 Durable Inbox；Sprint 2.4 已增加用户可控的系统级 Web Push 和安静时段。当前版本在网页关闭后仍能执行普通提醒、保存到应用内收件箱，并向已授权设备尝试发送通知。
 
 ## 1. 使用方式
 
 1. 执行数据库迁移：在 `web/` 运行 `npm run db:migrate`。
 2. 推荐用仓库根目录的 Docker Compose 同时启动 Web、Worker 和 PostgreSQL；本机开发也可分别启动 Web 与 `npm run worker:reminders`。
-3. 访问 `/tasks` 创建、编辑、暂停、恢复或删除提醒，访问 `/inbox` 查看执行结果。
+3. 访问 `/tasks` 创建、编辑、暂停、恢复或删除提醒，访问 `/inbox` 查看执行结果，访问 `/notifications` 启用系统通知并管理安静时段和设备。
 
 当前仅支持固定单用户和 `reminder` 类型。可选时间规则：
 
@@ -48,6 +48,10 @@ Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增�
 | `GET` | `/api/v1/inbox?filter=all|unread|read` | 按状态列出提醒 |
 | `PATCH` | `/api/v1/inbox/:id` | 标为 `read` 或 `unread` |
 | `DELETE` | `/api/v1/inbox/:id` | 删除提醒 |
+| `GET` | `/api/v1/push/config` | 读取 Push 公钥、偏好与脱敏设备列表 |
+| `POST` | `/api/v1/push/subscriptions` | 保存或更新浏览器订阅 |
+| `DELETE` | `/api/v1/push/subscriptions/:id` | 移除一台设备 |
+| `PATCH` | `/api/v1/push/preferences` | 更新总开关与安静时段 |
 
 创建每日提醒示例：
 
@@ -81,7 +85,9 @@ Sprint 2.1 建立任务数据模型、HTTP API 和管理页面；Sprint 2.2 增�
 - 当前没有应用登录鉴权，只能通过 localhost 或 Tailscale 可信私网访问，禁止使用 Funnel 公开暴露。
 - Worker 日志不输出任务标题、正文、数据库连接串或 API Key；收件箱正文由 React 作为纯文本渲染，不执行 HTML。
 - 页面关闭不影响 Worker；但笔记本关机或休眠时无法执行。恢复后重复任务只补偿一次，避免提醒风暴。
-- 应用内收件箱不是系统通知；需要主动打开 `/inbox`，页面打开时每 15 秒自动刷新。系统级 Push 属于 Sprint 2.4。
+- Inbox 是提醒事实来源，Web Push 只是可失败的提示渠道；页面打开时 `/inbox` 每 15 秒自动刷新。
+- 锁屏 Push 使用通用文案，不包含任务标题、正文或 prompt；完整订阅与 VAPID 私钥使用主密钥加密存库。
+- 新设备不会补推订阅前的历史 InboxItem；临时错误会重试，404/410 会自动隔离失效订阅。
 
 ## 5. Scheduler Claim
 
@@ -122,6 +128,12 @@ Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler
 
 `docker compose --env-file .env.selfhost ps` 应同时显示 `postgres`、`web` 与 `worker`。数据库还原脚本会同时停止 Web 和 Worker，避免还原期间继续写入。
 
-## 7. 下一阶段接口边界
+## 7. Web Push 投递
 
-Sprint 2.4 将在 Durable Inbox 之上增加 Web Push、订阅管理、安静时段和投递状态。Inbox 始终是提醒事实来源；Push 只是可失败、可重试的通知渠道，不能取代 Inbox。
+同一个 Worker 循环会把尚未规划的 InboxItem 转换成每设备唯一的持久 Delivery。系统通知总开关默认关闭，安静时段默认是北京时间 22:00–08:00；规划和发送前都会检查静默边界。408、429、5xx 和网络错误指数退避，最多尝试 5 次；404/410 将设备标为失效。
+
+浏览器权限必须由用户在 `/notifications` 明确点击后授予。iOS/iPadOS 16.4+ 还需要先把网站添加到主屏幕，再从主屏幕应用内启用。详细启用、数据流、安全与排障见 `WEB_PUSH.md`。
+
+## 8. 下一阶段接口边界
+
+Sprint 2.5 将在普通 reminder 之外增加 Agent Prompt Task。长耗时模型调用必须续租或拆分阶段，并将生成结果写入 Inbox；通知层仍只消费 Inbox，不直接承担 AI 任务执行。
