@@ -4,6 +4,46 @@
 
 ---
 
+## Sprint 2.4e — Web Push 后台投递闭环
+
+**Commit**: `1a46e3b`
+
+### 修改文件
+
+- `.env.selfhost.example`
+- `docker-compose.yml`
+- `web/.env.example`
+- `web/scripts/reminder-worker.ts`
+- `web/lib/notifications/notificationWorker.ts`
+- `web/lib/notifications/quietHours.ts`
+- `web/lib/repositories/notificationDeliveryRepository.ts`
+- `web/tests/notificationDeliveryRepository.test.ts`
+- `web/tests/notificationWorker.test.ts`
+- `web/tests/quietHours.test.ts`
+- `web/tests/selfHostingArtifacts.test.ts`
+- `docs/CHANGELOG.md`
+
+### 变更内容
+
+| 功能 | 说明 |
+|---|---|
+| 持久投递 | Reminder Worker 同时规划并消费 Push 投递；重启后仍从 PostgreSQL 恢复未完成通知 |
+| 幂等与并发 | 每个 InboxItem/设备仅一条投递，使用 `FOR UPDATE SKIP LOCKED`、租约与 attempt fencing 防止多 Worker 重复完成 |
+| 安静时段 | 按 Asia/Shanghai 执行跨午夜静默，规划时和发送前均检查，安静期结束后再投递 |
+| 重试策略 | 408、429、5xx 与网络故障指数退避，最多尝试 5 次；404/410 立即注销失效订阅并取消其余投递 |
+| 隐私载荷 | 锁屏仅显示通用提醒文案与 InboxItem ID，不发送任务标题、正文、prompt、endpoint 或密钥 |
+| 历史隔离 | 新设备只接收其订阅后产生的 InboxItem，首次启用不会补推全部历史消息 |
+| 容器配置 | Worker 显式接收 `CREDENTIAL_MASTER_KEY` 解密订阅/VAPID 私钥，并支持可选 `VAPID_SUBJECT` |
+
+### 验证方法与结果
+
+- 后台投递专项测试 17 项全部通过，覆盖静默边界、退避上限、幂等、租约 fencing、410/503、隐私载荷及历史隔离。
+- `npx tsc --noEmit`、`npm run lint`、`git diff --check`：通过。
+
+### localStorage 变化
+
+- 无；投递、租约、重试与设备健康状态均存 PostgreSQL。
+
 ## Sprint 2.4d — PWA Push 设置体验
 
 **Commit**: `dc26b36`
