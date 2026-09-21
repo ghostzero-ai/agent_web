@@ -196,8 +196,8 @@ export function NativeTaskNotificationSettings() {
                 value={diagnostics.exactAlarmPermission === "granted" ? "已允许" : "未允许"}
               />
               <DiagnosticItem
-                label="待发送"
-                value={`${diagnostics.pendingTotal} 条（任务 ${diagnostics.pendingTasks}）`}
+                label="系统记录"
+                value={`待发 ${diagnostics.pendingTotal}（任务 ${diagnostics.pendingTasks}）/ 已送达 ${diagnostics.deliveredTotal}`}
               />
               <DiagnosticItem
                 label="测试状态"
@@ -255,6 +255,7 @@ export function NativeTaskNotificationSettings() {
           )}
           <p className="mt-3 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
             建议依次测试：保持前台、切到后台、从最近任务划掉、华为系统清理。每次重新打开本页后点击“刷新状态”。
+            “已送达”只统计仍留在通知栏中的通知，点击或清除后会显示“无记录”。
           </p>
         </details>
       )}
