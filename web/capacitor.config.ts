@@ -18,6 +18,12 @@ const config = {
     minWebViewVersion: 60,
     minHuaweiWebViewVersion: 10,
   },
+  plugins: {
+    LocalNotifications: {
+      smallIcon: "ic_stat_ai_reminder",
+      iconColor: "#2563EB",
+    },
+  },
   ...(serverUrl
     ? {
         server: {

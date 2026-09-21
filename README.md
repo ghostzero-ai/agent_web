@@ -87,6 +87,8 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 
 Android Debug APK 已可构建；当前安装路径、重建命令、JDK/SDK 边界与 M0.3 真机清单见 `docs/MOBILE_ANDROID.md`。该 APK 是个人兼容性测试版本，不是正式发布包。
 
+Mobile M0.4 已加入手机闹钟式时间滚轮和 Capacitor 本地任务提醒：APK 可在创建、修改、暂停、恢复或删除任务后同步 Android 系统调度；Web Push 继续负责服务端生成内容，两者保持独立。
+
 ---
 
 ## 项目原则

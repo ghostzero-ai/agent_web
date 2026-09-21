@@ -25,6 +25,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.task-time-wheel {
+  scrollbar-width: none;
+}
+
+.task-time-wheel::-webkit-scrollbar {
+  display: none;
+}
+
 .chat-markdown > :first-child {
   margin-top: 0;
 }

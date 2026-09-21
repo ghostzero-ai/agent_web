@@ -147,6 +147,17 @@ Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler
 
 浏览器权限必须由用户在 `/notifications` 明确点击后授予。iOS/iPadOS 16.4+ 还需要先把网站添加到主屏幕，再从主屏幕应用内启用。详细启用、数据流、安全与排障见 `WEB_PUSH.md`。
 
+### Android APK 本地提醒
+
+Capacitor Android 使用 Local Notifications 作为独立的设备投递层。用户必须在 `/tasks` 或 `/notifications` 主动点击授权；已有权限时，应用启动/恢复、任务列表加载以及创建、修改、暂停、恢复、删除后都会对系统待处理通知执行 reconciliation。
+
+- 一次性任务按绝对时间调度；每天和每周任务使用原生重复规则。
+- 通知 ID 由 Task ID 稳定生成；`occurrenceId` 包含任务版本和下次执行时间，用于识别需要替换的旧调度。
+- 通知正文只使用任务标题，不包含 Agent Prompt、模型密钥或服务端凭据。
+- 点击通知只接受应用生成的站内相对深链，并打开对应任务。
+- Android 重启恢复由 Capacitor 插件的 Boot Receiver 负责；服务端 Task/Inbox 仍是事实源。
+- 本地提醒与 Web/Huawei Push 不互相伪装：前者针对已知到期时间，后者针对服务端新生成内容。
+
 ## 8. Agent Prompt 当前边界
 
 当前 AI 定时任务是独立上下文，不自动读取聊天、长期记忆、搜索结果或插件。Phase 3 将增加专业回答策略、搜索与引用；通知层仍只消费 Inbox，不直接承担 AI 任务执行。详细决策见 `adr/ADR-035-AGENT-PROMPT-TASK-EXECUTION.md`。

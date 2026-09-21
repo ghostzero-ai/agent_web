@@ -21,6 +21,10 @@ describe("Capacitor mobile foundation config", () => {
 
     expect(config.appId).toBe("com.ghostzero.aistudycompanion");
     expect(config.webDir).toBe("mobile-shell");
+    expect(config.plugins.LocalNotifications).toEqual({
+      smallIcon: "ic_stat_ai_reminder",
+      iconColor: "#2563EB",
+    });
     expect(config).not.toHaveProperty("server");
   });
 

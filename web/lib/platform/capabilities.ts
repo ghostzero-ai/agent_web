@@ -37,10 +37,22 @@ export type LocalReminderSnapshot = {
   body: string | null;
   scheduledAt: string;
   deepLink: string;
+  recurrence?:
+    | { type: "daily"; hour: number; minute: number }
+    | { type: "weekly"; weekday: number; hour: number; minute: number };
+};
+
+export type LocalNotificationSyncResult = {
+  scheduled: number;
+  cancelled: number;
+  pending: number;
+  warning?: string;
 };
 
 export interface LocalNotificationAdapter {
-  reconcile(reminders: readonly LocalReminderSnapshot[]): Promise<void>;
+  reconcile(
+    reminders: readonly LocalReminderSnapshot[],
+  ): Promise<LocalNotificationSyncResult>;
   checkPermission(): Promise<"granted" | "denied" | "prompt">;
   requestPermission(): Promise<"granted" | "denied">;
 }

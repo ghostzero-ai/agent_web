@@ -1776,10 +1776,11 @@ toolName, errorCode
 |---|---|---|
 | M0.1 ✅ | 平台契约、Capacitor remote-shell 基线 | 危险 URL 被拒绝，普通 Web 构建不受影响 |
 | M0.2 ✅ | Capacitor 8 + Android Studio + Debug APK | Android 工程、Debug APK、签名与 HTTPS 服务端健康检查通过 |
-| M0.3 | 卓易通兼容验证 | SSE、公式、文件、音频、前后台行为形成真机矩阵 |
+| M0.3 ✅ | 卓易通首轮兼容验证 | 登录、SSE、公式与树形对话通过；记录 Web Push 不可用 |
+| M0.4 | 移动时间滚轮 + APK 本地提醒 | 任务 CRUD 同步系统通知，等待新版 APK 真机验收 |
 | M1.1 | 本地可打包 React Client | 正式 APK 不使用 `server.url`，共享 API Client |
 | M1.2 | Prompt 文件导出 + Share | JSON/Markdown 可保存和分享 |
-| M1.3 | APK Local Notification | 已同步普通提醒断网仍通知，修改/删除可撤销 |
+| M1.3 | APK Local Notification 发布加固 | 本地 Bundle 下完成断网、重启、时区和省电回归 |
 | M1.4 | Speech Output Adapter | 播放、停止、锁屏和耳机行为通过真机验证 |
 | M2.1 | HMS Push Capacitor Plugin Spike | 卓易通下 Token、后台 Push 与点击深链有实测结论 |
 | M2.2 | 服务端 Huawei Provider | 主动聊天、新闻与书籍复用 Inbox + Huawei Push |
@@ -1965,8 +1966,8 @@ Proposed / Accepted / Superseded
 
 Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次只交付一个可验收任务：
 
-1. 完成 M0.3：在目标华为手机的卓易通环境安装 Debug APK，记录 SSE、公式、文件、音频和前后台兼容矩阵。
-2. 根据 M0.3 结果修复仅影响移动壳或 WebView 的问题，不提前实现尚未验收的 HMS Push。
+1. 完成 M0.4 真机验收：通知授权、准时弹窗、点击跳转、暂停/删除撤销与重启恢复。
+2. 完成 M1.1 本地 Web Bundle，移除正式 APK 对开发期 `server.url` 的依赖。
 3. 回到 Core 3.1：实现可注册 Mode 与不可覆盖的事实/安全 Policy Layer。
 4. 完成 Core 3.2：建立 Prompt Envelope、版本与安全导出，再开始大规模修改 Prompt。
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。

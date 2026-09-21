@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { TimeWheelPicker } from "@/components/tasks/TimeWheelPicker";
 import {
   createTask,
   deleteTask,
@@ -11,6 +12,8 @@ import {
   type TaskInput,
   type TaskRecord,
 } from "@/lib/api/taskClient";
+import { reconcileLocalTaskNotifications } from "@/lib/notifications/localTaskNotifications";
+import { getCapacitorLocalNotificationAdapter } from "@/lib/platform/capacitorLocalNotifications";
 import type { TaskSchedule } from "@/lib/tasks/schedule";
 
 type FormState = {
@@ -18,7 +21,7 @@ type FormState = {
   kind: TaskKind;
   prompt: string;
   scheduleType: TaskSchedule["type"];
-  onceRunAt: string;
+  onceDate: string;
   time: string;
   weekday: number;
 };
@@ -28,12 +31,19 @@ const EMPTY_FORM: FormState = {
   kind: "reminder",
   prompt: "",
   scheduleType: "daily",
-  onceRunAt: "",
+  onceDate: "",
   time: "20:00",
   weekday: 1,
 };
 
 const WEEKDAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+
+type NativeNotificationState =
+  | { kind: "unsupported" }
+  | { kind: "checking" | "syncing" }
+  | { kind: "prompt" | "denied" }
+  | { kind: "granted"; pending: number; warning?: string }
+  | { kind: "error"; message: string };
 
 export function shanghaiLocalToIso(value: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
@@ -78,13 +88,15 @@ export function scheduleFromTask(task: TaskRecord): TaskSchedule {
 
 function formFromTask(task: TaskRecord): FormState {
   const schedule = scheduleFromTask(task);
+  const onceLocal =
+    schedule.type === "once" ? isoToShanghaiLocal(schedule.runAt) : "";
   return {
     title: task.title,
     kind: task.kind,
     prompt: task.prompt ?? "",
     scheduleType: schedule.type,
-    onceRunAt: schedule.type === "once" ? isoToShanghaiLocal(schedule.runAt) : "",
-    time: schedule.type === "once" ? "20:00" : schedule.time,
+    onceDate: onceLocal.slice(0, 10),
+    time: schedule.type === "once" ? onceLocal.slice(11, 16) : schedule.time,
     weekday: schedule.type === "weekly" ? schedule.weekday : 1,
   };
 }
@@ -92,7 +104,10 @@ function formFromTask(task: TaskRecord): FormState {
 function inputFromForm(form: FormState): TaskInput {
   let schedule: TaskSchedule;
   if (form.scheduleType === "once") {
-    schedule = { type: "once", runAt: shanghaiLocalToIso(form.onceRunAt) };
+    schedule = {
+      type: "once",
+      runAt: shanghaiLocalToIso(`${form.onceDate}T${form.time}`),
+    };
   } else if (form.scheduleType === "daily") {
     schedule = { type: "daily", time: form.time };
   } else {
@@ -138,17 +153,49 @@ export function TaskManager() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nativeNotifications, setNativeNotifications] =
+    useState<NativeNotificationState>({ kind: "unsupported" });
+
+  const syncNativeNotifications = useCallback(async (loaded: TaskRecord[]) => {
+    const adapter = getCapacitorLocalNotificationAdapter();
+    if (!adapter) {
+      setNativeNotifications({ kind: "unsupported" });
+      return;
+    }
+    try {
+      setNativeNotifications({ kind: "checking" });
+      const permission = await adapter.checkPermission();
+      if (permission !== "granted") {
+        setNativeNotifications({ kind: permission });
+        return;
+      }
+      setNativeNotifications({ kind: "syncing" });
+      const result = await reconcileLocalTaskNotifications(adapter, loaded);
+      setNativeNotifications({
+        kind: "granted",
+        pending: result.pending,
+        warning: result.warning,
+      });
+    } catch (notificationError) {
+      setNativeNotifications({
+        kind: "error",
+        message: friendlyError(notificationError),
+      });
+    }
+  }, []);
 
   const reload = useCallback(async () => {
     try {
-      setTasks(await listTasks());
+      const loaded = await listTasks();
+      setTasks(loaded);
       setError(null);
+      void syncNativeNotifications(loaded);
     } catch (loadError) {
       setError(friendlyError(loadError));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [syncNativeNotifications]);
 
   useEffect(() => {
     let active = true;
@@ -157,6 +204,7 @@ export function TaskManager() {
         if (!active) return;
         setTasks(loaded);
         setError(null);
+        void syncNativeNotifications(loaded);
       })
       .catch((loadError: unknown) => {
         if (active) setError(friendlyError(loadError));
@@ -167,7 +215,42 @@ export function TaskManager() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [syncNativeNotifications]);
+
+  useEffect(() => {
+    const taskId = new URLSearchParams(window.location.search).get("task");
+    if (!taskId || tasks.length === 0) return;
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(`task-${taskId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tasks]);
+
+  const enableNativeNotifications = async () => {
+    const adapter = getCapacitorLocalNotificationAdapter();
+    if (!adapter) return;
+    setNativeNotifications({ kind: "syncing" });
+    try {
+      const permission = await adapter.requestPermission();
+      if (permission !== "granted") {
+        setNativeNotifications({ kind: "denied" });
+        return;
+      }
+      const result = await reconcileLocalTaskNotifications(adapter, tasks);
+      setNativeNotifications({
+        kind: "granted",
+        pending: result.pending,
+        warning: result.warning,
+      });
+    } catch (notificationError) {
+      setNativeNotifications({
+        kind: "error",
+        message: friendlyError(notificationError),
+      });
+    }
+  };
 
   const resetEditor = () => {
     setEditingId(null);
@@ -303,6 +386,12 @@ export function TaskManager() {
                 setForm({
                   ...form,
                   scheduleType: event.target.value as TaskSchedule["type"],
+                  onceDate:
+                    event.target.value === "once" && !form.onceDate
+                      ? isoToShanghaiLocal(
+                          new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                        ).slice(0, 10)
+                      : form.onceDate,
                 })
               }
               className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-950"
@@ -315,51 +404,82 @@ export function TaskManager() {
 
           {form.scheduleType === "once" ? (
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              提醒时间
+              提醒日期
               <input
                 required
-                type="datetime-local"
-                value={form.onceRunAt}
+                type="date"
+                value={form.onceDate}
                 onChange={(event) =>
-                  setForm({ ...form, onceRunAt: event.target.value })
+                  setForm({ ...form, onceDate: event.target.value })
                 }
                 className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-transparent px-3 py-2.5 dark:border-zinc-700"
               />
             </label>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {form.scheduleType === "weekly" && (
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  星期
-                  <select
-                    value={form.weekday}
-                    onChange={(event) =>
-                      setForm({ ...form, weekday: Number(event.target.value) })
-                    }
-                    className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-950"
-                  >
-                    {WEEKDAYS.map((weekday, index) => (
-                      <option key={weekday} value={index + 1}>
-                        {weekday}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                时间
-                <input
-                  required
-                  type="time"
-                  value={form.time}
-                  onChange={(event) => setForm({ ...form, time: event.target.value })}
-                  className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-transparent px-3 py-2.5 dark:border-zinc-700"
-                />
-              </label>
-            </div>
-          )}
+          ) : form.scheduleType === "weekly" ? (
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              星期
+              <select
+                value={form.weekday}
+                onChange={(event) =>
+                  setForm({ ...form, weekday: Number(event.target.value) })
+                }
+                className="mt-1.5 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-950"
+              >
+                {WEEKDAYS.map((weekday, index) => (
+                  <option key={weekday} value={index + 1}>
+                    {weekday}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <TimeWheelPicker
+            value={form.time}
+            onChange={(time) => setForm({ ...form, time })}
+          />
 
           <p className="text-xs text-zinc-500">所有时间均按 Asia/Shanghai（北京时间）计算。</p>
+
+          {nativeNotifications.kind !== "unsupported" && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
+              {nativeNotifications.kind === "granted" ? (
+                <>
+                  <p className="font-medium">APK 本地提醒已开启</p>
+                  <p className="text-blue-700 dark:text-blue-300">
+                    已同步 {nativeNotifications.pending} 项活动任务；即使网页未打开，系统也会按时提醒。
+                  </p>
+                  {nativeNotifications.warning && (
+                    <p className="mt-1 text-amber-700 dark:text-amber-300">
+                      {nativeNotifications.warning}
+                    </p>
+                  )}
+                </>
+              ) : nativeNotifications.kind === "denied" ? (
+                <>
+                  <p className="font-medium">通知权限已被拒绝</p>
+                  <p>请在系统的应用设置中允许通知，然后返回这里重新检查。</p>
+                  <button type="button" onClick={() => void enableNativeNotifications()} className="mt-2 font-medium underline underline-offset-2">重新检查</button>
+                </>
+              ) : nativeNotifications.kind === "error" ? (
+                <>
+                  <p className="font-medium">本地提醒同步失败</p>
+                  <p>{nativeNotifications.message}</p>
+                  <button type="button" onClick={() => void syncNativeNotifications(tasks)} className="mt-2 font-medium underline underline-offset-2">重试同步</button>
+                </>
+              ) : nativeNotifications.kind === "prompt" ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">开启 APK 本地提醒</p>
+                    <p className="text-blue-700 dark:text-blue-300">授权后，任务到期可由手机系统直接弹窗。</p>
+                  </div>
+                  <button type="button" onClick={() => void enableNativeNotifications()} className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 font-medium text-white">开启</button>
+                </div>
+              ) : (
+                <p>正在同步 APK 本地提醒…</p>
+              )}
+            </div>
+          )}
           <div className="flex gap-2">
             <button
               type="submit"
@@ -405,7 +525,7 @@ export function TaskManager() {
         ) : (
           <div className="space-y-3">
             {tasks.map((task) => (
-              <article key={task.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+              <article id={`task-${task.id}`} key={task.id} className="scroll-m-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

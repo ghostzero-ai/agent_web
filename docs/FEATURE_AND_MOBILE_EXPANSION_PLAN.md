@@ -197,10 +197,11 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 |---|---|---|
 | M0.1 ✅ | 平台契约、HTTPS remote-shell 配置与离线兜底 | Web 构建不受影响，危险 URL 被拒绝 |
 | M0.2 ✅ | 安装 Capacitor 8、Android Studio、SDK 与兼容 JDK；生成 Android 工程 | Debug APK 构建、签名检查与 HTTPS 服务端健康检查通过 |
-| M0.3 | 卓易通真机兼容矩阵 | 登录、SSE、公式、文件、音频、前后台行为有记录 |
+| M0.3 ✅ | 卓易通首轮兼容矩阵 | 登录、SSE、公式与树形对话通过；Web Push 失败已归类为平台能力差异 |
+| M0.4 | 移动时间滚轮 + 本地提醒 | 创建/修改/暂停/删除可同步系统通知，等待新版 APK 真机验收 |
 | M1.1 | 本地可打包 React Client 边界 | 不使用生产 `server.url`，共享 API Client，无业务双写 |
 | M1.2 | 文件导出与 Share Adapter | Prompt JSON/Markdown 能保存/分享 |
-| M1.3 | Local Notification Adapter | 已同步普通提醒在断网时仍能通知，更新/删除可撤销 |
+| M1.3 | Local Notification 发布加固 | 本地 Web Bundle 下完成断网、重启、时区和系统省电回归 |
 | M1.4 | Speech Output Adapter | 试听、播放、停止、锁屏/耳机行为通过真机验证 |
 | M2.1 | HMS Push Capacitor Plugin Spike | 卓易通中 Token、后台 Push 和深链得到实测结论 |
 | M2.2 | Huawei 服务端投递 | 主动聊天、新闻、书籍复用 Durable Inbox 和 Huawei Provider |
@@ -211,7 +212,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 - Node.js 24 与 Capacitor 8.5.2 已安装，满足 Node 22+ 要求。
 - Android Studio 2026.1、Android SDK 36/37 与 Build Tools 35/36 已安装；真机最低 API 24。
 - Android Studio 自带 JDK 25 超出 Gradle 8.14.3 的运行支持范围，构建使用独立 Microsoft OpenJDK 21 LTS，不覆盖系统 Java。
-- 首个 Debug APK 已生成并使用 Android Debug 证书校验；尚未连接 ADB 设备，因此安装、启动和卓易通行为属于 M0.3。
+- 首个 Debug APK 已在华为手机/卓易通完成登录、SSE、公式与树形对话验证；Web Push 未弹窗，M0.4 改由 Capacitor 本地通知处理已设定任务。
 - 正式发布仍需要本地 Web Bundle、Release Keystore、版本策略和真机回归，不能分发当前 Debug remote-shell。
 - 不在 APK 内保存 Provider API Key、华为服务端密钥或数据库凭据。
 

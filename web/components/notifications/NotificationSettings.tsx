@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { NativeTaskNotificationSettings } from "@/components/notifications/NativeTaskNotificationSettings";
 import {
   deletePushSubscription,
   enableWebPush,
@@ -130,10 +131,12 @@ export function NotificationSettings() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="mx-auto w-full max-w-5xl">
+      <NativeTaskNotificationSettings />
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 dark:border-zinc-800 dark:bg-zinc-950">
         <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Delivery</p>
-        <h2 className="mt-1 text-xl font-semibold text-zinc-950 dark:text-zinc-50">系统通知</h2>
+        <h2 className="mt-1 text-xl font-semibold text-zinc-950 dark:text-zinc-50">服务端 Web Push</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-500">
           Inbox 始终保存提醒；Push 只是额外通知渠道，发送失败不会丢失提醒。
         </p>
@@ -233,9 +236,10 @@ export function NotificationSettings() {
           iPhone/iPad：先在 Safari 中“添加到主屏幕”，再从主屏幕打开本应用并点击启用。
         </div>
         <div className="mt-3 rounded-xl bg-blue-50 p-3 text-xs leading-5 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-          HarmonyOS 5：当前网页仍使用 Web Push；系统浏览器不支持时，需要后续安装接入 Huawei Push Kit 的原生应用。服务端已预留 Huawei Push Provider。
+          HarmonyOS 5：Capacitor APK 已使用系统本地通知处理已设定时间的任务；AI 主动聊天、每日新闻等服务端新内容仍需后续接入 Huawei Push Kit。服务端已预留 Huawei Push Provider。
         </div>
       </aside>
+      </div>
     </div>
   );
 }

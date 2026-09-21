@@ -4,6 +4,39 @@
 
 ---
 
+## Mobile M0.4 — 移动时间滚轮与 APK 本地通知
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 将任务时间输入改为手机闹钟式时/分双滚轮，支持触摸惯性滚动、自动吸附、点击、键盘方向键、取消与确认。
+- 一次性任务把日期与时间拆开，日/周重复任务复用同一时间滚轮；Task API 与数据库格式保持不变。
+- 新增 Capacitor Local Notifications Adapter：稳定通知 ID、增量 reconciliation、Android 通知频道、精确闹钟降级提示和安全相对深链。
+- 应用启动/恢复、创建、修改、暂停、恢复、删除及重新进入任务页时同步活动任务；一次性、每天和每周任务映射到对应原生调度。
+- `/tasks` 和 `/notifications` 均提供显式权限入口，不自动弹权限框；拒绝通知不影响服务端任务保存。
+- 点击通知打开任务页并滚动至对应任务；新增白色单色状态栏图标和前台横幅配置。
+- 记录首轮卓易通结果：登录、SSE、公式与树形对话通过，Web Push 失败后由本地通知承担已设定任务提醒。
+
+### 安全与边界
+
+- 通知只携带任务 ID、版本化 occurrence、任务标题与站内相对路径，不携带 Agent Prompt、API Key 或数据库凭据。
+- APK 本地提醒不是 Huawei Push：AI 主动聊天、新闻和书籍等服务端新内容仍需后续 Huawei Push Provider。
+- 当前仍是 Debug remote-shell；正式发布前必须完成本地 Web Bundle、Release 签名与真机回归。
+
+### 验证方法与结果
+
+- Vitest 限制为 4 workers 后全量 50 个测试文件、194 项测试通过；本次通知/滚轮专项 22 项通过。
+- Microsoft Edge 390×844 移动视口 E2E 通过，覆盖滚轮选择 `08:30`、创建、编辑、暂停与删除。
+- TypeScript、ESLint、Drizzle schema check、Next.js 本机与 Docker 生产构建通过；生产依赖审计 0 漏洞。
+- Android `assembleDebug`、本地单元测试与真机测试源码编译通过；APK Debug 签名、API 24–36、通知权限、重启 Receiver、精确闹钟权限和状态栏图标均已检查。
+- 新 APK 大小 4,589,758 字节，SHA-256 为 `6AB87EEB43267AC1791D92E0E023D87F5D8FED86D449E2842A7D5FCC61EFFA7A`。
+- 自动验证无法证明 HarmonyOS/卓易通实际弹窗，M0.4 仍需用户安装新版 APK 后完成前台、后台、锁屏与重启验收。
+
+### localStorage 变化
+
+- 无。系统待处理通知由 Android/Capacitor 管理，Task 事实源仍为 PostgreSQL。
+
 ## Mobile M0.2 — Capacitor Android Debug APK
 
 **Commit**: `same delivery commit`

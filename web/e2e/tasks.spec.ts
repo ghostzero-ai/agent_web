@@ -85,10 +85,16 @@ test("creates, edits, pauses and deletes an Agent task on mobile", async ({
   await page.getByLabel("任务类型").selectOption("agent_prompt");
   await page.getByLabel("标题").fill("复习英语");
   await page.getByLabel("给 AI 的任务要求").fill("生成 20 个英语单词练习");
+  await page.getByRole("button", { name: /20:00/ }).click();
+  const timeDialog = page.getByRole("dialog", { name: "选择提醒时间" });
+  await timeDialog.getByRole("listbox", { name: "时" }).getByRole("option", { name: "08", exact: true }).click();
+  await timeDialog.getByRole("listbox", { name: "分" }).getByRole("option", { name: "30", exact: true }).click();
+  await timeDialog.getByRole("button", { name: "确定" }).click();
+  await expect(page.getByRole("button", { name: /08:30/ })).toBeVisible();
   await page.getByRole("button", { name: "创建任务" }).click();
   await expect(page.getByRole("heading", { name: "复习英语" })).toBeVisible();
   await expect(page.getByText("AI 生成", { exact: true })).toBeVisible();
-  await expect(page.getByText("每天 20:00")).toBeVisible();
+  await expect(page.getByText("每天 08:30")).toBeVisible();
 
   await page.getByRole("button", { name: "编辑" }).click();
   await page.getByLabel("标题").fill("复习英语单词");
