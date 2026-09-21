@@ -16,6 +16,23 @@ $webRoot = Join-Path $repositoryRoot 'web'
 $javaExecutable = Join-Path $JdkHome 'bin\java.exe'
 $adbExecutable = Join-Path $AndroidSdkRoot 'platform-tools\adb.exe'
 $apkPath = Join-Path $webRoot 'android\app\build\outputs\apk\debug\app-debug.apk'
+$generatedConfigPath = Join-Path $webRoot 'android\app\src\main\assets\capacitor.config.json'
+$expectedServerUrl = ([Uri]$ServerUrl).AbsoluteUri
+
+function Assert-SpikeServerUrl {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Config,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Source
+    )
+
+    $actualServerUrl = $Config.server.url
+    if ($actualServerUrl -ne $expectedServerUrl) {
+        throw "$Source does not contain the expected remote server URL. Expected: $expectedServerUrl"
+    }
+}
 
 if (-not (Test-Path -LiteralPath $javaExecutable)) {
     throw "JDK executable not found: $javaExecutable"
@@ -40,12 +57,37 @@ try {
 
     npm run mobile:sync
     if ($LASTEXITCODE -ne 0) { throw 'Capacitor sync failed.' }
+    if (-not (Test-Path -LiteralPath $generatedConfigPath)) {
+        throw "Capacitor sync did not create: $generatedConfigPath"
+    }
+    $generatedConfig = Get-Content -Raw -LiteralPath $generatedConfigPath | ConvertFrom-Json
+    Assert-SpikeServerUrl -Config $generatedConfig -Source 'Generated Capacitor config'
 
     npm run mobile:build:debug
     if ($LASTEXITCODE -ne 0) { throw 'Android Debug APK build failed.' }
 
     if (-not (Test-Path -LiteralPath $apkPath)) {
         throw "Build completed without the expected APK: $apkPath"
+    }
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($apkPath)
+    try {
+        $configEntry = $archive.GetEntry('assets/capacitor.config.json')
+        if ($null -eq $configEntry) {
+            throw 'Built APK does not contain assets/capacitor.config.json.'
+        }
+        $reader = [System.IO.StreamReader]::new($configEntry.Open())
+        try {
+            $packagedConfig = $reader.ReadToEnd() | ConvertFrom-Json
+        }
+        finally {
+            $reader.Dispose()
+        }
+        Assert-SpikeServerUrl -Config $packagedConfig -Source 'Built APK config'
+    }
+    finally {
+        $archive.Dispose()
     }
 
     $apk = Get-Item -LiteralPath $apkPath

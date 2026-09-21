@@ -86,6 +86,9 @@ describe("Capacitor Android project artifacts", () => {
     expect(buildScript).toContain("$env:CAPACITOR_SERVER_URL = $ServerUrl");
     expect(buildScript).toContain("npm run mobile:sync");
     expect(buildScript).toContain("npm run mobile:build:debug");
+    expect(buildScript).toContain("Assert-SpikeServerUrl");
+    expect(buildScript).toContain("assets/capacitor.config.json");
+    expect(buildScript).toContain("Built APK config");
     expect(buildScript).toContain("finally {");
     expect(buildScript).toContain(
       "Remove-Item Env:CAPACITOR_SERVER_URL -ErrorAction SilentlyContinue",

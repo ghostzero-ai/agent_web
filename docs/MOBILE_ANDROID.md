@@ -38,8 +38,11 @@ Android Studio 2026.1 自带 JDK 25，但当前 Gradle 8.14.3 不能运行 Java 
 1. 检查 JDK 与 Android SDK。
 2. 临时设置 `CAPACITOR_BUILD_PROFILE=spike` 与 HTTPS Server URL。
 3. 同步 Capacitor 插件和配置。
-4. 生成 Debug APK 与 SHA-256。
-5. 构建结束后把仓库内生成配置恢复为不含个人地址的离线状态。
+4. 在构建前验证生成配置确实包含指定的 Tailscale URL。
+5. 生成 Debug APK，并再次读取 APK 内的配置验证 URL 后输出 SHA-256。
+6. 构建结束后把仓库内生成配置恢复为不含个人地址的离线状态。
+
+当前 Spike APK 不得用单独的 `npx cap sync android` 加 `gradlew assembleDebug` 作为交付构建；前者在没有临时环境变量时会生成离线兜底配置。必须使用上述一键脚本。
 
 APK 输出：
 
