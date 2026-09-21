@@ -1775,7 +1775,7 @@ toolName, errorCode
 | Sprint | 内容 | 验收 |
 |---|---|---|
 | M0.1 ✅ | 平台契约、Capacitor remote-shell 基线 | 危险 URL 被拒绝，普通 Web 构建不受影响 |
-| M0.2 | Capacitor 8 + Android Studio + Debug APK | APK 经 Tailscale 打开现有应用 |
+| M0.2 ✅ | Capacitor 8 + Android Studio + Debug APK | Android 工程、Debug APK、签名与 HTTPS 服务端健康检查通过 |
 | M0.3 | 卓易通兼容验证 | SSE、公式、文件、音频、前后台行为形成真机矩阵 |
 | M1.1 | 本地可打包 React Client | 正式 APK 不使用 `server.url`，共享 API Client |
 | M1.2 | Prompt 文件导出 + Share | JSON/Markdown 可保存和分享 |
@@ -1965,8 +1965,8 @@ Proposed / Accepted / Superseded
 
 Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次只交付一个可验收任务：
 
-1. 完成 M0.2：安装 Capacitor/Android 工具链，生成 Debug APK，经 Tailscale 打开现有服务。
-2. 完成 M0.3：在目标华为手机的卓易通环境记录 SSE、公式、文件、音频和前后台兼容矩阵。
+1. 完成 M0.3：在目标华为手机的卓易通环境安装 Debug APK，记录 SSE、公式、文件、音频和前后台兼容矩阵。
+2. 根据 M0.3 结果修复仅影响移动壳或 WebView 的问题，不提前实现尚未验收的 HMS Push。
 3. 回到 Core 3.1：实现可注册 Mode 与不可覆盖的事实/安全 Policy Layer。
 4. 完成 Core 3.2：建立 Prompt Envelope、版本与安全导出，再开始大规模修改 Prompt。
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。

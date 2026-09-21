@@ -4,6 +4,34 @@
 
 ---
 
+## Mobile M0.2 — Capacitor Android Debug APK
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 安装 Capacitor 8.5.2、Android Runtime 与 App/Filesystem/Local Notifications/Preferences/Share 官方插件。
+- 生成原生 Android 工程，固定应用 ID `com.ghostzero.aistudycompanion`，minSdk 24、compile/targetSdk 36。
+- 增加 Doctor、同步、Android Studio 打开和 Debug 构建 npm scripts。
+- 增加可复现 PowerShell 构建脚本；远程地址仅在构建期间注入，结束后恢复无个人地址的离线配置。
+- 使用 Microsoft OpenJDK 21 解决 Android Studio 2026.1 内置 JDK 25 与 Gradle 8.14.3 不兼容问题，不修改系统默认 Java。
+- 新增 Android 构建、安装、重启恢复、安全边界与 M0.3 卓易通真机验收文档。
+
+### 验证方法与结果
+
+- Capacitor Doctor：Android 配置通过。
+- Gradle `assembleDebug`：245 个 task 执行，构建成功。
+- Android 本地单元测试通过，真机测试源码编译通过；包名断言使用正式应用 ID。
+- APK：约 4.3 MB，Debug 证书签名验证通过，应用 ID 与 SDK 级别符合配置。
+- Tailscale Serve 有效；HTTPS 健康 API 返回 200，数据库 ready，模型 Provider configured。
+- Vitest 全量 47 个测试文件、183 项测试通过；ESLint、TypeScript、Drizzle schema check 与 Next.js 生产构建通过。
+- `npm audit --omit=dev`：0 个生产依赖漏洞。开发依赖保留 5 个 moderate 告警，来源为 Vitest mocker 与 Capacitor CLI 的 iOS/xcode 间接依赖，未执行破坏性强制升级。
+- 未连接 ADB 设备，因此安装、启动和卓易通兼容验收留给 M0.3。
+
+### localStorage 变化
+
+- 无。
+
 ## Product Surface + Mobile M0.1
 
 **Commit**: `same delivery commit`

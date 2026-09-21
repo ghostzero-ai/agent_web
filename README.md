@@ -85,6 +85,8 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 
 移动端采用“共享 React 客户端 + 薄平台壳”：近期先用 Capacitor Debug APK 经 Tailscale 连接现有服务，并在华为手机上验证卓易通兼容；之后加入 APK 本地提醒、Prompt 文件导出、语音与 HMS Push，最终以 ArkTS + ArkWeb HAP 替换 HarmonyOS 平台能力而不重写服务端。娱乐模式、移动端和语音的设计见 `docs/FEATURE_AND_MOBILE_EXPANSION_PLAN.md`。
 
+Android Debug APK 已可构建；当前安装路径、重建命令、JDK/SDK 边界与 M0.3 真机清单见 `docs/MOBILE_ANDROID.md`。该 APK 是个人兼容性测试版本，不是正式发布包。
+
 ---
 
 ## 项目原则

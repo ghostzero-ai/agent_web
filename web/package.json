@@ -14,9 +14,20 @@
     "db:migrate": "tsx scripts/db-migrate.ts",
     "db:rollback": "tsx scripts/db-rollback.ts",
     "scheduler:claim": "tsx scripts/scheduler-claim.ts",
-    "worker:reminders": "tsx scripts/reminder-worker.ts"
+    "worker:reminders": "tsx scripts/reminder-worker.ts",
+    "mobile:doctor": "cap doctor android",
+    "mobile:sync": "cap sync android",
+    "mobile:open": "cap open android",
+    "mobile:build:debug": "cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.3",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/share": "^8.0.2",
     "@next/env": "16.3.4",
     "drizzle-orm": "0.45.2",
     "katex": "0.16.47",
@@ -32,6 +43,7 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@electric-sql/pglite": "0.5.8",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",

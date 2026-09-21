@@ -1,0 +1,94 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const webRoot = process.cwd();
+const projectRoot = path.resolve(webRoot, "..");
+
+async function readWebFile(relativePath: string) {
+  return readFile(path.join(webRoot, relativePath), "utf8");
+}
+
+async function readProjectFile(relativePath: string) {
+  return readFile(path.join(projectRoot, relativePath), "utf8");
+}
+
+describe("Capacitor Android project artifacts", () => {
+  it("keeps the native identity and supported Android SDK range stable", async () => {
+    const [appBuild, variables, manifest] = await Promise.all([
+      readWebFile("android/app/build.gradle"),
+      readWebFile("android/variables.gradle"),
+      readWebFile("android/app/src/main/AndroidManifest.xml"),
+    ]);
+
+    expect(appBuild).toContain(
+      'namespace = "com.ghostzero.aistudycompanion"',
+    );
+    expect(appBuild).toContain(
+      'applicationId "com.ghostzero.aistudycompanion"',
+    );
+    expect(variables).toContain("minSdkVersion = 24");
+    expect(variables).toContain("compileSdkVersion = 36");
+    expect(variables).toContain("targetSdkVersion = 36");
+    expect(manifest).toContain("android.permission.INTERNET");
+  });
+
+  it("tracks all required Capacitor packages and repeatable build commands", async () => {
+    const packageJson = JSON.parse(await readWebFile("package.json")) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+      scripts: Record<string, string>;
+    };
+
+    for (const dependency of [
+      "@capacitor/android",
+      "@capacitor/app",
+      "@capacitor/core",
+      "@capacitor/filesystem",
+      "@capacitor/local-notifications",
+      "@capacitor/preferences",
+      "@capacitor/share",
+    ]) {
+      expect(packageJson.dependencies).toHaveProperty(dependency);
+    }
+    expect(packageJson.devDependencies).toHaveProperty("@capacitor/cli");
+    expect(packageJson.scripts["mobile:sync"]).toBe("cap sync android");
+    expect(packageJson.scripts["mobile:build:debug"]).toContain(
+      "gradlew.bat assembleDebug",
+    );
+  });
+
+  it("does not commit generated APKs, local SDK paths, or injected server URLs", async () => {
+    const [androidGitignore, sourceConfig] = await Promise.all([
+      readWebFile("android/.gitignore"),
+      readWebFile("capacitor.config.ts"),
+    ]);
+
+    expect(androidGitignore).toContain("*.apk");
+    expect(androidGitignore).toContain("local.properties");
+    expect(androidGitignore).toContain("app/src/main/assets/public");
+    expect(androidGitignore).toContain(
+      "app/src/main/assets/capacitor.config.json",
+    );
+    expect(sourceConfig).not.toMatch(
+      /https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.ts\.net/i,
+    );
+    expect(sourceConfig).toContain("process.env.CAPACITOR_SERVER_URL");
+  });
+
+  it("builds remote-shell APKs only with an explicit HTTPS spike profile", async () => {
+    const buildScript = await readProjectFile("scripts/mobile-build-debug.ps1");
+
+    expect(buildScript).toContain("[ValidatePattern('^https://')]");
+    expect(buildScript).toContain(
+      "$env:CAPACITOR_BUILD_PROFILE = 'spike'",
+    );
+    expect(buildScript).toContain("$env:CAPACITOR_SERVER_URL = $ServerUrl");
+    expect(buildScript).toContain("npm run mobile:sync");
+    expect(buildScript).toContain("npm run mobile:build:debug");
+    expect(buildScript).toContain("finally {");
+    expect(buildScript).toContain(
+      "Remove-Item Env:CAPACITOR_SERVER_URL -ErrorAction SilentlyContinue",
+    );
+  });
+});

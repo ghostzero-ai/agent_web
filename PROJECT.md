@@ -34,7 +34,7 @@ Phase 3 — Professional Answering + Mobile Foundation Track
 
 CURRENT_TASK:
 
-Mobile M0.2 — Capacitor Dependencies, Android Toolchain and Debug APK
+Mobile M0.3 — Huawei 卓易通 Compatibility Matrix
 
 ==================================================
 

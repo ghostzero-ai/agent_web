@@ -196,7 +196,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 | Sprint | 内容 | 验收 |
 |---|---|---|
 | M0.1 ✅ | 平台契约、HTTPS remote-shell 配置与离线兜底 | Web 构建不受影响，危险 URL 被拒绝 |
-| M0.2 | 安装 Capacitor 8、Android Studio 与 SDK；生成 Android 工程 | Debug APK 可启动并通过 Tailscale 打开 `/chat` |
+| M0.2 ✅ | 安装 Capacitor 8、Android Studio、SDK 与兼容 JDK；生成 Android 工程 | Debug APK 构建、签名检查与 HTTPS 服务端健康检查通过 |
 | M0.3 | 卓易通真机兼容矩阵 | 登录、SSE、公式、文件、音频、前后台行为有记录 |
 | M1.1 | 本地可打包 React Client 边界 | 不使用生产 `server.url`，共享 API Client，无业务双写 |
 | M1.2 | 文件导出与 Share Adapter | Prompt JSON/Markdown 能保存/分享 |
@@ -206,12 +206,13 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 | M2.2 | Huawei 服务端投递 | 主动聊天、新闻、书籍复用 Durable Inbox 和 Huawei Provider |
 | M3.x | ArkTS + ArkWeb 原生壳 | 共享 UI/API，替换系统能力 Adapter，不重写服务端 |
 
-## 9. 当前前决策与前置条件
+## 9. 当前状态与前置条件
 
-- 当前 Node.js 24 满足 Capacitor 8 的 Node 22+ 要求。
-- 当前机器未检测到 Android Studio 或 Android SDK；系统JDK 仅为 Java 8。安装 Android Studio 后使用其自带 JDK，不单独修补旧 Java。
-- 需要 Android Studio 2025.2.1 或更高版本，以及 Android SDK；真机目标最低由 Capacitor 8 定为 Android API 24。
-- Capacitor npm 依赖尚未安装；安装前仓库保持普通 Next.js 构建完全可用。
+- Node.js 24 与 Capacitor 8.5.2 已安装，满足 Node 22+ 要求。
+- Android Studio 2026.1、Android SDK 36/37 与 Build Tools 35/36 已安装；真机最低 API 24。
+- Android Studio 自带 JDK 25 超出 Gradle 8.14.3 的运行支持范围，构建使用独立 Microsoft OpenJDK 21 LTS，不覆盖系统 Java。
+- 首个 Debug APK 已生成并使用 Android Debug 证书校验；尚未连接 ADB 设备，因此安装、启动和卓易通行为属于 M0.3。
+- 正式发布仍需要本地 Web Bundle、Release Keystore、版本策略和真机回归，不能分发当前 Debug remote-shell。
 - 不在 APK 内保存 Provider API Key、华为服务端密钥或数据库凭据。
 
 ## 10. 参考
