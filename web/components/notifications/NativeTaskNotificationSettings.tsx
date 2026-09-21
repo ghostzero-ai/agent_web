@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { listTasks } from "@/lib/api/taskClient";
 import { reconcileLocalTaskNotifications } from "@/lib/notifications/localTaskNotifications";
 import type { LocalNotificationAdapter } from "@/lib/platform/capabilities";
-import { getCapacitorLocalNotificationAdapter } from "@/lib/platform/capacitorLocalNotifications";
+import {
+  cancelDiagnosticNotification,
+  getCapacitorLocalNotificationAdapter,
+  getLocalNotificationDiagnostics,
+  scheduleDiagnosticNotification,
+  type LocalNotificationDiagnostics,
+} from "@/lib/platform/capacitorLocalNotifications";
 
 type NativeState =
   | { kind: "unsupported" | "checking" | "prompt" | "denied" }
@@ -30,6 +36,13 @@ async function readNativeState(
 
 export function NativeTaskNotificationSettings() {
   const [state, setState] = useState<NativeState>({ kind: "unsupported" });
+  const [diagnostics, setDiagnostics] = useState<LocalNotificationDiagnostics | null>(null);
+  const [diagnosticBusy, setDiagnosticBusy] = useState(false);
+  const [diagnosticMessage, setDiagnosticMessage] = useState<string | null>(null);
+
+  const refreshDiagnostics = async () => {
+    setDiagnostics(await getLocalNotificationDiagnostics());
+  };
 
   useEffect(() => {
     const adapter = getCapacitorLocalNotificationAdapter();
@@ -45,6 +58,17 @@ export function NativeTaskNotificationSettings() {
             kind: "error",
             message: error instanceof Error ? error.message : "本地提醒同步失败",
           });
+        }
+      });
+    void getLocalNotificationDiagnostics()
+      .then((nextDiagnostics) => {
+        if (active) setDiagnostics(nextDiagnostics);
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setDiagnosticMessage(
+            error instanceof Error ? `诊断读取失败：${error.message}` : "诊断读取失败",
+          );
         }
       });
     return () => {
@@ -65,6 +89,48 @@ export function NativeTaskNotificationSettings() {
         kind: "error",
         message: error instanceof Error ? error.message : "本地提醒同步失败",
       });
+    }
+  };
+
+  const runDiagnostic = async () => {
+    setDiagnosticBusy(true);
+    setDiagnosticMessage(null);
+    try {
+      const result = await scheduleDiagnosticNotification();
+      await refreshDiagnostics();
+      const time = new Date(result.scheduledAt).toLocaleTimeString("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+      setDiagnosticMessage(
+        `测试通知已安排在 ${time}。现在可立即切到后台、划掉应用或使用系统清理进行对比。${
+          result.warning ? ` 系统提示：${result.warning}` : ""
+        }`,
+      );
+    } catch (error) {
+      setDiagnosticMessage(
+        error instanceof Error ? `测试失败：${error.message}` : "测试通知安排失败",
+      );
+    } finally {
+      setDiagnosticBusy(false);
+    }
+  };
+
+  const cancelDiagnostic = async () => {
+    setDiagnosticBusy(true);
+    setDiagnosticMessage(null);
+    try {
+      await cancelDiagnosticNotification();
+      await refreshDiagnostics();
+      setDiagnosticMessage("测试通知已取消。等待原定时间经过，可验证取消后不会弹出。");
+    } catch (error) {
+      setDiagnosticMessage(
+        error instanceof Error ? `取消失败：${error.message}` : "取消测试通知失败",
+      );
+    } finally {
+      setDiagnosticBusy(false);
     }
   };
 
@@ -109,6 +175,98 @@ export function NativeTaskNotificationSettings() {
           </button>
         )}
       </div>
+
+      {state.kind === "granted" && (
+        <details className="mt-5 border-t border-blue-200 pt-4 dark:border-blue-900">
+          <summary className="cursor-pointer text-sm font-medium text-zinc-800 dark:text-zinc-200">
+            通知诊断
+          </summary>
+          <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+            10 秒测试复用正式任务提醒的系统通道。重复测试会覆盖上一条测试，不会写入数据库。
+          </p>
+
+          {diagnostics && (
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <DiagnosticItem
+                label="通知权限"
+                value={diagnostics.displayPermission === "granted" ? "已允许" : "未允许"}
+              />
+              <DiagnosticItem
+                label="精确闹钟"
+                value={diagnostics.exactAlarmPermission === "granted" ? "已允许" : "未允许"}
+              />
+              <DiagnosticItem
+                label="待发送"
+                value={`${diagnostics.pendingTotal} 条（任务 ${diagnostics.pendingTasks}）`}
+              />
+              <DiagnosticItem
+                label="测试状态"
+                value={
+                  diagnostics.deliveredDiagnostic
+                    ? "已送达"
+                    : diagnostics.pendingDiagnostic
+                      ? "待发送"
+                      : "无记录"
+                }
+              />
+            </div>
+          )}
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={diagnosticBusy}
+              onClick={() => void runDiagnostic()}
+              className="rounded-xl bg-zinc-900 px-3.5 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+            >
+              {diagnosticBusy ? "正在安排…" : "10 秒通知测试"}
+            </button>
+            <button
+              type="button"
+              disabled={diagnosticBusy || !diagnostics?.pendingDiagnostic}
+              onClick={() => void cancelDiagnostic()}
+              className="rounded-xl border border-amber-300 px-3.5 py-2 text-sm font-medium text-amber-700 disabled:opacity-50 dark:border-amber-800 dark:text-amber-300"
+            >
+              取消测试
+            </button>
+            <button
+              type="button"
+              disabled={diagnosticBusy}
+              onClick={() => {
+                setDiagnosticBusy(true);
+                setDiagnosticMessage(null);
+                void refreshDiagnostics()
+                  .catch((error: unknown) => {
+                    setDiagnosticMessage(
+                      error instanceof Error ? `刷新失败：${error.message}` : "刷新诊断失败",
+                    );
+                  })
+                  .finally(() => setDiagnosticBusy(false));
+              }}
+              className="rounded-xl border border-zinc-300 px-3.5 py-2 text-sm font-medium text-zinc-700 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200"
+            >
+              刷新状态
+            </button>
+          </div>
+          {diagnosticMessage && (
+            <p className="mt-3 text-xs leading-5 text-zinc-600 dark:text-zinc-300">
+              {diagnosticMessage}
+            </p>
+          )}
+          <p className="mt-3 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+            建议依次测试：保持前台、切到后台、从最近任务划掉、华为系统清理。每次重新打开本页后点击“刷新状态”。
+          </p>
+        </details>
+      )}
     </section>
+  );
+}
+
+function DiagnosticItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-white/80 px-3 py-2 dark:bg-zinc-950/60">
+      <p className="text-zinc-400">{label}</p>
+      <p className="mt-1 font-medium text-zinc-800 dark:text-zinc-200">{value}</p>
+    </div>
   );
 }

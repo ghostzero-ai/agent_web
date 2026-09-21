@@ -1,10 +1,12 @@
 import { Capacitor } from "@capacitor/core";
 import {
   LocalNotifications,
+  type DeliveredNotificationSchema,
   type LocalNotificationSchema,
   type PendingLocalNotificationSchema,
   type PermissionStatus,
   type ScheduleResult,
+  type SettingsPermissionStatus,
 } from "@capacitor/local-notifications";
 import type {
   LocalNotificationAdapter,
@@ -14,6 +16,8 @@ import type {
 
 export const TASK_NOTIFICATION_CHANNEL_ID = "task-reminders-v1";
 export const TASK_NOTIFICATION_SOURCE = "task-reminder-v1";
+export const DIAGNOSTIC_NOTIFICATION_SOURCE = "notification-diagnostic-v1";
+export const DIAGNOSTIC_NOTIFICATION_ID = 2_147_483_646;
 
 type CapacitorLocalNotificationsPort = {
   checkPermissions(): Promise<PermissionStatus>;
@@ -27,6 +31,11 @@ type CapacitorLocalNotificationsPort = {
     vibration?: boolean;
   }): Promise<void>;
   getPending(): Promise<{ notifications: PendingLocalNotificationSchema[] }>;
+  getDeliveredNotifications(): Promise<{
+    notifications: DeliveredNotificationSchema[];
+  }>;
+  checkExactNotificationSetting(): Promise<SettingsPermissionStatus>;
+  removeDeliveredNotificationsById(options: { ids: number[] }): Promise<void>;
   cancel(options: { notifications: { id: number }[] }): Promise<void>;
   schedule(options: {
     notifications: LocalNotificationSchema[];
@@ -38,6 +47,27 @@ type OwnedNotificationExtra = {
   taskId: string;
   occurrenceId: string;
   deepLink: string;
+};
+
+type DiagnosticNotificationExtra = {
+  source: typeof DIAGNOSTIC_NOTIFICATION_SOURCE;
+  deepLink: string;
+  scheduledAt: string;
+};
+
+export type LocalNotificationDiagnostics = {
+  displayPermission: "granted" | "denied" | "prompt";
+  exactAlarmPermission: "granted" | "denied" | "prompt";
+  pendingTotal: number;
+  pendingTasks: number;
+  pendingDiagnostic: boolean;
+  deliveredTotal: number;
+  deliveredDiagnostic: boolean;
+};
+
+export type DiagnosticScheduleResult = {
+  scheduledAt: string;
+  warning?: string;
 };
 
 function permissionState(status: PermissionStatus) {
@@ -53,6 +83,25 @@ function isUnavailableError(error: unknown): boolean {
     "code" in error &&
     error.code === "UNAVAILABLE"
   );
+}
+
+async function ensureTaskNotificationChannel(
+  plugin: CapacitorLocalNotificationsPort,
+): Promise<void> {
+  try {
+    await plugin.createChannel({
+      id: TASK_NOTIFICATION_CHANNEL_ID,
+      name: "学习任务提醒",
+      description: "你在 AI Study Companion 中设置的本地任务提醒",
+      importance: 4,
+      visibility: 0,
+      vibration: true,
+    });
+  } catch (error) {
+    // Android 7.x does not expose notification channels, but can still
+    // schedule notifications through the plugin's default behavior.
+    if (!isUnavailableError(error)) throw error;
+  }
 }
 
 export function isCapacitorAndroid(): boolean {
@@ -76,6 +125,16 @@ function isOwnedExtra(value: unknown): value is OwnedNotificationExtra {
     typeof extra.taskId === "string" &&
     typeof extra.occurrenceId === "string" &&
     typeof extra.deepLink === "string"
+  );
+}
+
+function isDiagnosticExtra(value: unknown): value is DiagnosticNotificationExtra {
+  if (!value || typeof value !== "object") return false;
+  const extra = value as Record<string, unknown>;
+  return (
+    extra.source === DIAGNOSTIC_NOTIFICATION_SOURCE &&
+    typeof extra.deepLink === "string" &&
+    typeof extra.scheduledAt === "string"
   );
 }
 
@@ -139,20 +198,7 @@ export function createCapacitorLocalNotificationAdapter(
     },
 
     async reconcile(reminders) {
-      try {
-        await plugin.createChannel({
-          id: TASK_NOTIFICATION_CHANNEL_ID,
-          name: "学习任务提醒",
-          description: "你在 AI Study Companion 中设置的本地任务提醒",
-          importance: 4,
-          visibility: 0,
-          vibration: true,
-        });
-      } catch (error) {
-        // Android 7.x does not expose notification channels, but can still
-        // schedule notifications through the plugin's default behavior.
-        if (!isUnavailableError(error)) throw error;
-      }
+      await ensureTaskNotificationChannel(plugin);
 
       const desired = new Map<number, LocalReminderSnapshot>();
       for (const reminder of reminders) {
@@ -215,6 +261,91 @@ export function createCapacitorLocalNotificationAdapter(
   };
 }
 
+export async function scheduleDiagnosticNotification(
+  delayMs = 10_000,
+  plugin: CapacitorLocalNotificationsPort = LocalNotifications,
+): Promise<DiagnosticScheduleResult> {
+  const permission = permissionState(await plugin.checkPermissions());
+  const granted =
+    permission === "granted"
+      ? permission
+      : permissionState(await plugin.requestPermissions());
+  if (granted !== "granted") {
+    throw new Error("通知权限未开启，无法安排测试通知");
+  }
+
+  await ensureTaskNotificationChannel(plugin);
+  await plugin.cancel({ notifications: [{ id: DIAGNOSTIC_NOTIFICATION_ID }] });
+  await plugin.removeDeliveredNotificationsById({
+    ids: [DIAGNOSTIC_NOTIFICATION_ID],
+  });
+
+  const scheduledAt = new Date(Date.now() + Math.max(1_000, delayMs));
+  const result = await plugin.schedule({
+    notifications: [
+      {
+        id: DIAGNOSTIC_NOTIFICATION_ID,
+        title: "通知测试成功",
+        body: "这条通知由手机系统调度，用于检查应用被清理后的提醒能力。",
+        schedule: { at: scheduledAt, allowWhileIdle: true },
+        channelId: TASK_NOTIFICATION_CHANNEL_ID,
+        autoCancel: true,
+        foreground: true,
+        isExactNotification: true,
+        isExactMandatory: false,
+        extra: {
+          source: DIAGNOSTIC_NOTIFICATION_SOURCE,
+          deepLink: "/notifications",
+          scheduledAt: scheduledAt.toISOString(),
+        } satisfies DiagnosticNotificationExtra,
+      },
+    ],
+  });
+
+  return {
+    scheduledAt: scheduledAt.toISOString(),
+    warning: result.warning?.message,
+  };
+}
+
+export async function cancelDiagnosticNotification(
+  plugin: CapacitorLocalNotificationsPort = LocalNotifications,
+): Promise<void> {
+  await plugin.cancel({ notifications: [{ id: DIAGNOSTIC_NOTIFICATION_ID }] });
+}
+
+export async function getLocalNotificationDiagnostics(
+  plugin: CapacitorLocalNotificationsPort = LocalNotifications,
+): Promise<LocalNotificationDiagnostics> {
+  const [permission, exactAlarm, pending, delivered] = await Promise.all([
+    plugin.checkPermissions(),
+    plugin.checkExactNotificationSetting(),
+    plugin.getPending(),
+    plugin.getDeliveredNotifications(),
+  ]);
+
+  return {
+    displayPermission: permissionState(permission),
+    exactAlarmPermission:
+      exactAlarm.exact_alarm === "granted"
+        ? "granted"
+        : exactAlarm.exact_alarm === "denied"
+          ? "denied"
+          : "prompt",
+    pendingTotal: pending.notifications.length,
+    pendingTasks: pending.notifications.filter((notification) =>
+      isOwnedExtra(notification.extra),
+    ).length,
+    pendingDiagnostic: pending.notifications.some(
+      (notification) => notification.id === DIAGNOSTIC_NOTIFICATION_ID,
+    ),
+    deliveredTotal: delivered.notifications.length,
+    deliveredDiagnostic: delivered.notifications.some(
+      (notification) => notification.id === DIAGNOSTIC_NOTIFICATION_ID,
+    ),
+  };
+}
+
 export function getCapacitorLocalNotificationAdapter(): LocalNotificationAdapter | null {
   return isCapacitorAndroid()
     ? createCapacitorLocalNotificationAdapter()
@@ -224,7 +355,12 @@ export function getCapacitorLocalNotificationAdapter(): LocalNotificationAdapter
 export function localNotificationDeepLink(notification: {
   extra?: unknown;
 }): string | null {
-  if (!isOwnedExtra(notification.extra)) return null;
+  if (
+    !isOwnedExtra(notification.extra) &&
+    !isDiagnosticExtra(notification.extra)
+  ) {
+    return null;
+  }
   const { deepLink } = notification.extra;
   return deepLink.startsWith("/") && !deepLink.startsWith("//")
     ? deepLink

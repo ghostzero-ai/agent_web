@@ -1777,7 +1777,7 @@ toolName, errorCode
 | M0.1 ✅ | 平台契约、Capacitor remote-shell 基线 | 危险 URL 被拒绝，普通 Web 构建不受影响 |
 | M0.2 ✅ | Capacitor 8 + Android Studio + Debug APK | Android 工程、Debug APK、签名与 HTTPS 服务端健康检查通过 |
 | M0.3 ✅ | 卓易通首轮兼容验证 | 登录、SSE、公式与树形对话通过；记录 Web Push 不可用 |
-| M0.4 | 移动时间滚轮 + APK 本地提醒 | 任务 CRUD 同步系统通知，等待新版 APK 真机验收 |
+| M0.4 | 循环时间滚轮 + APK 本地提醒 | 任务 CRUD、10 秒发送/取消诊断通过；系统清理后送达仍待解决 |
 | M1.1 | 本地可打包 React Client | 正式 APK 不使用 `server.url`，共享 API Client |
 | M1.2 | Prompt 文件导出 + Share | JSON/Markdown 可保存和分享 |
 | M1.3 | APK Local Notification 发布加固 | 本地 Bundle 下完成断网、重启、时区和省电回归 |

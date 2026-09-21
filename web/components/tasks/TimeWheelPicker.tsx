@@ -10,6 +10,8 @@ import {
 
 const ROW_HEIGHT = 48;
 const VISIBLE_ROWS = 5;
+const WHEEL_COPIES = 5;
+const MIDDLE_COPY = Math.floor(WHEEL_COPIES / 2);
 const HOURS = Array.from({ length: 24 }, (_, index) => index);
 const MINUTES = Array.from({ length: 60 }, (_, index) => index);
 
@@ -22,6 +24,15 @@ export function normalizeClockTime(value: string): string {
   return match ? `${match[1]}:${match[2]}` : "20:00";
 }
 
+export function cyclicIndex(index: number, length: number): number {
+  if (length <= 0) return 0;
+  return ((index % length) + length) % length;
+}
+
+export function middleWheelIndex(logicalIndex: number, length: number): number {
+  return MIDDLE_COPY * length + cyclicIndex(logicalIndex, length);
+}
+
 type WheelColumnProps = {
   label: string;
   values: readonly number[];
@@ -32,13 +43,20 @@ type WheelColumnProps = {
 function WheelColumn({ label, values, selected, onSelect }: WheelColumnProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeIndex = useRef(
+    middleWheelIndex(values.indexOf(selected), values.length),
+  );
+  const repeatedValues = Array.from(
+    { length: values.length * WHEEL_COPIES },
+    (_, index) => values[cyclicIndex(index, values.length)],
+  );
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
-      top: selected * ROW_HEIGHT,
+      top: activeIndex.current * ROW_HEIGHT,
       behavior: "auto",
     });
-  }, [selected]);
+  }, []);
 
   useEffect(
     () => () => {
@@ -51,13 +69,36 @@ function WheelColumn({ label, values, selected, onSelect }: WheelColumnProps) {
     if (settleTimer.current) clearTimeout(settleTimer.current);
     const target = event.currentTarget;
     settleTimer.current = setTimeout(() => {
-      const index = Math.max(
+      const absoluteIndex = Math.max(
         0,
-        Math.min(values.length - 1, Math.round(target.scrollTop / ROW_HEIGHT)),
+        Math.min(repeatedValues.length - 1, Math.round(target.scrollTop / ROW_HEIGHT)),
       );
-      target.scrollTo({ top: index * ROW_HEIGHT, behavior: "smooth" });
-      onSelect(values[index]);
+      const logicalIndex = cyclicIndex(absoluteIndex, values.length);
+      activeIndex.current = absoluteIndex;
+      target.scrollTo({ top: absoluteIndex * ROW_HEIGHT, behavior: "smooth" });
+      onSelect(values[logicalIndex]);
+
+      if (
+        absoluteIndex < values.length ||
+        absoluteIndex >= values.length * (WHEEL_COPIES - 1)
+      ) {
+        const recenteredIndex = middleWheelIndex(logicalIndex, values.length);
+        requestAnimationFrame(() => {
+          activeIndex.current = recenteredIndex;
+          target.scrollTo({ top: recenteredIndex * ROW_HEIGHT, behavior: "auto" });
+        });
+      }
     }, 80);
+  };
+
+  const selectAbsoluteIndex = (absoluteIndex: number, behavior: ScrollBehavior) => {
+    activeIndex.current = absoluteIndex;
+    const logicalIndex = cyclicIndex(absoluteIndex, values.length);
+    onSelect(values[logicalIndex]);
+    scrollRef.current?.scrollTo({
+      top: absoluteIndex * ROW_HEIGHT,
+      behavior,
+    });
   };
 
   return (
@@ -80,39 +121,39 @@ function WheelColumn({ label, values, selected, onSelect }: WheelColumnProps) {
           tabIndex={0}
           onScroll={settle}
           onKeyDown={(event) => {
-            const currentIndex = values.indexOf(selected);
+            const currentIndex = activeIndex.current;
             const nextIndex =
               event.key === "ArrowDown"
-                ? Math.min(values.length - 1, currentIndex + 1)
+                ? currentIndex + 1
                 : event.key === "ArrowUp"
-                  ? Math.max(0, currentIndex - 1)
+                  ? currentIndex - 1
                   : event.key === "Home"
-                    ? 0
+                    ? middleWheelIndex(0, values.length)
                     : event.key === "End"
-                      ? values.length - 1
+                      ? middleWheelIndex(values.length - 1, values.length)
                       : null;
             if (nextIndex === null) return;
             event.preventDefault();
-            onSelect(values[nextIndex]);
+            selectAbsoluteIndex(nextIndex, "auto");
           }}
         >
-          {values.map((value) => (
+          {repeatedValues.map((value, absoluteIndex) => (
             <button
-              key={value}
+              key={`${absoluteIndex}-${value}`}
               type="button"
               role="option"
+              aria-hidden={
+                Math.floor(absoluteIndex / values.length) !== MIDDLE_COPY
+              }
               aria-selected={selected === value}
+              tabIndex={-1}
               className={`flex h-12 w-full snap-center items-center justify-center text-2xl tabular-nums transition-all ${
                 selected === value
                   ? "font-semibold text-zinc-950 dark:text-zinc-50"
                   : "text-zinc-400 dark:text-zinc-600"
               }`}
               onClick={() => {
-                onSelect(value);
-                scrollRef.current?.scrollTo({
-                  top: value * ROW_HEIGHT,
-                  behavior: "smooth",
-                });
+                selectAbsoluteIndex(absoluteIndex, "smooth");
               }}
             >
               {pad(value)}
@@ -236,6 +277,9 @@ export function TimeWheelPicker({
                 onSelect={setDraftMinute}
               />
             </div>
+            <p className="mt-1 text-center text-xs text-zinc-400">
+              上下循环滚动选择时间
+            </p>
           </section>
         </div>
       )}

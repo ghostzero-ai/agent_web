@@ -198,7 +198,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 | M0.1 ✅ | 平台契约、HTTPS remote-shell 配置与离线兜底 | Web 构建不受影响，危险 URL 被拒绝 |
 | M0.2 ✅ | 安装 Capacitor 8、Android Studio、SDK 与兼容 JDK；生成 Android 工程 | Debug APK 构建、签名检查与 HTTPS 服务端健康检查通过 |
 | M0.3 ✅ | 卓易通首轮兼容矩阵 | 登录、SSE、公式与树形对话通过；Web Push 失败已归类为平台能力差异 |
-| M0.4 | 移动时间滚轮 + 本地提醒 | 创建/修改/暂停/删除可同步系统通知，等待新版 APK 真机验收 |
+| M0.4 | 循环时间滚轮 + 本地提醒 | 任务 CRUD 与 10 秒发送/取消诊断已完成，系统清理后的送达待继续验证 |
 | M1.1 | 本地可打包 React Client 边界 | 不使用生产 `server.url`，共享 API Client，无业务双写 |
 | M1.2 | 文件导出与 Share Adapter | Prompt JSON/Markdown 能保存/分享 |
 | M1.3 | Local Notification 发布加固 | 本地 Web Bundle 下完成断网、重启、时区和系统省电回归 |

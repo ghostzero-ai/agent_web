@@ -87,8 +87,24 @@ test("creates, edits, pauses and deletes an Agent task on mobile", async ({
   await page.getByLabel("给 AI 的任务要求").fill("生成 20 个英语单词练习");
   await page.getByRole("button", { name: /20:00/ }).click();
   const timeDialog = page.getByRole("dialog", { name: "选择提醒时间" });
-  await timeDialog.getByRole("listbox", { name: "时" }).getByRole("option", { name: "08", exact: true }).click();
-  await timeDialog.getByRole("listbox", { name: "分" }).getByRole("option", { name: "30", exact: true }).click();
+  const hourWheel = timeDialog.getByRole("listbox", { name: "时" });
+  const minuteWheel = timeDialog.getByRole("listbox", { name: "分" });
+  await hourWheel.focus();
+  await hourWheel.press("Home");
+  await hourWheel.press("ArrowUp");
+  await expect(hourWheel.getByRole("option", { name: "23" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await minuteWheel.focus();
+  await minuteWheel.press("End");
+  await minuteWheel.press("ArrowDown");
+  await expect(minuteWheel.getByRole("option", { name: "00" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await hourWheel.getByRole("option", { name: "08", exact: true }).click();
+  await minuteWheel.getByRole("option", { name: "30", exact: true }).click();
   await timeDialog.getByRole("button", { name: "确定" }).click();
   await expect(page.getByRole("button", { name: /08:30/ })).toBeVisible();
   await page.getByRole("button", { name: "创建任务" }).click();
