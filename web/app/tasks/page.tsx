@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppLink } from "@/components/platform/AppLink";
 import { TaskManager } from "@/components/tasks/TaskManager";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +12,9 @@ export default function TasksPage() {
           <p className="hidden text-xs text-zinc-500 sm:block">建立任务；到期后自动写入收件箱</p>
         </div>
         <nav className="flex shrink-0 gap-3 text-xs font-medium text-zinc-500 sm:gap-4 sm:text-sm">
-          <Link href="/inbox" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">收件箱</Link>
-          <Link href="/chat" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">对话</Link>
-          <Link href="/api-key" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">API</Link>
+          <AppLink href="/inbox" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">收件箱</AppLink>
+          <AppLink href="/chat" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">对话</AppLink>
+          <AppLink href="/api-key" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">API</AppLink>
         </nav>
       </header>
       <main className="px-4 py-6 sm:px-6 sm:py-10">

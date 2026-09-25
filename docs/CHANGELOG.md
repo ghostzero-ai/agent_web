@@ -4,6 +4,28 @@
 
 ---
 
+## Mobile M1.1 — 本地可打包 React Client
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增 Vite 移动入口与 `mobile-dist` 构建产物，Chat、Task、Inbox、通知和凭据页继续复用现有 React 组件，没有复制第二套业务 UI。
+- 正式 Capacitor 配置改为本地 Web Bundle；一键脚本会在生成配置和 APK 内双重断言不存在 `server.url`，旧 remote-shell 仅保留为显式 `spike` 配置。
+- 新增共享 API Runtime：Web 使用同源 `/api/v1/*`，APK 使用构建期注入且经过 HTTPS/Origin 校验的 Tailscale 地址。
+- 新增共享 Path/Hash 导航边界；网页继续普通路径，APK 使用 Hash Router，原生通知深链和任务定位可跨端工作。
+- Next.js 16 Proxy 只向允许的 Capacitor `https://localhost` Origin 提供 API CORS；Compose 增加可配置的 `MOBILE_ALLOWED_ORIGINS`。
+- 本地客户端无法连接笔记本时仍能启动并显示连接诊断；原生环境禁用不适用的 Web Push，任务本地通知保持独立。
+- 页面按路由延迟加载，避免把所有功能装入首屏；移除生产构建对 Google Fonts 下载的依赖。
+
+### 验证与边界
+
+- ESLint、Next.js 生产构建、Vite Mobile 生产构建与 Android `assembleDebug` 通过。
+- Vitest 全量 53 个文件、208 项测试通过；新增 API Origin、Hash 导航、CORS、Capacitor 本地/Spike 配置和 APK 构建约束测试。Microsoft Edge 8 项 E2E 全部通过。
+- 构建脚本从 APK 内确认存在本地 `index.html`、`webDir=mobile-dist`、不存在 `server.url`，且本地 JS 包含预期 Tailscale API Origin。
+- Debug APK 为 5,477,893 字节，SHA-256 为 `B67B6CF92B7224B13384DEDA3F052A05DEAB3EBF785D8C726DE36436644B0736`。
+- 当前 API 仍无应用登录鉴权，只能在个人 Tailscale 私网使用；新版 APK 的卓易通真机回归属于 M1.1 验收剩余人工项。
+
 ## Mobile M0.4.1 — 循环时间滚轮与通知诊断
 
 **Commit**: `same delivery commit`

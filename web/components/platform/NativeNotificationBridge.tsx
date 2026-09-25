@@ -10,6 +10,7 @@ import {
   isCapacitorAndroid,
   localNotificationDeepLink,
 } from "@/lib/platform/capacitorLocalNotifications";
+import { navigateToAppPath } from "@/lib/platform/appNavigation";
 
 async function reconcileOnResume(): Promise<void> {
   const adapter = getCapacitorLocalNotificationAdapter();
@@ -27,7 +28,7 @@ export function NativeNotificationBridge() {
       "localNotificationActionPerformed",
       ({ notification }) => {
         const deepLink = localNotificationDeepLink(notification);
-        if (deepLink) window.location.assign(deepLink);
+        if (deepLink) navigateToAppPath(deepLink);
       },
     ).then((handle) => {
       if (disposed) void handle.remove();

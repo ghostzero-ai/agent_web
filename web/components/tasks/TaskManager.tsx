@@ -14,6 +14,7 @@ import {
 } from "@/lib/api/taskClient";
 import { reconcileLocalTaskNotifications } from "@/lib/notifications/localTaskNotifications";
 import { getCapacitorLocalNotificationAdapter } from "@/lib/platform/capacitorLocalNotifications";
+import { currentAppSearchParams } from "@/lib/platform/appNavigation";
 import type { TaskSchedule } from "@/lib/tasks/schedule";
 
 type FormState = {
@@ -218,7 +219,7 @@ export function TaskManager() {
   }, [syncNativeNotifications]);
 
   useEffect(() => {
-    const taskId = new URLSearchParams(window.location.search).get("task");
+    const taskId = currentAppSearchParams().get("task");
     if (!taskId || tasks.length === 0) return;
     const frame = window.requestAnimationFrame(() => {
       document

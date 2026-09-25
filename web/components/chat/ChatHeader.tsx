@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppLink } from "@/components/platform/AppLink";
 
 type ChatHeaderProps = {
   onOpenSidebar?: () => void;
@@ -39,24 +39,24 @@ export function ChatHeader({
         </h1>
       </div>
       <nav className="flex items-center gap-2 text-xs font-medium text-zinc-500 sm:gap-4 dark:text-zinc-400">
-        <Link
+        <AppLink
           href="/inbox"
           className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
         >
           收件箱
-        </Link>
-        <Link
+        </AppLink>
+        <AppLink
           href="/tasks"
           className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
         >
           任务
-        </Link>
-        <Link
+        </AppLink>
+        <AppLink
           href="/api-key"
           className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
         >
           API 配置
-        </Link>
+        </AppLink>
       </nav>
     </header>
   );

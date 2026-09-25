@@ -1,5 +1,6 @@
 import type { Session } from "@/lib/config";
 import { normalizeSessionTree } from "@/lib/conversation/tree";
+import { apiFetch } from "@/lib/api/clientRuntime";
 
 const SESSIONS_KEY = "agent_chat_sessions";
 
@@ -36,7 +37,7 @@ export function prepareLegacyImportSessions(sessions: Session[]) {
 }
 
 async function executeImport<T>(action: "preview" | "import", sessions: Session[]) {
-  const response = await fetch("/api/v1/imports/local-storage", {
+  const response = await apiFetch("/api/v1/imports/local-storage", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Capacitor } from "@capacitor/core";
 import {
   base64UrlToUint8Array,
   browserDeviceLabel,
@@ -6,11 +7,15 @@ import {
   getPushState,
   PushClientError,
   saveBrowserSubscription,
+  supportsWebPush,
   updateNotificationPreferences,
 } from "@/lib/api/pushClient";
 
 describe("push client", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it("uses versioned Push configuration, subscription and preference endpoints", async () => {
     const fetchMock = vi
@@ -87,5 +92,17 @@ describe("push client", () => {
     expect(browserDeviceLabel("Mozilla/5.0 (iPhone) Version/18 Safari/605.1")).toBe(
       "Safari · iPhone/iPad",
     );
+  });
+
+  it("does not expose browser Push inside a native Capacitor client", () => {
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    vi.stubGlobal("window", {
+      isSecureContext: true,
+      PushManager: class {},
+      Notification: class {},
+    });
+    vi.stubGlobal("navigator", { serviceWorker: {} });
+
+    expect(supportsWebPush()).toBe(false);
   });
 });

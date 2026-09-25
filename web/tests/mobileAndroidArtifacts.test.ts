@@ -52,7 +52,9 @@ describe("Capacitor Android project artifacts", () => {
       expect(packageJson.dependencies).toHaveProperty(dependency);
     }
     expect(packageJson.devDependencies).toHaveProperty("@capacitor/cli");
-    expect(packageJson.scripts["mobile:sync"]).toBe("cap sync android");
+    expect(packageJson.scripts["mobile:client:build"]).toContain("vite build");
+    expect(packageJson.scripts["mobile:sync"]).toContain("mobile:client:build");
+    expect(packageJson.scripts["mobile:sync"]).toContain("cap sync android");
     expect(packageJson.scripts["mobile:build:debug"]).toContain(
       "gradlew.bat assembleDebug",
     );
@@ -76,22 +78,17 @@ describe("Capacitor Android project artifacts", () => {
     expect(sourceConfig).toContain("process.env.CAPACITOR_SERVER_URL");
   });
 
-  it("builds remote-shell APKs only with an explicit HTTPS spike profile", async () => {
+  it("builds local-client APKs with an explicit HTTPS API origin", async () => {
     const buildScript = await readProjectFile("scripts/mobile-build-debug.ps1");
 
     expect(buildScript).toContain("[ValidatePattern('^https://')]");
-    expect(buildScript).toContain(
-      "$env:CAPACITOR_BUILD_PROFILE = 'spike'",
-    );
-    expect(buildScript).toContain("$env:CAPACITOR_SERVER_URL = $ServerUrl");
+    expect(buildScript).toContain("$env:VITE_API_BASE_URL = $expectedApiBaseUrl");
     expect(buildScript).toContain("npm run mobile:sync");
     expect(buildScript).toContain("npm run mobile:build:debug");
-    expect(buildScript).toContain("Assert-SpikeServerUrl");
+    expect(buildScript).toContain("Assert-LocalCapacitorConfig");
     expect(buildScript).toContain("assets/capacitor.config.json");
-    expect(buildScript).toContain("Built APK config");
+    expect(buildScript).toContain("assets/public/index.html");
+    expect(buildScript).toContain("unexpectedly contains Capacitor server.url");
     expect(buildScript).toContain("finally {");
-    expect(buildScript).toContain(
-      "Remove-Item Env:CAPACITOR_SERVER_URL -ErrorAction SilentlyContinue",
-    );
   });
 });

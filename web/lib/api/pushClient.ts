@@ -1,3 +1,6 @@
+import { Capacitor } from "@capacitor/core";
+import { apiFetch } from "@/lib/api/clientRuntime";
+
 export type NotificationPreferences = {
   pushEnabled: boolean;
   quietHoursEnabled: boolean;
@@ -37,7 +40,7 @@ export class PushClientError extends Error {
 }
 
 async function pushRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     ...init,
     headers: {
       ...(init?.body ? { "content-type": "application/json" } : {}),
@@ -90,6 +93,7 @@ export function deletePushSubscription(id: string): Promise<void> {
 export function supportsWebPush(): boolean {
   return (
     typeof window !== "undefined" &&
+    !Capacitor.isNativePlatform() &&
     window.isSecureContext &&
     "serviceWorker" in navigator &&
     "PushManager" in window &&

@@ -1,14 +1,14 @@
 # Android Debug APK 开发与安装
 
-- 当前阶段：Mobile M0.3 首轮兼容验证已完成，M0.4 本地通知真机验收待执行
+- 当前阶段：Mobile M1.1 本地 React Client 已完成，等待新版 APK 真机回归
 - 构建类型：仅 Debug APK，不是可发布签名版本
 - 应用 ID：`com.ghostzero.aistudycompanion`
 
 ## 当前架构
 
-当前 APK 是有明确期限的 Capacitor remote-shell Spike：APK 内包含 Capacitor Bridge 与离线兜底页，Debug 构建时注入 Tailscale HTTPS 地址并加载现有 Next.js 应用。模型密钥、数据库和 Scheduler 仍只存在服务端。
+当前 APK 内置由 Vite 构建的本地 React Client 与 Capacitor Bridge，不再通过 `server.url` 加载远程网页。Chat、Task、Inbox、通知与凭据页面复用 Web 端组件，通过共享 API Client 调用笔记本上的 Next.js `/api/v1/*`；模型密钥、数据库和 Scheduler 仍只存在服务端。
 
-Capacitor 官方把 `server.url` 定位为 Live Reload，而非生产部署。本 APK 用于个人安装、卓易通兼容和平台插件验证；进入正式 APK 前必须完成 M1.1 本地 Web Bundle。
+移动端使用 Hash Router，本地界面即使暂时连不上笔记本也能启动并显示连接诊断。需要服务端事实数据或模型的操作仍必须联网；本地 Bundle 不是数据库副本，也不伪造离线写入成功。旧 remote-shell 只保留为显式 `spike` 兼容工具。
 
 ## 已安装工具
 
@@ -30,19 +30,19 @@ Android Studio 2026.1 自带 JDK 25，但当前 Gradle 8.14.3 不能运行 Java 
 
 ```powershell
 .\scripts\mobile-build-debug.ps1 `
-  -ServerUrl "https://<你的设备名>.<你的-tailnet>.ts.net/chat"
+  -ApiBaseUrl "https://<你的设备名>.<你的-tailnet>.ts.net"
 ```
 
 脚本会：
 
 1. 检查 JDK 与 Android SDK。
-2. 临时设置 `CAPACITOR_BUILD_PROFILE=spike` 与 HTTPS Server URL。
-3. 同步 Capacitor 插件和配置。
-4. 在构建前验证生成配置确实包含指定的 Tailscale URL。
-5. 生成 Debug APK，并再次读取 APK 内的配置验证 URL 后输出 SHA-256。
-6. 构建结束后把仓库内生成配置恢复为不含个人地址的离线状态。
+2. 把 Tailscale HTTPS Origin 作为 `VITE_API_BASE_URL` 构建本地 React Client。
+3. 同步本地静态产物、Capacitor 插件和原生配置。
+4. 验证生成配置使用 `mobile-dist` 且不含 `server.url`。
+5. 生成 Debug APK，并从 APK 内再次验证本地 `index.html`、无 `server.url` 以及预期 API Origin，然后输出 SHA-256。
+6. 构建结束后恢复当前终端原有的环境变量。
 
-当前 Spike APK 不得用单独的 `npx cap sync android` 加 `gradlew assembleDebug` 作为交付构建；前者在没有临时环境变量时会生成离线兜底配置。必须使用上述一键脚本。
+交付测试包必须使用上述一键脚本，避免忘记注入 API Origin 或误把旧 remote-shell 配置打进 APK。
 
 APK 输出：
 
@@ -122,6 +122,7 @@ https://<你的设备名>.<你的-tailnet>.ts.net/api/v1/health
 
 - APK 内不包含模型 API Key、数据库连接、Credential Master Key 或 Huawei 服务端凭据。
 - Debug APK 使用 Android Debug 证书，只用于个人测试，不可发布应用商店。
-- remote-shell 只允许 HTTPS 且必须显式使用 `spike` 构建配置。
-- Tailscale URL 不是认证 Token，但不提交到生成的 Android 配置中；源配置只保留环境变量入口。
+- 正式 Debug APK 使用本地 `mobile-dist` 且没有 `server.url`；remote-shell 只允许 HTTPS 且必须显式使用 `spike` 构建配置。
+- Tailscale API Origin 不是认证 Token，会作为连接地址编译进个人 APK，但不会写入 Git；API Key 与服务端密钥不会进入移动产物。
+- 服务端 API 默认只为 Capacitor 的 `https://localhost` Origin 返回 CORS 许可；可通过 `MOBILE_ALLOWED_ORIGINS` 显式收窄或扩展。
 - 未来离开 Tailscale 或支持多人前，必须先增加设备认证、Token 撤销与严格 Origin/CORS 策略。

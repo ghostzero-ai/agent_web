@@ -158,14 +158,14 @@ Inbox 始终是持久事实源，Push 和本地通知只是 Delivery。通知失
 
 当前 Next.js 项目同时包含动态页面和服务端 Route Handler；Capacitor 正式打包要求 `webDir` 内存在独立构建产物和根 `index.html`。因此不能把 `.next` 当作离线客户端直接复制。
 
-本轮加入的 `capacitor.config.ts` 与 `mobile-shell/index.html` 是 M0 基线：
+M0 加入的 `capacitor.config.ts` 与 `mobile-shell/index.html` 是 remote-shell 验证基线：
 
 - 未设置远程地址时只显示离线兜底页。
 - Spike 构建必须显式设置 `CAPACITOR_BUILD_PROFILE=spike`。
 - 只允许 HTTPS `CAPACITOR_SERVER_URL`，禁止 URL 内凭据、查询 Token 和明文 HTTP。
 - APK 通过 Tailscale HTTPS 打开现有 Next.js 应用，暂时无需双写 UI 或开放 CORS。
 
-Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配置。因此 M0 只用于个人 Debug APK 和卓易通兼容验证。正式 APK 进入 M1 时抽离可本地打包的客户端入口，继续调用远程 Next.js API。
+Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配置。M1.1 已新增 Vite 本地客户端入口：正式 Debug APK 把共享 React 页面打入 `mobile-dist`，通过共享 API Client 调用 Tailscale 上的 Next.js API，使用 Hash Router 并将 CORS 限制为 Capacitor Origin。remote-shell 仅保留为显式 `spike` 调试配置。
 
 ### 7.2 是否双端开发
 
@@ -199,7 +199,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 | M0.2 ✅ | 安装 Capacitor 8、Android Studio、SDK 与兼容 JDK；生成 Android 工程 | Debug APK 构建、签名检查与 HTTPS 服务端健康检查通过 |
 | M0.3 ✅ | 卓易通首轮兼容矩阵 | 登录、SSE、公式与树形对话通过；Web Push 失败已归类为平台能力差异 |
 | M0.4 | 循环时间滚轮 + 本地提醒 | 任务 CRUD 与 10 秒发送/取消诊断已完成，系统清理后的送达待继续验证 |
-| M1.1 | 本地可打包 React Client 边界 | 不使用生产 `server.url`，共享 API Client，无业务双写 |
+| M1.1 ✅ | 本地可打包 React Client 边界 | 不使用生产 `server.url`，共享 API Client，无业务双写 |
 | M1.2 | 文件导出与 Share Adapter | Prompt JSON/Markdown 能保存/分享 |
 | M1.3 | Local Notification 发布加固 | 本地 Web Bundle 下完成断网、重启、时区和系统省电回归 |
 | M1.4 | Speech Output Adapter | 试听、播放、停止、锁屏/耳机行为通过真机验证 |
@@ -213,7 +213,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 - Android Studio 2026.1、Android SDK 36/37 与 Build Tools 35/36 已安装；真机最低 API 24。
 - Android Studio 自带 JDK 25 超出 Gradle 8.14.3 的运行支持范围，构建使用独立 Microsoft OpenJDK 21 LTS，不覆盖系统 Java。
 - 首个 Debug APK 已在华为手机/卓易通完成登录、SSE、公式与树形对话验证；Web Push 未弹窗，M0.4 改由 Capacitor 本地通知处理已设定任务。
-- 正式发布仍需要本地 Web Bundle、Release Keystore、版本策略和真机回归，不能分发当前 Debug remote-shell。
+- M1.1 本地 Web Bundle 已进入 Debug APK；正式发布仍需要 Release Keystore、版本策略、应用鉴权和真机回归，当前包不可公开分发。
 - 不在 APK 内保存 Provider API Key、华为服务端密钥或数据库凭据。
 
 ## 10. 参考

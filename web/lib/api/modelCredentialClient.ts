@@ -1,3 +1,5 @@
+import { apiFetch } from "@/lib/api/clientRuntime";
+
 export type ModelCredentialStatus = {
   configured: boolean;
   source: "stored" | "environment" | "none";
@@ -35,7 +37,7 @@ export class ModelCredentialClientError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     ...init,
     headers: {
       ...(init?.body ? { "content-type": "application/json" } : {}),

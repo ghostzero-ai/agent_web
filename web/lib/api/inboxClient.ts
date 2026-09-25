@@ -1,3 +1,5 @@
+import { apiFetch } from "@/lib/api/clientRuntime";
+
 export type InboxStatus = "unread" | "read";
 export type InboxFilter = "all" | InboxStatus;
 
@@ -27,7 +29,7 @@ export class InboxClientError extends Error {
 }
 
 async function inboxRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     ...init,
     headers: {
       ...(init?.body ? { "content-type": "application/json" } : {}),

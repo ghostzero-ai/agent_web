@@ -16,7 +16,9 @@
     "scheduler:claim": "tsx scripts/scheduler-claim.ts",
     "worker:reminders": "tsx scripts/reminder-worker.ts",
     "mobile:doctor": "cap doctor android",
-    "mobile:sync": "cap sync android",
+    "mobile:client:build": "vite build --config vite.mobile.config.ts",
+    "mobile:sync": "npm run mobile:client:build && cap sync android",
+    "mobile:sync:spike": "cap sync android",
     "mobile:open": "cap open android",
     "mobile:build:debug": "cd android && gradlew.bat assembleDebug"
   },
@@ -57,6 +59,7 @@
     "tailwindcss": "^4",
     "tsx": "4.23.13",
     "typescript": "^5",
+    "vite": "^7.3.6",
     "vitest": "3.2.6"
   },
   "overrides": {

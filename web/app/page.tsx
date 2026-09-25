@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppLink } from "@/components/platform/AppLink";
 
 export default function Home() {
   return (
@@ -13,12 +13,12 @@ export default function Home() {
           </p>
         </div>
 
-        <Link
+        <AppLink
           href="/chat"
           className="mt-10 inline-flex rounded-full bg-zinc-900 px-8 py-3 text-base font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
         >
           开始对话
-        </Link>
+        </AppLink>
       </main>
     </div>
   );

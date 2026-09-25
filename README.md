@@ -83,11 +83,13 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 
 笔记本自托管的启动、健康检查、凭据主密钥、重启恢复、备份还原与 Tailscale 私有访问见 `docs/SELF_HOSTING.md`。默认只绑定 localhost，当前无应用登录鉴权，不可使用 Funnel 或端口转发直接暴露公网。
 
-移动端采用“共享 React 客户端 + 薄平台壳”：近期先用 Capacitor Debug APK 经 Tailscale 连接现有服务，并在华为手机上验证卓易通兼容；之后加入 APK 本地提醒、Prompt 文件导出、语音与 HMS Push，最终以 ArkTS + ArkWeb HAP 替换 HarmonyOS 平台能力而不重写服务端。娱乐模式、移动端和语音的设计见 `docs/FEATURE_AND_MOBILE_EXPANSION_PLAN.md`。
+移动端采用“共享 React 客户端 + 薄平台壳”：Mobile M1.1 已把复用 Web 页面与 API Client 的 Vite 本地 Bundle 打入 Capacitor APK，正式构建不再使用 `server.url`，经 Tailscale HTTPS 调用笔记本服务端。之后加入 Prompt 文件导出、语音与 HMS Push，最终以 ArkTS + ArkWeb HAP 替换 HarmonyOS 平台能力而不重写服务端。娱乐模式、移动端和语音的设计见 `docs/FEATURE_AND_MOBILE_EXPANSION_PLAN.md`。
 
 Android Debug APK 已可构建；当前安装路径、重建命令、JDK/SDK 边界与 M0.3 真机清单见 `docs/MOBILE_ANDROID.md`。该 APK 是个人兼容性测试版本，不是正式发布包。
 
 Mobile M0.4 已加入循环式手机闹钟时间滚轮和 Capacitor 本地任务提醒：APK 可在创建、修改、暂停、恢复或删除任务后同步 Android 系统调度；通知页提供 10 秒发送/取消测试及待发送、已送达诊断。Web Push 继续负责服务端生成内容，两者保持独立。
+
+Mobile M1.1 已加入本地可打包 React Client、Hash Router、共享跨端 API Client、严格的 Capacitor Origin CORS 与离线连接诊断。构建脚本会同时检查生成配置和 APK 内容，确保交付包内含本地页面且没有 `server.url`。
 
 ---
 

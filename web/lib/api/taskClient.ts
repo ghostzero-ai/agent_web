@@ -1,4 +1,5 @@
 import type { TaskSchedule } from "@/lib/tasks/schedule";
+import { apiFetch } from "@/lib/api/clientRuntime";
 
 export type TaskStatus = "active" | "paused" | "completed";
 export type TaskKind = "reminder" | "agent_prompt";
@@ -37,7 +38,7 @@ export class TaskClientError extends Error {
 }
 
 async function taskRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     ...init,
     headers: {
       ...(init?.body ? { "content-type": "application/json" } : {}),

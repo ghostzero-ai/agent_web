@@ -340,7 +340,7 @@ Scheduler Tick ──> Worker ──> Agent Runtime ──> Model/Search
 
 ### 6.4 Web、PWA、Android APK 与 HarmonyOS
 
-继续采用 Web-first，但将“共享客户端”与“Next.js 服务端”明确分层。短期 Capacitor Debug APK 通过 Tailscale HTTPS 加载现有 Next.js 页面，用于卓易通兼容验证；Capacitor 官方把 `server.url` 定位为 Live Reload，因此正式 APK 必须改用本地 Web Bundle，并通过受认证 API 连接服务端。
+继续采用 Web-first，但将“共享客户端”与“Next.js 服务端”明确分层。M0 曾通过 Tailscale HTTPS 加载完整 Next.js 页面验证卓易通；M1.1 已改为 Vite 本地 Web Bundle、共享 API Client 与受限 CORS，正式 APK 不再使用 Capacitor `server.url`。当前仍只在 Tailscale 私网运行，公开网络或多人使用前必须增加应用鉴权。
 
 项目不进行完整双端开发：React 页面、领域类型和 API Client 共享；Android APK 与后期 ArkTS + ArkWeb HAP 只实现平台生命周期、文件、语音、本地通知、Push、深链和安全存储 Adapter。APK 不内置模型密钥、Scheduler 或 Huawei 服务端凭据。
 
@@ -1499,7 +1499,9 @@ agent_web/
 │   │   └── evals/
 │   ├── worker/
 │   │   └── index.ts
-│   ├── capacitor.config.ts     # M0 remote-shell；M1 后指向本地客户端产物
+│   ├── capacitor.config.ts     # 正式构建指向 mobile-dist；spike 可显式使用 remote-shell
+│   ├── mobile/                 # Vite/Capacitor 本地 React 客户端入口
+│   ├── mobile-dist/            # 生成产物，不提交 Git
 │   ├── mobile-shell/           # M0 离线兜底页
 │   └── android/                # 安装 Capacitor 依赖后由 CLI 生成
 ├── harmony/                    # M3 才引入 ArkTS + ArkWeb HAP
@@ -1778,7 +1780,7 @@ toolName, errorCode
 | M0.2 ✅ | Capacitor 8 + Android Studio + Debug APK | Android 工程、Debug APK、签名与 HTTPS 服务端健康检查通过 |
 | M0.3 ✅ | 卓易通首轮兼容验证 | 登录、SSE、公式与树形对话通过；记录 Web Push 不可用 |
 | M0.4 | 循环时间滚轮 + APK 本地提醒 | 任务 CRUD、10 秒发送/取消诊断通过；系统清理后送达仍待解决 |
-| M1.1 | 本地可打包 React Client | 正式 APK 不使用 `server.url`，共享 API Client |
+| M1.1 ✅ | 本地可打包 React Client | 正式 APK 不使用 `server.url`，共享 API Client |
 | M1.2 | Prompt 文件导出 + Share | JSON/Markdown 可保存和分享 |
 | M1.3 | APK Local Notification 发布加固 | 本地 Bundle 下完成断网、重启、时区和省电回归 |
 | M1.4 | Speech Output Adapter | 播放、停止、锁屏和耳机行为通过真机验证 |
@@ -1967,7 +1969,7 @@ Proposed / Accepted / Superseded
 Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次只交付一个可验收任务：
 
 1. 完成 M0.4 真机验收：通知授权、准时弹窗、点击跳转、暂停/删除撤销与重启恢复。
-2. 完成 M1.1 本地 Web Bundle，移除正式 APK 对开发期 `server.url` 的依赖。
+2. 在新版 M1.1 APK 上完成 Chat、Task、Inbox、凭据、本地通知和服务端离线/恢复的真机回归。
 3. 回到 Core 3.1：实现可注册 Mode 与不可覆盖的事实/安全 Policy Layer。
 4. 完成 Core 3.2：建立 Prompt Envelope、版本与安全导出，再开始大规模修改 Prompt。
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。

@@ -11,6 +11,7 @@ import {
   appendMessage,
   normalizeSessionTree,
 } from "@/lib/conversation/tree";
+import { apiFetch } from "@/lib/api/clientRuntime";
 
 /**
  * 纯 API 调用。signal 直接传入 fetch，支持 AbortController。
@@ -20,7 +21,7 @@ export async function sendChatMessage(
   signal?: AbortSignal,
   onDelta?: (text: string, accumulated: string) => void,
 ): Promise<string> {
-  const response = await fetch("/api/v1/model/stream", {
+  const response = await apiFetch("/api/v1/model/stream", {
     method: "POST",
     headers: {
       "content-type": "application/json",

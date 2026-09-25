@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 describe("Capacitor mobile foundation config", () => {
-  it("uses the bundled offline shell without an explicit remote server", async () => {
+  it("uses the packaged React client without an explicit remote server", async () => {
     delete process.env.CAPACITOR_BUILD_PROFILE;
     delete process.env.CAPACITOR_SERVER_URL;
     vi.resetModules();
@@ -20,7 +20,7 @@ describe("Capacitor mobile foundation config", () => {
     const { default: config } = await import("../capacitor.config");
 
     expect(config.appId).toBe("com.ghostzero.aistudycompanion");
-    expect(config.webDir).toBe("mobile-shell");
+    expect(config.webDir).toBe("mobile-dist");
     expect(config.plugins.LocalNotifications).toEqual({
       smallIcon: "ic_stat_ai_reminder",
       iconColor: "#2563EB",
@@ -37,6 +37,7 @@ describe("Capacitor mobile foundation config", () => {
     const { default: config } = await import("../capacitor.config");
 
     expect(config).toMatchObject({
+      webDir: "mobile-shell",
       server: {
         url: "https://laptop.example-tailnet.ts.net/chat",
         cleartext: false,

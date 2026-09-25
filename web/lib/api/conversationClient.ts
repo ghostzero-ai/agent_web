@@ -1,6 +1,7 @@
 import type { ChatMessage } from "@/lib/ai/messages";
 import type { Session } from "@/lib/config";
 import { CONVERSATION_SCHEMA_VERSION } from "@/lib/conversation/tree";
+import { apiFetch } from "@/lib/api/clientRuntime";
 
 type ConversationRecord = {
   id: string;
@@ -28,7 +29,7 @@ async function apiRequest<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     ...init,
     headers: {
       ...(init?.body ? { "content-type": "application/json" } : {}),
