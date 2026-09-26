@@ -1,4 +1,5 @@
 import type { ChatMessage } from "@/lib/ai/messages";
+import { isCoreModeId, type CoreModeId } from "@/lib/agent/modeRegistry";
 import {
   CONVERSATION_SCHEMA_VERSION,
   normalizeSessionTree,
@@ -28,6 +29,7 @@ export type Session = {
   updatedAt: number;
   schemaVersion?: typeof CONVERSATION_SCHEMA_VERSION;
   activeLeafId?: string | null;
+  mode?: CoreModeId;
 };
 
 export function isChatMessage(value: unknown): value is ChatMessage {
@@ -61,6 +63,7 @@ export function isSession(value: unknown): value is Session {
     (session.activeLeafId === undefined ||
       session.activeLeafId === null ||
       typeof session.activeLeafId === "string") &&
+    (session.mode === undefined || isCoreModeId(session.mode)) &&
     Array.isArray(session.messages) &&
     session.messages.every(isChatMessage)
   );

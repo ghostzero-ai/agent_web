@@ -326,6 +326,12 @@ test("exports the exact latest model Prompt as JSON", async ({ page }) => {
     role: "user",
     content: "请导出这一条实际请求",
   });
+  expect(exported.promptLayers.slice(0, 3).map((layer: { source: string }) => layer.source)).toEqual([
+    "policy",
+    "mode",
+    "persona",
+  ]);
+  expect(exported.request.messages[0].content).toContain("核心策略");
   expect(JSON.stringify(exported)).not.toContain("apiKey");
 });
 

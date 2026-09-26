@@ -19,6 +19,7 @@ describe("conversation browser client", () => {
             {
               id: "11111111-1111-4111-8111-111111111111",
               title: "服务端会话",
+              mode: "companion",
               activeLeafMessageId: "22222222-2222-4222-8222-222222222222",
               version: 3,
               updatedAt: "2026-09-06T00:00:00.000Z",
@@ -31,6 +32,7 @@ describe("conversation browser client", () => {
           data: {
             id: "11111111-1111-4111-8111-111111111111",
             title: "服务端会话",
+            mode: "companion",
             activeLeafMessageId: "22222222-2222-4222-8222-222222222222",
             version: 3,
             updatedAt: "2026-09-06T00:00:00.000Z",
@@ -54,6 +56,7 @@ describe("conversation browser client", () => {
       activeLeafId: "22222222-2222-4222-8222-222222222222",
       serverVersion: 3,
       schemaVersion: 2,
+      mode: "companion",
     });
     expect(sessions[0].messages[0]).toMatchObject({
       parentId: null,

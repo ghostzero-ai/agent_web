@@ -4,6 +4,26 @@
 
 ---
 
+## Core 3.1.1 — Mode Registry 与核心 Policy Layer
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增统一 `ModeRegistry`，注册自动、专业、陪伴、反思和娱乐五种交互模式，并记录事实标准、工具意图与持久化边界。
+- 新增不可由模式、Persona、记忆、工具结果或插件文本替换的核心事实/安全 Policy。
+- Prompt Builder 固定采用 `Policy → Mode → Persona → Memory → Conversation` 顺序；服务端持久化 mode 开始进入客户端 Session 和真实模型 Prompt。
+- Registry 拒绝重复/未知模式，并复制、冻结模式定义，避免注册后的共享对象被外部修改。
+- 明确模式只声明交互协议，不能直接获得工具、数据库、网络或系统权限。
+- 补充 M1.2 时序结论：生成当前 AI 回复的请求不包含该回复，下一轮请求才会把它作为 Conversation 历史。
+
+### 当前边界
+
+- Vitest 全量 57 个文件、224 项测试通过；Microsoft Edge 9 项 E2E、ESLint、TypeScript、Next.js/Vite 生产构建与 Drizzle Schema 检查通过。
+- Docker 已部署新 Prompt 链，Web/PostgreSQL 健康，Worker 正常运行。
+- Core 3.1.1 是领域与 Prompt 装配基础；模式选择 UI、会话更新 API、`entertainment` 数据库迁移与 GameSession 仍属于 Core 3.1.2/6.x。
+- “不可覆盖”是代码层级与权限边界，不是对 LLM 行为的形式化证明；后续 Core 3.4 需要对抗评测。
+
 ## Mobile M1.3 — Android 本地通知发布加固
 
 **Commit**: `same delivery commit`

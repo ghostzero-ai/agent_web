@@ -1,4 +1,5 @@
 import type { ChatMessage } from "@/lib/ai/messages";
+import { isCoreModeId } from "@/lib/agent/modeRegistry";
 import type { Session } from "@/lib/config";
 import { CONVERSATION_SCHEMA_VERSION } from "@/lib/conversation/tree";
 import { apiFetch } from "@/lib/api/clientRuntime";
@@ -6,6 +7,7 @@ import { apiFetch } from "@/lib/api/clientRuntime";
 type ConversationRecord = {
   id: string;
   title: string;
+  mode?: string;
   activeLeafMessageId: string | null;
   version: number;
   updatedAt: string;
@@ -79,6 +81,7 @@ export function toServerSession(detail: ConversationDetail): ServerSession {
       detail.activeLeafMessageId && visibleIds.has(detail.activeLeafMessageId)
         ? detail.activeLeafMessageId
         : null,
+    mode: isCoreModeId(detail.mode) ? detail.mode : "auto",
     serverVersion: detail.version,
   };
 }

@@ -15,7 +15,7 @@ export type ChatMessage = {
 export type PromptMessage =
   | {
       kind: "instruction";
-      source: "persona";
+      source: "policy" | "mode" | "persona";
       role: "system";
       content: string;
     }

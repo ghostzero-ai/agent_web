@@ -1974,6 +1974,8 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 4. 完成 Core 3.2：建立 Prompt Envelope、版本与安全导出，再开始大规模修改 Prompt。
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
+
+当前优先级已切回 Core Track。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1.1 已建立 Mode Registry 与 `Policy → Mode → Persona → Memory → Conversation` 的固定 Prompt 顺序。Core 3.1.2 将补齐会话模式迁移、更新 API 和选择 UI。
 7. 实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
 8. 建立独立 GameSession 后再实现角色扮演与 AI 跑团，禁止把虚构状态混入普通长期记忆。
 9. 用背书、解题和娱乐规则包共同验证 Capability Gateway 后，再冻结 Plugin API v1。

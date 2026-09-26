@@ -5,7 +5,9 @@
 import { type PromptMessage } from "@/lib/ai/messages";
 import { type Session } from "@/lib/config";
 import { getActiveMessages } from "@/lib/conversation/tree";
+import { coreModeRegistry } from "./modeRegistry";
 import { type MemoryItem } from "./memory";
+import { corePolicyPromptMessage } from "./policyLayer";
 
 export const DEFAULT_PERSONA = `你是 AI 学习伴侣，一个智能学习助手。
 你可以帮助用户学习新知识、解答问题、总结对话内容。
@@ -19,10 +21,19 @@ type BuildParams = {
 
 export function buildAgentPrompt(params: BuildParams): PromptMessage[] {
   const { session, memory, persona = DEFAULT_PERSONA } = params;
+  const mode = coreModeRegistry.get(session.mode ?? "auto");
 
-  const result: PromptMessage[] = [];
+  const result: PromptMessage[] = [corePolicyPromptMessage()];
 
-  // Persona 是高优先级指令，不属于助手历史。
+  // Mode 只能定义交互协议，不能覆盖排在它之前的核心策略。
+  result.push({
+    kind: "instruction",
+    source: "mode",
+    role: "system",
+    content: `当前模式：${mode.label}\n目标：${mode.purpose}\n交互要求：${mode.instruction}`,
+  });
+
+  // Persona 定义表达风格，不属于助手历史，也不能覆盖 Policy/Mode。
   result.push({
     kind: "instruction",
     source: "persona",
