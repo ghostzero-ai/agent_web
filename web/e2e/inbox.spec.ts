@@ -5,7 +5,7 @@ test("renders and manages Agent task results on mobile", async ({ page }) => {
     id: string;
     taskId: string;
     taskRunId: string;
-    source: "reminder" | "agent_prompt";
+    source: "reminder" | "agent_prompt" | "personal_briefing";
     title: string;
     body: string;
     occurredAt: string;

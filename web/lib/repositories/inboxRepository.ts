@@ -24,6 +24,10 @@ export type CompleteAgentPromptRunInput = CompleteReminderRunInput & {
   model: string;
 };
 
+export type CompletePersonalBriefingRunInput = CompleteAgentPromptRunInput & {
+  sourceCount: number;
+};
+
 export type CompletedReminderRun = {
   inboxItem: InboxItemRecord;
   run: TaskRunRecord;
@@ -56,6 +60,9 @@ export interface InboxRepositoryPort {
   ): Promise<CompletedReminderRun>;
   completeAgentPromptRun(
     input: CompleteAgentPromptRunInput,
+  ): Promise<CompletedReminderRun>;
+  completePersonalBriefingRun(
+    input: CompletePersonalBriefingRunInput,
   ): Promise<CompletedReminderRun>;
 }
 
@@ -142,10 +149,20 @@ export class InboxRepository<
     });
   }
 
+  completePersonalBriefingRun(
+    input: CompletePersonalBriefingRunInput,
+  ): Promise<CompletedReminderRun> {
+    return this.completeRun(input, {
+      kind: "personal_briefing",
+      body: () => input.content,
+      resultSummary: `Personal briefing stored in durable inbox (${input.model}, ${input.sourceCount} sources).`,
+    });
+  }
+
   private completeRun(
     input: CompleteReminderRunInput,
     completion: {
-      kind: "reminder" | "agent_prompt";
+      kind: "reminder" | "agent_prompt" | "personal_briefing";
       body: (prompt: string | null) => string | null;
       resultSummary: string;
     },

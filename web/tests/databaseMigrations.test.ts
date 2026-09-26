@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(12);
+      expect(migrations).toHaveLength(13);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -159,6 +159,32 @@ describe("database migrations", () => {
          RETURNING id`,
         [userResult.rows[0].id],
       );
+      const briefingTask = await pglite.query<{ id: string }>(
+        `INSERT INTO scheduled_tasks (
+           user_id, title, kind, prompt, schedule_type, schedule_value, next_run_at
+         ) VALUES (
+           $1, 'Daily briefing', 'personal_briefing', 'AI policy', 'daily',
+           '{"time":"08:00"}', '2030-02-02T00:00:00Z'
+         ) RETURNING id`,
+        [userResult.rows[0].id],
+      );
+      await expect(
+        pglite.query(
+          `INSERT INTO scheduled_tasks (
+             user_id, title, kind, prompt, schedule_type, schedule_value, next_run_at
+           ) VALUES (
+             $1, 'Invalid briefing', 'personal_briefing', NULL, 'daily',
+             '{"time":"08:00"}', '2030-02-03T00:00:00Z'
+           )`,
+          [userResult.rows[0].id],
+        ),
+      ).rejects.toThrow();
+      const briefingInbox = await pglite.query<{ id: string }>(
+        `INSERT INTO inbox_items (user_id, source, title, occurred_at)
+         VALUES ($1, 'personal_briefing', 'Briefing result', '2030-02-02T00:00:00Z')
+         RETURNING id`,
+        [userResult.rows[0].id],
+      );
 
       await pglite.query(
         `INSERT INTO inbox_items (
@@ -248,6 +274,26 @@ describe("database migrations", () => {
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[12].id,
+      );
+      const downgradedBriefingTask = await pglite.query<{ kind: string }>(
+        `SELECT kind FROM scheduled_tasks WHERE id = $1`,
+        [briefingTask.rows[0].id],
+      );
+      const downgradedBriefingInbox = await pglite.query<{ source: string }>(
+        `SELECT source FROM inbox_items WHERE id = $1`,
+        [briefingInbox.rows[0].id],
+      );
+      expect(downgradedBriefingTask.rows[0].kind).toBe("agent_prompt");
+      expect(downgradedBriefingInbox.rows[0].source).toBe("agent_prompt");
+      await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [
+        briefingInbox.rows[0].id,
+      ]);
+      await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [
+        briefingTask.rows[0].id,
+      ]);
+
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[11].id,
       );
@@ -355,6 +401,7 @@ describe("database migrations", () => {
         migrations[9].id,
         migrations[10].id,
         migrations[11].id,
+        migrations[12].id,
       ]);
     },
     15_000,
@@ -393,6 +440,7 @@ describe("database migrations", () => {
       migrations[9].id,
       migrations[10].id,
       migrations[11].id,
+      migrations[12].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

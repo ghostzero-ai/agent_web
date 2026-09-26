@@ -10,6 +10,7 @@ import {
   AgentPromptGenerationError,
   type AgentPromptGeneratorPort,
 } from "@/lib/tasks/agentPromptGenerator";
+import type { PersonalBriefingGeneratorPort } from "@/lib/tasks/personalBriefingGenerator";
 
 function run(id: string, attempt = 1): TaskRunRecord {
   const at = new Date("2026-09-10T01:00:00.000Z");
@@ -32,13 +33,16 @@ function run(id: string, attempt = 1): TaskRunRecord {
   };
 }
 
-function task(id: string, kind: "reminder" | "agent_prompt" = "reminder") {
+function task(
+  id: string,
+  kind: "reminder" | "agent_prompt" | "personal_briefing" = "reminder",
+) {
   const at = new Date("2026-09-10T01:00:00.000Z");
   return {
     id: `task-${id}`,
     userId: "local-user",
     title: `Reminder ${id}`,
-    prompt: kind === "agent_prompt" ? `Generate ${id}` : `Body ${id}`,
+    prompt: kind === "reminder" ? `Body ${id}` : `Generate ${id}`,
     kind,
     scheduleType: "once" as const,
     scheduleValue: { runAt: at.toISOString() },
@@ -58,6 +62,20 @@ function agent(
     .mockResolvedValue({ content: "Generated result", model: "test-model" }),
 ): AgentPromptGeneratorPort {
   return { generate: implementation };
+}
+
+function briefing(
+  implementation: PersonalBriefingGeneratorPort["generate"] = vi
+    .fn()
+    .mockResolvedValue({
+      content: "# Personal briefing",
+      model: "test-model",
+      sourceCount: 2,
+    }),
+): PersonalBriefingGeneratorPort {
+  return {
+    generate: implementation,
+  };
 }
 
 describe("reminder worker", () => {
@@ -83,7 +101,13 @@ describe("reminder worker", () => {
     } as unknown as ReminderInboxPort;
 
     const result = await runReminderBatch(
-      { scheduler, inbox, agent: agent(), now: () => new Date("2026-09-10T01:00:01.000Z") },
+      {
+        scheduler,
+        inbox,
+        agent: agent(),
+        briefing: briefing(),
+        now: () => new Date("2026-09-10T01:00:01.000Z"),
+      },
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
     );
 
@@ -112,7 +136,13 @@ describe("reminder worker", () => {
     } as unknown as ReminderInboxPort;
 
     const result = await runReminderBatch(
-      { scheduler, inbox, agent: agent(), onRunDeferred: deferred },
+      {
+        scheduler,
+        inbox,
+        agent: agent(),
+        briefing: briefing(),
+        onRunDeferred: deferred,
+      },
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
     );
 
@@ -134,7 +164,12 @@ describe("reminder worker", () => {
     } as unknown as ReminderSchedulerPort;
 
     await runReminderWorker(
-      { scheduler, inbox: {} as ReminderInboxPort, agent: agent() },
+      {
+        scheduler,
+        inbox: {} as ReminderInboxPort,
+        agent: agent(),
+        briefing: briefing(),
+      },
       {
         workerId: "worker-a",
         batchSize: 20,
@@ -171,7 +206,7 @@ describe("reminder worker", () => {
     });
 
     const pending = runReminderBatch(
-      { scheduler, inbox, agent: agent(generate) },
+      { scheduler, inbox, agent: agent(generate), briefing: briefing() },
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 3_000 },
     );
     await vi.advanceTimersByTimeAsync(2_000);
@@ -188,6 +223,62 @@ describe("reminder worker", () => {
         model: "test-model",
       }),
     );
+  });
+
+  it("generates a sourced personal briefing and stores its source count", async () => {
+    const claimedRun = run("briefing");
+    const scheduledTask = task("briefing", "personal_briefing");
+    const scheduler: ReminderSchedulerPort = {
+      claimAvailableRuns: vi.fn().mockResolvedValue([
+        { source: "new", run: claimedRun, task: scheduledTask },
+      ]),
+      markRunRunning: vi.fn().mockResolvedValue({
+        ...claimedRun,
+        status: "running",
+      }),
+      renewRunLease: vi.fn().mockResolvedValue(claimedRun),
+      finishRun: vi.fn(),
+    };
+    const inbox = {
+      completeReminderRun: vi.fn(),
+      completeAgentPromptRun: vi.fn(),
+      completePersonalBriefingRun: vi.fn().mockResolvedValue({}),
+    } as unknown as ReminderInboxPort;
+    const generate = vi.fn().mockResolvedValue({
+      content: "## 今日重点\n有来源的内容。[S1]",
+      model: "briefing-model",
+      sourceCount: 3,
+    });
+
+    await expect(
+      runReminderBatch(
+        {
+          scheduler,
+          inbox,
+          agent: agent(),
+          briefing: briefing(generate),
+        },
+        { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
+      ),
+    ).resolves.toEqual({
+      claimed: 1,
+      completed: 1,
+      failed: 0,
+      deferred: 0,
+    });
+    expect(generate).toHaveBeenCalledWith(
+      scheduledTask.prompt,
+      claimedRun.scheduledFor,
+      expect.any(AbortSignal),
+    );
+    expect(inbox.completePersonalBriefingRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: "## 今日重点\n有来源的内容。[S1]",
+        model: "briefing-model",
+        sourceCount: 3,
+      }),
+    );
+    expect(inbox.completeAgentPromptRun).not.toHaveBeenCalled();
   });
 
   it("records a non-retryable Agent failure on the TaskRun", async () => {
@@ -215,6 +306,7 @@ describe("reminder worker", () => {
         scheduler,
         inbox: {} as ReminderInboxPort,
         agent: agent(vi.fn().mockRejectedValue(failure)),
+        briefing: briefing(),
       },
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
     );
@@ -256,6 +348,7 @@ describe("reminder worker", () => {
         scheduler,
         inbox: {} as ReminderInboxPort,
         agent: agent(vi.fn().mockRejectedValue(failure)),
+        briefing: briefing(),
         onRunDeferred: deferred,
       },
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },

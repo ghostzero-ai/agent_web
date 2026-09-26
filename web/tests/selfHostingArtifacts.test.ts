@@ -87,10 +87,13 @@ describe("single-user self-hosting artifacts", () => {
       "AI_BASE_URL",
       "AI_MODEL",
       "AI_ALLOW_INSECURE_HTTP",
+      "WEB_SEARCH_BASE_URL",
     ]) {
       expect(workerSection).toContain(`${variable}:`);
     }
     expect(workerScript).toContain("runNotificationWorker");
+    expect(workerScript).toContain("createPersonalBriefingGenerator");
+    expect(workerSection).toContain("search:");
   });
 
   it("ships a visible Push service worker and installable manifest assets", async () => {

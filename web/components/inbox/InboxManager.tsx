@@ -30,6 +30,12 @@ function friendlyError(error: unknown): string {
   return error instanceof Error ? error.message : "操作失败，请稍后重试。";
 }
 
+function inboxSourceLabel(source: InboxItem["source"]): string {
+  if (source === "agent_prompt") return "AI 定时任务";
+  if (source === "personal_briefing") return "个人简报";
+  return "普通提醒";
+}
+
 export function InboxManager() {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [filter, setFilter] = useState<InboxFilter>("all");
@@ -176,7 +182,7 @@ export function InboxManager() {
                       {item.title}
                     </h3>
                     <span className="text-xs text-zinc-500">
-                      {item.source === "agent_prompt" ? "AI 定时任务" : "普通提醒"}
+                      {inboxSourceLabel(item.source)}
                     </span>
                     <time className="shrink-0 text-xs text-zinc-500" dateTime={item.occurredAt}>
                       {inboxTimeLabel(item.occurredAt)}

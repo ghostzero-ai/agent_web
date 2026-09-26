@@ -74,6 +74,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      search:
+        condition: service_started
     entrypoint: ["./worker-entrypoint.sh"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.selfhost}
@@ -82,6 +84,7 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-}
       AI_MODEL: ${AI_MODEL:-}
       AI_ALLOW_INSECURE_HTTP: ${AI_ALLOW_INSECURE_HTTP:-false}
+      WEB_SEARCH_BASE_URL: ${WEB_SEARCH_BASE_URL:-http://search:8080/}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       REMINDER_WORKER_ID: ${REMINDER_WORKER_ID:-}
       REMINDER_POLL_INTERVAL_MS: ${REMINDER_POLL_INTERVAL_MS:-5000}

@@ -4,6 +4,30 @@
 
 ---
 
+## Phase 4.1 — 有来源的个人简报垂直切片
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增 `personal_briefing` Task/Inbox 类型，任务页可设置一次、每天或每周执行，并填写关注主题或简报要求。
+- Worker 到期后通过内部 SearXNG 检索，再复用现有 Credential Vault 与 Agent Prompt Generator 生成“今日重点 / 为什么值得关注 / 一个思考问题”。
+- 生成器把搜索证据标记为不可信数据，要求已知 `[Sx]` 引用；代码校验固定章节、引用编号和单一思考问题，并附加真实可点击来源、发布日期、生成日期与订阅理由。
+- 搜索与模型调用全程复用 Run 租约心跳；结果与 Run 成功状态原子写入 Durable Inbox，并复用现有 Push Delivery。
+- Docker Worker 显式依赖内部 Search 服务并接收 `WEB_SEARCH_BASE_URL`；SearXNG 继续不映射宿主机端口。
+- APK Local Notification 现在只同步普通提醒，AI 定时任务和个人简报只在服务端生成完成后通过 Inbox/Push 投递。
+- 新增可回滚迁移 `0012_good_mantis`；回滚会把简报类型降级为普通 Agent Prompt，保留已有主题与正文。
+
+### 当前边界
+
+- 当前使用搜索摘要，不抓取网页全文；来源清单可追踪，但不等同于完整事实证明。
+- Phase 4.1 不做跨期聚类、去重、兴趣反馈或书籍画像；这些进入 Phase 4.2–4.4。
+- 不自动读取聊天或长期记忆；“关注理由”来自用户显式设置的简报主题，不虚构个性化经历。
+
+### 下一步
+
+- Phase 4.2：围绕个人简报建立跨期聚类、去重与轻量反馈，避免同一事件重复出现。
+
 ## Core 3.5 — 轻量质量评测封版
 
 **Commit**: `same delivery commit`

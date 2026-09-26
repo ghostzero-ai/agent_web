@@ -146,6 +146,18 @@ function friendlyError(error: unknown): string {
   return "操作失败，请稍后重试。";
 }
 
+function taskKindLabel(kind: TaskKind): string {
+  if (kind === "agent_prompt") return "AI 生成";
+  if (kind === "personal_briefing") return "个人简报";
+  return "普通提醒";
+}
+
+function promptFieldLabel(kind: TaskKind): string {
+  if (kind === "agent_prompt") return "给 AI 的任务要求";
+  if (kind === "personal_briefing") return "关注主题或简报要求";
+  return "提醒内容（可选）";
+}
+
 export function TaskManager() {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -351,6 +363,7 @@ export function TaskManager() {
             >
               <option value="reminder">普通提醒</option>
               <option value="agent_prompt">AI 定时任务</option>
+              <option value="personal_briefing">个人简报</option>
             </select>
           </label>
 
@@ -367,17 +380,29 @@ export function TaskManager() {
           </label>
 
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            {form.kind === "agent_prompt" ? "给 AI 的任务要求" : "提醒内容（可选）"}
+            {promptFieldLabel(form.kind)}
             <textarea
-              required={form.kind === "agent_prompt"}
+              required={form.kind !== "reminder"}
               rows={3}
               maxLength={10_000}
               value={form.prompt}
               onChange={(event) => setForm({ ...form, prompt: event.target.value })}
               className="mt-1.5 w-full resize-y rounded-xl border border-zinc-300 bg-transparent px-3 py-2.5 outline-none focus:border-zinc-900 dark:border-zinc-700 dark:focus:border-zinc-300"
-              placeholder={form.kind === "agent_prompt" ? "例如：总结三个值得关注的国际科技趋势" : "提醒时希望看到的具体内容"}
+              placeholder={
+                form.kind === "agent_prompt"
+                  ? "例如：总结今天值得复习的三个知识点"
+                  : form.kind === "personal_briefing"
+                    ? "例如：国际人工智能政策、教育技术与值得阅读的研究"
+                    : "提醒时希望看到的具体内容"
+              }
             />
           </label>
+
+          {form.kind === "personal_briefing" && (
+            <p className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs leading-5 text-violet-800 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-200">
+              到期后由服务端搜索并生成带日期、来源、关注理由和一个思考问题的简报。结果进入收件箱，需要电脑服务端、搜索服务和模型配置保持可用。
+            </p>
+          )}
 
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
             重复方式
@@ -532,7 +557,7 @@ export function TaskManager() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="break-words font-semibold text-zinc-950 dark:text-zinc-50">{task.title}</h3>
                       <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                        {task.kind === "agent_prompt" ? "AI 生成" : "普通提醒"}
+                        {taskKindLabel(task.kind)}
                       </span>
                       <span className={`rounded-full px-2 py-0.5 text-xs ${task.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}>
                         {task.status === "active" ? "运行中" : task.status === "paused" ? "已暂停" : "已完成"}

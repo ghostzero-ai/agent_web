@@ -50,12 +50,24 @@ describe("InboxRepository", () => {
     await pglite.close();
   });
 
-  async function runningReminder(kind: "reminder" | "agent_prompt" = "reminder") {
+  async function runningReminder(
+    kind: "reminder" | "agent_prompt" | "personal_briefing" = "reminder",
+  ) {
     const tasks = createTaskRepository(database);
     const scheduler = createSchedulerRepository(database);
     const task = await tasks.create({
-      title: kind === "agent_prompt" ? "每日总结" : "喝水提醒",
-      prompt: kind === "agent_prompt" ? "总结今天的学习" : "起来活动并喝一杯水",
+      title:
+        kind === "agent_prompt"
+          ? "每日总结"
+          : kind === "personal_briefing"
+            ? "每日科技简报"
+            : "喝水提醒",
+      prompt:
+        kind === "agent_prompt"
+          ? "总结今天的学习"
+          : kind === "personal_briefing"
+            ? "国际人工智能政策"
+            : "起来活动并喝一杯水",
       kind,
       scheduleType: "once",
       scheduleValue: { runAt: "2026-09-10T01:00:00.000Z" },
@@ -163,6 +175,31 @@ describe("InboxRepository", () => {
     expect(completed.run).toMatchObject({
       status: "succeeded",
       resultSummary: "Agent response stored in durable inbox (deepseek-test).",
+    });
+  });
+
+  it("stores a sourced personal briefing in the durable inbox", async () => {
+    const inbox = createInboxRepository(database);
+    const { run } = await runningReminder("personal_briefing");
+    const completed = await inbox.completePersonalBriefingRun({
+      runId: run.id,
+      workerId: "worker-a",
+      expectedAttempt: run.attempt,
+      now: new Date("2026-09-10T01:00:02.000Z"),
+      content: "## 今日重点\n\n政策发布。[S1]\n\n## 来源\n\n- [来源](https://example.com)",
+      model: "deepseek-test",
+      sourceCount: 1,
+    });
+
+    expect(completed.inboxItem).toMatchObject({
+      source: "personal_briefing",
+      title: "每日科技简报",
+      body: expect.stringContaining("## 来源"),
+    });
+    expect(completed.run).toMatchObject({
+      status: "succeeded",
+      resultSummary:
+        "Personal briefing stored in durable inbox (deepseek-test, 1 sources).",
     });
   });
 

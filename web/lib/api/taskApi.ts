@@ -55,14 +55,16 @@ const taskFields = {
   prompt: z.string().trim().max(10_000).nullable().default(null),
   schedule: taskScheduleSchema,
 };
-const taskKindSchema = z.enum(["reminder", "agent_prompt"]);
-const taskPromptRule = (input: { kind?: "reminder" | "agent_prompt"; prompt: string | null }) =>
-  input.kind !== "agent_prompt" || Boolean(input.prompt?.trim());
+const taskKindSchema = z.enum(["reminder", "agent_prompt", "personal_briefing"]);
+const taskPromptRule = (input: {
+  kind?: "reminder" | "agent_prompt" | "personal_briefing";
+  prompt: string | null;
+}) => input.kind === undefined || input.kind === "reminder" || Boolean(input.prompt?.trim());
 const createTaskSchema = z
   .object({ ...taskFields, kind: taskKindSchema.default("reminder") })
   .strict()
   .refine(taskPromptRule, {
-    message: "Agent Prompt tasks require a prompt.",
+    message: "Generated tasks require a prompt or briefing topic.",
     path: ["prompt"],
   });
 const updateTaskSchema = z
@@ -74,7 +76,7 @@ const updateTaskSchema = z
   })
   .strict()
   .refine(taskPromptRule, {
-    message: "Agent Prompt tasks require a prompt.",
+    message: "Generated tasks require a prompt or briefing topic.",
     path: ["prompt"],
   });
 

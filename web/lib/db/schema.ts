@@ -79,7 +79,7 @@ export type TaskScheduleValue =
   | { time: string }
   | { weekday: number; time: string };
 
-export type TaskKind = "reminder" | "agent_prompt";
+export type TaskKind = "reminder" | "agent_prompt" | "personal_briefing";
 export type InboxSource = TaskKind;
 
 export type MessageCitation = {
@@ -308,11 +308,11 @@ export const scheduledTasks = pgTable(
     check("scheduled_tasks_version_positive", sql`${table.version} > 0`),
     check(
       "scheduled_tasks_kind_supported",
-      sql`${table.kind} IN ('reminder', 'agent_prompt')`,
+      sql`${table.kind} IN ('reminder', 'agent_prompt', 'personal_briefing')`,
     ),
     check(
-      "scheduled_tasks_agent_prompt_required",
-      sql`${table.kind} <> 'agent_prompt' OR coalesce(length(btrim(${table.prompt})), 0) > 0`,
+      "scheduled_tasks_generated_prompt_required",
+      sql`${table.kind} = 'reminder' OR coalesce(length(btrim(${table.prompt})), 0) > 0`,
     ),
     check(
       "scheduled_tasks_active_next_run",
@@ -407,7 +407,7 @@ export const inboxItems = pgTable(
     ),
     check(
       "inbox_items_source_supported",
-      sql`${table.source} IN ('reminder', 'agent_prompt')`,
+      sql`${table.source} IN ('reminder', 'agent_prompt', 'personal_briefing')`,
     ),
     check(
       "inbox_items_read_state",

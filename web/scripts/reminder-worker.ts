@@ -11,7 +11,9 @@ import { createInboxRepository } from "../lib/repositories/inboxRepository";
 import { createNotificationDeliveryRepository } from "../lib/repositories/notificationDeliveryRepository";
 import { createNotificationRepository } from "../lib/repositories/notificationRepository";
 import { createSchedulerRepository } from "../lib/repositories/schedulerRepository";
+import { createConfiguredWebSearchProvider } from "../lib/search/searxngProvider";
 import { createAgentPromptGenerator } from "../lib/tasks/agentPromptGenerator";
+import { createPersonalBriefingGenerator } from "../lib/tasks/personalBriefingGenerator";
 import { runReminderWorker } from "../lib/tasks/reminderWorker";
 
 function integerSetting(
@@ -70,12 +72,17 @@ async function main(): Promise<void> {
     const pushProviders = new PushProviderRegistry([
       createWebPushProvider(pushConfiguration.getOrCreateConfiguration),
     ]);
+    const agentGenerator = createAgentPromptGenerator();
     await Promise.all([
       runReminderWorker(
         {
           scheduler: createSchedulerRepository(database),
           inbox: createInboxRepository(database),
-          agent: createAgentPromptGenerator(),
+          agent: agentGenerator,
+          briefing: createPersonalBriefingGenerator({
+            search: createConfiguredWebSearchProvider(),
+            agent: agentGenerator,
+          }),
           onRunDeferred(runId, error) {
             console.error(
               JSON.stringify({

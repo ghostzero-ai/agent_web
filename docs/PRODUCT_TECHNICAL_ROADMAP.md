@@ -413,6 +413,7 @@ interface Message {
 type TaskKind =
   | "reminder"
   | "agent_prompt"
+  | "personal_briefing"
   | "news_digest"
   | "book_recommendation"
   | "reflection_question"
@@ -1735,7 +1736,7 @@ toolName, errorCode
 
 | Sprint | 内容 | 验收 |
 |---|---|---|
-| 4.1 | 有来源的个人简报垂直切片 | 定期搜索并生成带日期、来源、关注理由和一个思考问题的简报，结果进入 Inbox |
+| 4.1 ✅ | 有来源的个人简报垂直切片 | 已完成：定期搜索并生成带日期、可点击来源、关注理由和一个思考问题的简报，结果进入 Inbox 并复用 Push |
 | 4.2 | 新闻聚类、去重和反馈 | 同一事件不重复刷屏，用户可调整主题与频率 |
 | 4.3 | 书籍资料与阅读画像 | 推荐有难度和目的说明 |
 | 4.4 | Reflection Question 生成与评分 | 问题相关、少而精、可关闭 |
@@ -1978,7 +1979,7 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
 
-当前优先级遵循产品主线指导。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.5 已封版，已建立 Mode Registry、服务端 Envelope、Run 审计、安全导出、受控 Web Search、分支级 Citation、可见 Response Verifier 和 25 项轻量回归基线。下一步进入 Phase 4 的主动内容垂直切片：有来源的个人简报加一个高质量思考问题。
+当前优先级遵循产品主线指导。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.5 已封版，Phase 4.1 也已完成有来源的个人简报垂直切片。下一步进入 Phase 4.2：为简报建立跨期聚类、去重和反馈，避免同一事件重复刷屏。
 7. 完成新闻、书籍与 Reflection 的最小闭环后，实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
 8. 用背书与解题两个第一方学习活动验证 Capability Gateway；先让插件解决真实学习需求，再考虑冻结 Plugin API v1。
 9. 建立独立 GameSession 后再实现角色扮演与 AI 跑团，禁止把虚构状态混入普通长期记忆；娱乐规则包可作为 Plugin API 冻结前的补充验证。

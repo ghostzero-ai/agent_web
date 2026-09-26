@@ -16,7 +16,9 @@ function parseTime(value: string): { hour: number; minute: number } {
 export function localReminderFromTask(
   task: TaskRecord,
 ): LocalReminderSnapshot | null {
-  if (task.status !== "active" || !task.nextRunAt) return null;
+  if (task.kind !== "reminder" || task.status !== "active" || !task.nextRunAt) {
+    return null;
+  }
   const scheduledAt = new Date(task.nextRunAt);
   if (Number.isNaN(scheduledAt.getTime())) {
     throw new Error(`任务 ${task.id} 的下次执行时间无效`);

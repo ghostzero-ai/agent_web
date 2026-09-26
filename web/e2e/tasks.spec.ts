@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-test("creates, edits, pauses and deletes an Agent task on mobile", async ({
+test("manages an Agent task and creates a personal briefing on mobile", async ({
   page,
 }) => {
   type MockTask = {
     id: string;
     title: string;
     prompt: string | null;
-    kind: "reminder" | "agent_prompt";
+    kind: "reminder" | "agent_prompt" | "personal_briefing";
     scheduleType: "once" | "daily" | "weekly";
     scheduleValue: Record<string, string | number>;
     timezone: string;
@@ -125,4 +125,16 @@ test("creates, edits, pauses and deletes an Agent task on mobile", async ({
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "删除" }).click();
   await expect(page.getByText("还没有任务")).toBeVisible();
+
+  await page.getByLabel("任务类型").selectOption("personal_briefing");
+  await page.getByLabel("标题").fill("每日科技简报");
+  await page
+    .getByLabel("关注主题或简报要求")
+    .fill("国际人工智能政策与教育技术");
+  await expect(page.getByText("到期后由服务端搜索并生成")).toBeVisible();
+  await page.getByRole("button", { name: "创建任务" }).click();
+  await expect(page.getByRole("heading", { name: "每日科技简报" })).toBeVisible();
+  await expect(
+    page.getByLabel("任务列表").getByText("个人简报", { exact: true }),
+  ).toBeVisible();
 });

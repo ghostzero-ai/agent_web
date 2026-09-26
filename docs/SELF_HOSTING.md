@@ -43,7 +43,7 @@ docker compose --env-file .env.selfhost logs --tail 100 web
 docker compose --env-file .env.selfhost logs --tail 100 worker
 ```
 
-Web 与 Worker 容器都会等待 PostgreSQL 健康，并通过数据库迁移锁安全地先完成迁移。首次启动还会下载官方 SearXNG 镜像；它只接受 Compose 内部的搜索请求。电脑本机打开 `http://127.0.0.1:3000/api-key` 测试并保存模型凭据，之后可使用 `/chat`、`/tasks`、`/inbox` 与 `/notifications`。Worker 默认每 5 秒扫描到期任务和待投递通知，网页关闭后仍运行。Web Push 启用与真机排障见 `WEB_PUSH.md`。
+Web 与 Worker 容器都会等待 PostgreSQL 健康，并通过数据库迁移锁安全地先完成迁移；需要搜索的 Web 对话和个人简报还会等待内部 SearXNG 启动。首次启动会下载官方 SearXNG 镜像，它只接受 Compose 内部请求。电脑本机打开 `http://127.0.0.1:3000/api-key` 测试并保存模型凭据，之后可使用 `/chat`、`/tasks`、`/inbox` 与 `/notifications`。Worker 默认每 5 秒扫描到期任务和待投递通知，网页关闭后仍运行。Web Push 启用与真机排障见 `WEB_PUSH.md`。
 
 ## 3. Tailscale 手机私有访问
 

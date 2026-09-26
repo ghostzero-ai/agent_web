@@ -1,6 +1,6 @@
 # Task/TaskRun 任务系统
 
-Sprint 2.1–2.4 建立任务模型、数据库调度、Durable Inbox 与系统 Push；Sprint 2.5 增加 Agent Prompt Task。当前版本在网页关闭后仍能执行普通提醒或调用服务端模型，把结果保存到应用内收件箱，并向已授权设备尝试发送通知。
+Sprint 2.1–2.5 建立任务、调度、Durable Inbox、Push 与 Agent Prompt Task；Phase 4.1 增加有来源的个人简报。当前版本在网页关闭后仍能执行普通提醒、调用服务端模型或搜索生成简报，把结果保存到应用内收件箱，并向已授权设备尝试发送通知。
 
 ## 1. 使用方式
 
@@ -8,7 +8,7 @@ Sprint 2.1–2.4 建立任务模型、数据库调度、Durable Inbox 与系统 
 2. 推荐用仓库根目录的 Docker Compose 同时启动 Web、Worker 和 PostgreSQL；本机开发也可分别启动 Web 与 `npm run worker:reminders`。
 3. 访问 `/tasks` 创建、编辑、暂停、恢复或删除任务，访问 `/inbox` 查看执行结果，访问 `/notifications` 启用系统通知并管理安静时段和设备。
 
-当前支持固定单用户的 `reminder` 与 `agent_prompt`。AI 定时任务必须填写任务要求，并使用 `/api-key` 中保存的服务端模型配置。可选时间规则：
+当前支持固定单用户的 `reminder`、`agent_prompt` 与 `personal_briefing`。两种生成任务都必须填写 prompt：AI 定时任务保存任务要求，个人简报保存关注主题或简报要求；它们使用 `/api-key` 中保存的服务端模型配置，个人简报还要求内部 SearXNG 可用。可选时间规则：
 
 | 类型 | 输入 | 含义 |
 |---|---|---|
@@ -22,7 +22,7 @@ Sprint 2.1–2.4 建立任务模型、数据库调度、Durable Inbox 与系统 
 
 ### `scheduled_tasks`
 
-保存用户意图和下一次计划时间：类型、标题、任务要求、结构化时间规则、时区、`next_run_at`、状态与乐观锁版本。`active` 任务必须具有 `next_run_at`；`agent_prompt` 必须具有非空 prompt；暂停任务会清空下一次时间。
+保存用户意图和下一次计划时间：类型、标题、任务要求/简报主题、结构化时间规则、时区、`next_run_at`、状态与乐观锁版本。`active` 任务必须具有 `next_run_at`；`agent_prompt` 与 `personal_briefing` 必须具有非空 prompt；暂停任务会清空下一次时间。
 
 ### `task_runs`
 
@@ -75,6 +75,17 @@ Sprint 2.1–2.4 建立任务模型、数据库调度、Durable Inbox 与系统 
 }
 ```
 
+创建个人简报示例：
+
+```json
+{
+  "title": "每日科技简报",
+  "kind": "personal_briefing",
+  "prompt": "国际人工智能政策、教育技术与值得阅读的研究",
+  "schedule": { "type": "daily", "time": "08:00" }
+}
+```
+
 更新请求必须带客户端最后读取到的版本：
 
 ```json
@@ -92,7 +103,7 @@ Sprint 2.1–2.4 建立任务模型、数据库调度、Durable Inbox 与系统 
 
 ## 4. 安全与当前边界
 
-- API 不接受 `userId`、`nextRunAt` 或任意任务状态；`kind` 只允许 `reminder`/`agent_prompt`，后者必须具有非空 prompt。
+- API 不接受 `userId`、`nextRunAt` 或任意任务状态；`kind` 只允许 `reminder`/`agent_prompt`/`personal_briefing`，两种生成任务必须具有非空 prompt。
 - Zod 使用严格对象校验，拒绝未知字段、非法 UUID、错误日期、越界星期和非法时间。
 - 数据库错误不会返回连接信息或内部异常；公开错误仅暴露稳定错误码。
 - 当前没有应用登录鉴权，只能通过 localhost 或 Tailscale 可信私网访问，禁止使用 Funnel 公开暴露。
@@ -126,7 +137,7 @@ Run 的 `workerId + attempt + 未过期 lease` 构成 fencing token。旧 Worker
 
 ## 6. Reminder Worker 与 Durable Inbox
 
-Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler Claim 领取最多 20 个 Run。普通提醒无需调用模型；Agent Prompt Task 直接复用服务端 Credential Vault 与 OpenAI-compatible Provider。AI prompt 作为 `user` 消息发送，固定执行规则才是 `system` 消息。
+Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler Claim 领取最多 20 个 Run。普通提醒无需调用模型；Agent Prompt Task 直接复用服务端 Credential Vault 与 OpenAI-compatible Provider。个人简报先调用内部 SearXNG，再把证据作为不可信数据交给同一生成器；代码校验固定章节与引用，并附加来源、日期和订阅理由。用户 prompt 作为 `user` 消息发送，固定执行规则才是 `system` 消息。
 
 同批 Run 并发进入执行，避免长模型调用耗尽其他 Run 的租约。AI 生成期间约每个租约三分之一周期续租，并在写结果前再次续租。临时 Provider 错误保留非终态并在租约过期后接管；配置缺失、空输出或超长输出等永久错误写为 `failed`。成功结果与 Run 终态在同一事务保存，最多 100,000 字符。
 
@@ -139,7 +150,7 @@ Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler
 | `SCHEDULER_BATCH_SIZE` | `20` | 1–100 |
 | `SCHEDULER_LEASE_MS` | `60000` | 5000–900000 毫秒 |
 
-`docker compose --env-file .env.selfhost ps` 应同时显示 `postgres`、`web` 与 `worker`。数据库还原脚本会同时停止 Web 和 Worker，避免还原期间继续写入。
+`docker compose --env-file .env.selfhost ps` 应同时显示 `postgres`、`search`、`web` 与 `worker`。Web 和 Worker 都通过 Compose 内部地址访问 Search。数据库还原脚本会同时停止 Web 和 Worker，避免还原期间继续写入。
 
 ## 7. Web Push 投递
 
@@ -151,13 +162,14 @@ Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler
 
 Capacitor Android 使用 Local Notifications 作为独立的设备投递层。用户必须在 `/tasks` 或 `/notifications` 主动点击授权；已有权限时，应用启动/恢复、任务列表加载以及创建、修改、暂停、恢复、删除后都会对系统待处理通知执行 reconciliation。
 
-- 一次性任务按绝对时间调度；每天和每周任务使用原生重复规则。
+- 只有普通 `reminder` 同步到 APK 本地通知；AI 定时任务与个人简报必须等待服务端生成结果。
+- 一次性提醒按绝对时间调度；每天和每周提醒使用原生重复规则。
 - 通知 ID 由 Task ID 稳定生成；`occurrenceId` 包含任务版本和下次执行时间，用于识别需要替换的旧调度。
 - 通知正文只使用任务标题，不包含 Agent Prompt、模型密钥或服务端凭据。
 - 点击通知只接受应用生成的站内相对深链，并打开对应任务。
 - Android 重启恢复由 Capacitor 插件的 Boot Receiver 负责；服务端 Task/Inbox 仍是事实源。
 - 本地提醒与 Web/Huawei Push 不互相伪装：前者针对已知到期时间，后者针对服务端新生成内容。
 
-## 8. Agent Prompt 当前边界
+## 8. 生成任务当前边界
 
-当前 AI 定时任务是独立上下文，不自动读取聊天、长期记忆、搜索结果或插件。Phase 3 将增加专业回答策略、搜索与引用；通知层仍只消费 Inbox，不直接承担 AI 任务执行。详细决策见 `adr/ADR-035-AGENT-PROMPT-TASK-EXECUTION.md`。
+普通 Agent Prompt Task 是独立上下文，不自动读取聊天、长期记忆、搜索结果或插件。个人简报只读取用户显式填写的主题和本次搜索摘要，不读取聊天或长期记忆；当前不抓取网页全文，也不跨期去重。通知层仍只消费 Inbox，不直接承担生成。详细决策见 `adr/ADR-035-AGENT-PROMPT-TASK-EXECUTION.md` 与 `adr/ADR-045-SOURCED-PERSONAL-BRIEFING.md`。

@@ -5,6 +5,7 @@ import type {
 } from "@/lib/repositories/schedulerRepository";
 import type {
   CompleteAgentPromptRunInput,
+  CompletePersonalBriefingRunInput,
   CompleteReminderRunInput,
   CompletedReminderRun,
 } from "@/lib/repositories/inboxRepository";
@@ -14,6 +15,11 @@ import {
   type AgentPromptGeneratorPort,
   type AgentPromptResult,
 } from "@/lib/tasks/agentPromptGenerator";
+import {
+  PersonalBriefingGenerationError,
+  type PersonalBriefingGeneratorPort,
+  type PersonalBriefingResult,
+} from "@/lib/tasks/personalBriefingGenerator";
 
 export type ReminderWorkerOptions = {
   workerId: string;
@@ -54,12 +60,16 @@ export interface ReminderInboxPort {
   completeAgentPromptRun(
     input: CompleteAgentPromptRunInput,
   ): Promise<CompletedReminderRun>;
+  completePersonalBriefingRun(
+    input: CompletePersonalBriefingRunInput,
+  ): Promise<CompletedReminderRun>;
 }
 
 export type ReminderWorkerDependencies = {
   scheduler: ReminderSchedulerPort;
   inbox: ReminderInboxPort;
   agent: AgentPromptGeneratorPort;
+  briefing: PersonalBriefingGeneratorPort;
   now?: () => Date;
   onRunDeferred?: (runId: string, error: unknown) => void;
   onRunFailed?: (runId: string, errorCode: string) => void;
@@ -67,12 +77,12 @@ export type ReminderWorkerDependencies = {
 
 type RunOutcome = "completed" | "failed" | "deferred";
 
-async function generateWithLeaseHeartbeat(
+async function generateWithLeaseHeartbeat<T>(
   dependencies: ReminderWorkerDependencies,
   options: ReminderWorkerOptions & { signal?: AbortSignal },
   running: TaskRunRecord,
-  prompt: string,
-): Promise<AgentPromptResult> {
+  generate: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
   const abortFromWorker = () => controller.abort(options.signal?.reason);
   if (options.signal?.aborted) abortFromWorker();
@@ -100,7 +110,7 @@ async function generateWithLeaseHeartbeat(
   })();
 
   try {
-    const result = await dependencies.agent.generate(prompt, controller.signal);
+    const result = await generate(controller.signal);
     if (leaseError) throw leaseError;
     await dependencies.scheduler.renewRunLease(
       running.id,
@@ -117,11 +127,11 @@ async function generateWithLeaseHeartbeat(
   }
 }
 
-async function failTerminalAgentRun(
+async function failTerminalGeneratedRun(
   dependencies: ReminderWorkerDependencies,
   options: ReminderWorkerOptions,
   running: TaskRunRecord,
-  error: AgentPromptGenerationError,
+  error: { code: string; message: string; retryable: boolean },
 ): Promise<RunOutcome> {
   try {
     await dependencies.scheduler.finishRun({
@@ -179,37 +189,64 @@ async function executeClaim(
 
   const prompt = claim.task.prompt?.trim();
   if (!prompt) {
-    return failTerminalAgentRun(
+    return failTerminalGeneratedRun(
       dependencies,
       options,
       running,
-      new AgentPromptGenerationError(
-        "AGENT_PROMPT_MISSING",
-        "Agent Prompt task has no prompt.",
-        false,
-      ),
+      claim.task.kind === "personal_briefing"
+        ? new PersonalBriefingGenerationError(
+            "BRIEFING_TOPIC_MISSING",
+            "Personal briefing task has no topic.",
+            false,
+          )
+        : new AgentPromptGenerationError(
+            "AGENT_PROMPT_MISSING",
+            "Agent Prompt task has no prompt.",
+            false,
+          ),
     );
   }
 
   try {
-    const generated = await generateWithLeaseHeartbeat(
+    const generated = await generateWithLeaseHeartbeat<
+      AgentPromptResult | PersonalBriefingResult
+    >(
       dependencies,
       options,
       running,
-      prompt,
+      (signal) =>
+        claim.task.kind === "personal_briefing"
+          ? dependencies.briefing.generate(
+              prompt,
+              claim.run.scheduledFor,
+              signal,
+            )
+          : dependencies.agent.generate(prompt, signal),
     );
-    await dependencies.inbox.completeAgentPromptRun({
+    const completion = {
       runId: running.id,
       workerId: options.workerId,
       expectedAttempt: running.attempt,
       now: (dependencies.now ?? (() => new Date()))(),
       content: generated.content,
       model: generated.model,
-    });
+    };
+    if (claim.task.kind === "personal_briefing") {
+      await dependencies.inbox.completePersonalBriefingRun({
+        ...completion,
+        sourceCount: (generated as PersonalBriefingResult).sourceCount,
+      });
+    } else {
+      await dependencies.inbox.completeAgentPromptRun(completion);
+    }
     return "completed";
   } catch (error) {
-    if (error instanceof AgentPromptGenerationError && !error.retryable) {
-      return failTerminalAgentRun(dependencies, options, running, error);
+    if (
+      (error instanceof AgentPromptGenerationError ||
+        error instanceof PersonalBriefingGenerationError) &&
+      !error.retryable
+    ) {
+      return failTerminalGeneratedRun(dependencies, options, running, error);
     }
     dependencies.onRunDeferred?.(running.id, error);
     return "deferred";

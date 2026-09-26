@@ -174,6 +174,32 @@ describe("Task API", () => {
     });
   });
 
+  it("creates a personal briefing task and requires a topic", async () => {
+    const response = await api.create(
+      jsonRequest("POST", {
+        title: "每日科技简报",
+        kind: "personal_briefing",
+        prompt: "国际人工智能政策与教育技术",
+        schedule: { type: "daily", time: "08:00" },
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect((await response.json()).data).toMatchObject({
+      kind: "personal_briefing",
+      prompt: "国际人工智能政策与教育技术",
+    });
+
+    const missingTopic = await api.create(
+      jsonRequest("POST", {
+        title: "无主题简报",
+        kind: "personal_briefing",
+        prompt: null,
+        schedule: { type: "daily", time: "08:00" },
+      }),
+    );
+    expect(missingTopic.status).toBe(400);
+  });
+
   it("does not expose an internal database error", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const unavailable = createTaskApi(() => {

@@ -57,6 +57,8 @@ describe("local task reminder snapshots", () => {
     expect(localReminderFromTask(task({ status: "paused" }))).toBeNull();
     expect(localReminderFromTask(task({ status: "completed" }))).toBeNull();
     expect(localReminderFromTask(task({ nextRunAt: null }))).toBeNull();
+    expect(localReminderFromTask(task({ kind: "agent_prompt" }))).toBeNull();
+    expect(localReminderFromTask(task({ kind: "personal_briefing" }))).toBeNull();
   });
 
   it("reconciles only the active task snapshot through the platform adapter", async () => {

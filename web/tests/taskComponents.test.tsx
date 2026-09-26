@@ -14,6 +14,7 @@ describe("task presentation", () => {
     expect(html).toContain("安排一件事");
     expect(html).toContain("创建任务");
     expect(html).toContain("AI 定时任务");
+    expect(html).toContain("个人简报");
     expect(html).toContain("正在读取任务");
     expect(html).toContain("Asia/Shanghai");
   });
