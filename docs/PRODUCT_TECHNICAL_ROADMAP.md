@@ -1,9 +1,9 @@
 # AI Study Companion 产品与技术总规划
 
 > 文档类型：产品需求文档（PRD）+ 技术设计文档（TDD）+ 分阶段路线图
-> 文档版本：1.3
+> 文档版本：1.4
 > 编写日期：2026-09-02
-> 最近修订：2026-09-13
+> 最近修订：2026-09-26
 > 适用项目：AI Study Companion / Personal AI Agent Web Application
 > 状态：规划基线，后续通过 ADR 与 CHANGELOG 持续修订
 
@@ -23,6 +23,8 @@
 8. 娱乐模式、Prompt 导出、语音、APK 与 HarmonyOS 如何共享架构而不形成多套业务代码。
 
 本文档不是一次性功能清单。每个阶段开始前仍需拆成小型 Sprint，并遵守“一个目标、可验证、可回滚”的开发原则。
+
+当前 Sprint 排序与防偏移规则以 `PRODUCT_MAINLINE_GUIDE.md` 为准；本文档继续承载完整产品与技术设计。
 
 ---
 
@@ -1723,18 +1725,18 @@ toolName, errorCode
 
 | Sprint | 内容 | 验收 |
 |---|---|---|
-| 3.1 | Mode Registry + Policy Layer | 专业/陪伴/娱乐模式可注册，事实与安全策略不可被模式覆盖 |
+| 3.1 ✅ | Mode Registry + Policy Layer | 已完成：专业/陪伴/反思/娱乐模式可注册，事实与安全策略位于模式上层 |
 | 3.2 ✅ | Prompt Envelope + Export | 服务端生成真实输入 Envelope；Run 审计不保存 Prompt 明文；导出经哈希校验且默认脱敏 |
 | 3.3 ✅ | Web Search Tool + Citation Model | 已完成：可控 SearXNG 检索、证据隔离、结构化持久化与分支级可点击来源 |
 | 3.4 ✅ | Response Verifier | 已完成：确定性引用完整性、摘要支持度、时效与推断边界检查随回答分支可见并持久化 |
-| 3.5 | 专业问答与模式边界评测集 | Prompt 或模式修改有回归分数 |
+| 3.5 ✅ | 精简专业问答与模式边界评测集 | 已完成：25 个无模型、无网络固定样例输出模式边界、专业回答与总回归分数 |
 
 ### Phase 4：新闻、书籍与思考问题（2–4 周）
 
 | Sprint | 内容 | 验收 |
 |---|---|---|
-| 4.1 | 新闻搜索、聚类和去重 | 同一事件不重复刷屏 |
-| 4.2 | 日报/周报任务模板 | 有来源、日期和关注理由 |
+| 4.1 | 有来源的个人简报垂直切片 | 定期搜索并生成带日期、来源、关注理由和一个思考问题的简报，结果进入 Inbox |
+| 4.2 | 新闻聚类、去重和反馈 | 同一事件不重复刷屏，用户可调整主题与频率 |
 | 4.3 | 书籍资料与阅读画像 | 推荐有难度和目的说明 |
 | 4.4 | Reflection Question 生成与评分 | 问题相关、少而精、可关闭 |
 
@@ -1976,10 +1978,10 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
 
-当前优先级已切回 Core Track。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.4 已完成 Mode Registry、服务端 Envelope、Run 审计、安全导出、受控 Web Search、分支级 Citation 与可见 Response Verifier。下一步进入 Core 3.5：专业问答评测集、模式边界样例与回归分数。
-7. 实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
-8. 建立独立 GameSession 后再实现角色扮演与 AI 跑团，禁止把虚构状态混入普通长期记忆。
-9. 用背书、解题和娱乐规则包共同验证 Capability Gateway 后，再冻结 Plugin API v1。
+当前优先级遵循产品主线指导。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.5 已封版，已建立 Mode Registry、服务端 Envelope、Run 审计、安全导出、受控 Web Search、分支级 Citation、可见 Response Verifier 和 25 项轻量回归基线。下一步进入 Phase 4 的主动内容垂直切片：有来源的个人简报加一个高质量思考问题。
+7. 完成新闻、书籍与 Reflection 的最小闭环后，实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
+8. 用背书与解题两个第一方学习活动验证 Capability Gateway；先让插件解决真实学习需求，再考虑冻结 Plugin API v1。
+9. 建立独立 GameSession 后再实现角色扮演与 AI 跑团，禁止把虚构状态混入普通长期记忆；娱乐规则包可作为 Plugin API 冻结前的补充验证。
 10. M1–M3 按需穿插：正式本地 Bundle、本地提醒/Huawei Push，最后 ArkTS + ArkWeb；不重写共享业务。
 
 第一个可以对外演示的关键版本应是：

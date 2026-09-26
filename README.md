@@ -57,10 +57,12 @@ Database
 
 开发中：
 
-* Phase 3：模式、Prompt、专业回答、搜索与引用
+* Phase 3：模式、Prompt、专业回答、搜索、引用与轻量质量评测（已完成）
 * Mobile Track：Capacitor Android 与 HarmonyOS 演进
 
-当前开发主线已回到 Phase 3。Core 3.1–3.2 已完成：Chat 支持持久化模式选择；每次模型请求由服务端生成带层版本、Provider 参数、上下文说明与 SHA-256 的 Prompt Envelope。PostgreSQL 只保存 Run 审计元数据和哈希，不复制 Prompt 明文；JSON/Markdown 导出必须经服务端校验。下一步是 Core 3.3 Web Search 与引用模型。Mobile M1.3 保留现有 APK 与真机验收清单，暂不继续扩张。
+当前开发主线已转向 Phase 4 的主动内容闭环。Core 3.1–3.5 已完成模式与核心策略、Prompt Envelope、安全导出、受控搜索、分支级引用、Response Verifier，以及 25 项不调用真实模型的轻量回归评测。下一步复用 Scheduler、Worker、Search、Citation、Inbox 与 Push，完成“有来源的个人简报 + 高质量思考问题”垂直切片。Mobile M1.3 保留现有 APK 与真机验收清单，只修阻断使用的问题，暂不继续扩张厂商适配。
+
+当前优先级、修订后的交付顺序与防偏移规则见 `docs/PRODUCT_MAINLINE_GUIDE.md`。运行 `npm run eval:core` 可查看模式边界、专业回答与总回归分数；该分数只表示确定性契约没有回归，不代表模型事实正确率。
 
 Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Streaming、显式旧数据导入和 Docker Compose 单用户自托管基线均已建立。Chat 现在以 PostgreSQL 为事实来源；浏览器旧会话只有在用户确认后才会导入，重复请求由导入收据去重。随后完成的 Credential Vault 支持从网页测试和保存自有 Key，服务端使用 AES-256-GCM 加密后写入 PostgreSQL。
 

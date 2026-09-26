@@ -189,6 +189,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 | 3.2 ✅ | Prompt Envelope + Export | 服务端 Envelope、无明文 Run 审计、哈希校验 JSON/Markdown 导出与敏感字段测试已完成 |
 | 3.3 ✅ | Web Search + Citation | 已完成：自动/强制/关闭检索、证据隔离与可点击持久化来源 |
 | 3.4 ✅ | Response Verifier | 已完成：引用、摘要支持、时效与推断边界检查可见并随回答持久化 |
+| 3.5 ✅ | 轻量质量评测封版 | 25 个固定样例覆盖模式边界与专业回答契约，不调用真实模型并输出稳定分数 |
 | 4.x | 新闻、书籍、思考问题 | 服务端生成、去重、有来源并进入 Inbox |
 | 5.x | 记忆、Persona、TTS、主动性 | 语音不改变事实；主动联系受预算和安静时段控制 |
 | 6.x | 角色扮演与 AI 跑团 | 独立 GameSession、结构化状态、骰子工具、分支存档 |

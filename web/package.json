@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "eval:core": "tsx scripts/core-quality-eval.ts",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",

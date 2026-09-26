@@ -28,19 +28,19 @@ GOAL:
 
 CURRENT_PHASE:
 
-Phase 3 — Professional Answering + Mobile Foundation Track
+Phase 4 — Proactive Content Vertical Slice
 
 ==================================================
 
 CURRENT_TASK:
 
-Mobile M0.4 — Huawei 本地通知真机验收
+Phase 4.1 — Sourced Personal Briefing Vertical Slice
 
 ==================================================
 
 NEXT_TASK:
 
-Sprint 3.1 — Mode Registry, Policy Layer and Prompt Envelope
+Phase 4.2 — Content Deduplication and Feedback
 
 ==================================================
 
