@@ -4,6 +4,25 @@
 
 ---
 
+## Core 3.2 — 服务端 Prompt Envelope 与安全导出
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 模型 API 改为接收带 `kind/source/role` 的结构化 Prompt，由服务端生成 Provider 的实际消息，避免客户端请求与审计副本分叉。
+- 新增 Prompt Envelope v1：包含 Run ID、Composer/逐层版本、层顺序、非敏感 Provider 参数、工具/生成参数占位、Context 状态和 SHA-256。
+- 新增 `prompt_runs` 与可回滚迁移，只持久化版本、状态、哈希和审计元数据，不保存 Prompt、记忆或对话正文。
+- 普通发送校验当前叶节点；重试校验历史节点属于同一会话，保持树形重新生成行为。
+- SSE `meta` 返回服务端 Envelope；Provider 完成、失败或取消会更新 Run 状态和安全错误码。
+- 新增服务端 JSON/Markdown 导出端点；导出前重新计算哈希并核对审计记录，篡改 Envelope 被拒绝。
+- 记忆默认脱敏，显式确认后才能进入文件；API Key、数据库凭据、Push Token、内部错误栈和插件私有数据始终排除。
+
+### 当前边界
+
+- 完整 Envelope 只存在于当前客户端运行期间；刷新后保留 Run 审计，但不会从数据库恢复敏感 Prompt 明文。
+- 当前未启用工具、温度自定义、Context 截断/压缩或 Token 计量，对应字段以明确的空值/false 记录，后续变更需要提升版本。
+
 ## Core 3.1.2 — 会话模式持久化与选择
 
 **Commit**: `same delivery commit`

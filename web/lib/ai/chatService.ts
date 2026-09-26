@@ -2,11 +2,12 @@ import {
   type ChatMessage,
   type Session,
 } from "@/lib/config";
+import type { PromptMessage } from "@/lib/ai/messages";
 import {
-  toChatCompletionMessages,
-  type ModelRequestMetadata,
-  type PromptMessage,
-} from "@/lib/ai/messages";
+  isPromptEnvelope,
+  type PromptEnvelope,
+  type PromptTrigger,
+} from "@/lib/ai/promptEnvelope";
 import {
   appendAssistantBranch,
   appendMessage,
@@ -19,9 +20,13 @@ import { apiFetch } from "@/lib/api/clientRuntime";
  */
 export async function sendChatMessage(
   messages: PromptMessage[],
+  context: {
+    trigger: PromptTrigger;
+    conversation: PromptEnvelope["conversation"];
+  },
   signal?: AbortSignal,
   onDelta?: (text: string, accumulated: string) => void,
-  onMeta?: (metadata: ModelRequestMetadata) => void,
+  onEnvelope?: (envelope: PromptEnvelope) => void,
 ): Promise<string> {
   const response = await apiFetch("/api/v1/model/stream", {
     method: "POST",
@@ -29,7 +34,9 @@ export async function sendChatMessage(
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      messages: toChatCompletionMessages(messages),
+      trigger: context.trigger,
+      conversation: context.conversation,
+      prompt: messages,
     }),
     signal,
   });
@@ -72,19 +79,8 @@ export async function sendChatMessage(
       if (!dataText) continue;
 
       const data = JSON.parse(dataText);
-      if (
-        event === "meta" &&
-        typeof data.requestId === "string" &&
-        data.provider === "openai-compatible" &&
-        typeof data.baseUrl === "string" &&
-        typeof data.model === "string"
-      ) {
-        onMeta?.({
-          requestId: data.requestId,
-          provider: data.provider,
-          baseUrl: data.baseUrl,
-          model: data.model,
-        });
+      if (event === "meta" && isPromptEnvelope(data.envelope)) {
+        onEnvelope?.(data.envelope);
       } else if (event === "delta" && typeof data.text === "string") {
         result += data.text;
         onDelta?.(data.text, result);

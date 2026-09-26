@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { createPromptEnvelope } from "../lib/ai/promptEnvelope";
+import { createPromptExportArtifact } from "../lib/ai/promptExport";
 
 type MockMessage = {
   id: string;
@@ -307,17 +309,61 @@ test("persists the selected conversation mode across reloads", async ({ page }) 
 
 test("exports the exact latest model Prompt as JSON", async ({ page }) => {
   await installServerDataMock(page);
-  await page.route("**/api/v1/model/stream", (route) =>
-    route.fulfill({
+  await page.route("**/api/v1/model/prompt-export", async (route) => {
+    const body = route.request().postDataJSON() as {
+      envelope: Awaited<ReturnType<typeof createPromptEnvelope>>;
+      format: "json" | "markdown";
+      includeMemory: boolean;
+    };
+    const artifact = await createPromptExportArtifact(
+      body.envelope,
+      body.format,
+      { includeMemory: body.includeMemory },
+    );
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: artifact }),
+    });
+  });
+  await page.route("**/api/v1/model/stream", async (route) => {
+    const body = route.request().postDataJSON() as {
+      trigger: "send" | "retry";
+      conversation: {
+        id: string;
+        title: string;
+        activeLeafId: string | null;
+      };
+      prompt: Parameters<typeof createPromptEnvelope>[0]["prompt"];
+    };
+    const envelope = await createPromptEnvelope({
+      runId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      createdAt: "2026-09-26T02:03:04.000Z",
+      trigger: body.trigger,
+      conversation: body.conversation,
+      prompt: body.prompt,
+      provider: {
+        provider: "openai-compatible",
+        baseUrl: "https://provider.example/v1",
+        model: "e2e-model",
+      },
+    });
+    await route.fulfill({
       status: 200,
       contentType: "text/event-stream",
       body: [
-        'event: meta\ndata: {"requestId":"e2e-request","provider":"openai-compatible","baseUrl":"https://provider.example/v1","model":"e2e-model"}\n\n',
+        `event: meta\ndata: ${JSON.stringify({
+          requestId: envelope.runId,
+          provider: envelope.provider.provider,
+          baseUrl: envelope.provider.baseUrl,
+          model: envelope.provider.model,
+          envelope,
+        })}\n\n`,
         'event: delta\ndata: {"text":"导出测试回答"}\n\n',
         "event: done\ndata: {}\n\n",
       ].join(""),
-    }),
-  );
+    });
+  });
 
   await page.goto("/chat");
   await page.getByRole("button", { name: "+ 新建对话" }).click();
@@ -343,9 +389,14 @@ test("exports the exact latest model Prompt as JSON", async ({ page }) => {
   const exported = JSON.parse(await readFile(path!, "utf8"));
 
   expect(exported.provider).toMatchObject({
-    requestId: "e2e-request",
+    requestId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
     model: "e2e-model",
   });
+  expect(exported.envelope).toMatchObject({
+    schemaVersion: 1,
+    composerVersion: "core-3.2/v1",
+  });
+  expect(exported.integrity.auditContentHash).toMatch(/^[a-f0-9]{64}$/);
   expect(exported.request.messages.at(-1)).toEqual({
     role: "user",
     content: "请导出这一条实际请求",

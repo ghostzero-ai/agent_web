@@ -1,24 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  createPromptExportArtifact,
-  type PromptExportFormat,
-  type PromptRequestSnapshot,
-} from "@/lib/ai/promptExport";
+import type { PromptEnvelope } from "@/lib/ai/promptEnvelope";
+import type { PromptExportFormat } from "@/lib/ai/promptExport";
+import { exportPromptEnvelope } from "@/lib/api/promptExportClient";
 import { getFileExportAdapter } from "@/lib/platform/fileExport";
 
 type PromptExportControlProps = {
-  snapshot: PromptRequestSnapshot | null;
+  envelope: PromptEnvelope | null;
 };
 
-export function PromptExportControl({ snapshot }: PromptExportControlProps) {
+export function PromptExportControl({ envelope }: PromptExportControlProps) {
   const [open, setOpen] = useState(false);
   const [includeMemory, setIncludeMemory] = useState(false);
   const [exporting, setExporting] = useState<PromptExportFormat | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const hasMemory = snapshot?.prompt.some((message) => message.source === "memory") ?? false;
+  const hasMemory = envelope?.privacy.containsMemory ?? false;
 
   useEffect(() => {
     if (!open) return;
@@ -30,14 +28,16 @@ export function PromptExportControl({ snapshot }: PromptExportControlProps) {
   }, [open, exporting]);
 
   const startExport = async (format: PromptExportFormat) => {
-    if (!snapshot || exporting) return;
+    if (!envelope || exporting) return;
     setExporting(format);
     setStatus(null);
     setError(null);
     try {
-      const artifact = await createPromptExportArtifact(snapshot, format, {
+      const artifact = await exportPromptEnvelope(
+        envelope,
+        format,
         includeMemory,
-      });
+      );
       const result = await getFileExportAdapter().export(artifact);
       setStatus(
         result.method === "share"
@@ -54,7 +54,7 @@ export function PromptExportControl({ snapshot }: PromptExportControlProps) {
   };
 
   const openDialog = () => {
-    if (!snapshot) return;
+    if (!envelope) return;
     setIncludeMemory(false);
     setStatus(null);
     setError(null);
@@ -66,9 +66,9 @@ export function PromptExportControl({ snapshot }: PromptExportControlProps) {
       <button
         type="button"
         onClick={openDialog}
-        disabled={!snapshot}
+        disabled={!envelope}
         title={
-          snapshot
+          envelope
             ? "导出最近一次发送给模型的 Prompt"
             : "当前会话发送一次消息后即可导出 Prompt"
         }
@@ -77,7 +77,7 @@ export function PromptExportControl({ snapshot }: PromptExportControlProps) {
         导出 Prompt
       </button>
 
-      {open && snapshot && (
+      {open && envelope && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <button
             type="button"
@@ -100,7 +100,7 @@ export function PromptExportControl({ snapshot }: PromptExportControlProps) {
                   导出最近一次 Prompt
                 </h2>
                 <p className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                  导出的是本次请求实际使用的 Prompt 层与 Provider 元数据，不包含 API Key。
+                  服务端会校验本次请求的审计记录与内容哈希，再生成文件；不包含 API Key。
                 </p>
               </div>
               <button
@@ -117,15 +117,23 @@ export function PromptExportControl({ snapshot }: PromptExportControlProps) {
             <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-xl bg-zinc-50 p-3 text-xs dark:bg-zinc-900">
               <dt className="text-zinc-500">对话</dt>
               <dd className="truncate text-zinc-800 dark:text-zinc-200">
-                {snapshot.conversation.title}
+                {envelope.conversation.title}
               </dd>
               <dt className="text-zinc-500">模型</dt>
               <dd className="truncate text-zinc-800 dark:text-zinc-200">
-                {snapshot.modelRequest?.model ?? "未取得请求元数据"}
+                {envelope.provider.model}
+              </dd>
+              <dt className="text-zinc-500">Run ID</dt>
+              <dd className="truncate font-mono text-zinc-800 dark:text-zinc-200">
+                {envelope.runId}
+              </dd>
+              <dt className="text-zinc-500">审计哈希</dt>
+              <dd className="truncate font-mono text-zinc-800 dark:text-zinc-200">
+                {envelope.integrity.contentHash}
               </dd>
               <dt className="text-zinc-500">捕获时间</dt>
               <dd className="text-zinc-800 dark:text-zinc-200">
-                {new Date(snapshot.capturedAt).toLocaleString("zh-CN")}
+                {new Date(envelope.createdAt).toLocaleString("zh-CN")}
               </dd>
             </dl>
 

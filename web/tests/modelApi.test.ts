@@ -3,8 +3,11 @@ import { createModelApi } from "@/lib/api/modelApi";
 import { ModelConfigError } from "@/lib/ai/server/modelConfig";
 import type {
   ModelProvider,
+  ModelStreamRequest,
   ModelStreamEvent,
 } from "@/lib/ai/server/modelProvider";
+import type { PromptRunRepositoryPort } from "@/lib/repositories/promptRunRepository";
+import { TEST_CONVERSATION_ID, TEST_LEAF_ID } from "./helpers/promptEnvelope";
 
 const config = {
   apiKey: "server-only-key",
@@ -25,11 +28,42 @@ function request(body: unknown, signal?: AbortSignal): Request {
   });
 }
 
+const validBody = {
+  trigger: "send",
+  conversation: {
+    id: TEST_CONVERSATION_ID,
+    title: "测试会话",
+    activeLeafId: TEST_LEAF_ID,
+  },
+  prompt: [
+    {
+      kind: "conversation",
+      source: "conversation",
+      role: "user",
+      content: "问题",
+    },
+  ],
+};
+
+function createRunRecorder() {
+  const start = vi.fn().mockResolvedValue({});
+  const finish = vi.fn().mockResolvedValue({});
+  const get = vi.fn().mockResolvedValue(null);
+  return {
+    repository: { start, finish, get } as unknown as PromptRunRepositoryPort,
+    start,
+    finish,
+  };
+}
+
 describe("Model API", () => {
   it("returns a server SSE stream without exposing provider credentials", async () => {
     let receivedSignal: AbortSignal | undefined;
+    let receivedRequest: ModelStreamRequest | undefined;
+    const runs = createRunRecorder();
     const provider: ModelProvider = {
-      async *stream(_request, signal): AsyncIterable<ModelStreamEvent> {
+      async *stream(modelRequest, signal): AsyncIterable<ModelStreamEvent> {
+        receivedRequest = modelRequest;
         receivedSignal = signal;
         yield { type: "delta", text: "专业" };
         yield { type: "delta", text: "回答" };
@@ -45,11 +79,10 @@ describe("Model API", () => {
         missing: [],
       }),
       createProvider: () => provider,
+      runs: runs.repository,
     });
 
-    const response = await api.stream(
-      request({ messages: [{ role: "user", content: "问题" }] }),
-    );
+    const response = await api.stream(request(validBody));
     const body = await response.text();
 
     expect(response.status).toBe(200);
@@ -60,14 +93,25 @@ describe("Model API", () => {
     expect(body).toContain('"provider":"openai-compatible"');
     expect(body).toContain('"baseUrl":"https://provider.example/v1"');
     expect(body).toContain('"model":"test-model"');
+    expect(body).toContain('"format":"ai-study-companion.prompt-envelope"');
+    expect(body).toContain('"composer":{"version":"core-3.2/v1"');
     expect(body).toContain('event: delta\ndata: {"text":"专业"}');
     expect(body).toContain('event: delta\ndata: {"text":"回答"}');
     expect(body).toContain("event: done");
     expect(body).not.toContain("server-only-key");
     expect(receivedSignal).toBeInstanceOf(AbortSignal);
+    expect(receivedRequest).toEqual({
+      messages: [{ role: "user", content: "问题" }],
+    });
+    expect(runs.start).toHaveBeenCalledOnce();
+    expect(runs.finish).toHaveBeenCalledWith(
+      expect.any(String),
+      "completed",
+    );
   });
 
   it("returns validation and missing-config errors before opening SSE", async () => {
+    const runs = createRunRecorder();
     const api = createModelApi({
       getConfig: () => {
         throw new ModelConfigError(["AI_API_KEY"]);
@@ -81,15 +125,14 @@ describe("Model API", () => {
       createProvider: () => {
         throw new Error("must not create provider");
       },
+      runs: runs.repository,
     });
 
-    const invalid = await api.stream(request({ messages: [] }));
+    const invalid = await api.stream(request({ ...validBody, prompt: [] }));
     expect(invalid.status).toBe(400);
     expect((await invalid.json()).error.code).toBe("INVALID_REQUEST");
 
-    const missing = await api.stream(
-      request({ messages: [{ role: "user", content: "问题" }] }),
-    );
+    const missing = await api.stream(request(validBody));
     const missingBody = await missing.json();
     expect(missing.status).toBe(503);
     expect(missingBody.error).toMatchObject({
@@ -109,6 +152,7 @@ describe("Model API", () => {
       createProvider: () => {
         throw new Error("must not create provider");
       },
+      runs: createRunRecorder().repository,
     });
 
     const response = await api.status();
@@ -141,6 +185,7 @@ describe("Model API", () => {
         });
       },
     };
+    const runs = createRunRecorder();
     const api = createModelApi({
       getConfig: () => config,
       getStatus: () => ({
@@ -150,13 +195,11 @@ describe("Model API", () => {
         missing: [],
       }),
       createProvider: () => provider,
+      runs: runs.repository,
     });
     const controller = new AbortController();
     const response = await api.stream(
-      request(
-        { messages: [{ role: "user", content: "停止生成" }] },
-        controller.signal,
-      ),
+      request(validBody, controller.signal),
     );
     const reader = response.body!.getReader();
 
@@ -166,5 +209,9 @@ describe("Model API", () => {
     await reader.read();
 
     expect(providerWasAborted).toBe(true);
+    expect(runs.finish).toHaveBeenCalledWith(
+      expect.any(String),
+      "cancelled",
+    );
   });
 });

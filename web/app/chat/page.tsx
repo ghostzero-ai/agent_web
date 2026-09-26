@@ -12,7 +12,7 @@ import { getMemory } from "@/lib/agent/memory";
 import type { CoreModeId } from "@/lib/agent/modeRegistry";
 import { buildAgentPrompt } from "@/lib/agent/promptBuilder";
 import { applyRetryReply, applySendReply, sendChatMessage } from "@/lib/ai/chatService";
-import type { PromptRequestSnapshot } from "@/lib/ai/promptExport";
+import type { PromptEnvelope } from "@/lib/ai/promptEnvelope";
 import {
   appendServerMessage,
   createServerSession,
@@ -66,48 +66,9 @@ export default function ChatPage() {
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [promptSnapshots, setPromptSnapshots] = useState<
-    Record<string, PromptRequestSnapshot>
+  const [promptEnvelopes, setPromptEnvelopes] = useState<
+    Record<string, PromptEnvelope>
   >({});
-
-  const capturePrompt = (
-    session: Pick<Session, "id" | "title" | "activeLeafId">,
-    prompt: PromptRequestSnapshot["prompt"],
-    trigger: PromptRequestSnapshot["trigger"],
-  ) => {
-    const snapshot: PromptRequestSnapshot = {
-      snapshotId: crypto.randomUUID(),
-      capturedAt: new Date().toISOString(),
-      trigger,
-      conversation: {
-        id: session.id,
-        title: session.title,
-        activeLeafId: session.activeLeafId ?? null,
-      },
-      prompt: prompt.map((message) => ({ ...message })),
-      modelRequest: null,
-    };
-    setPromptSnapshots((current) => ({
-      ...current,
-      [session.id]: snapshot,
-    }));
-    return snapshot;
-  };
-
-  const attachModelMetadata = (
-    sessionId: string,
-    snapshotId: string,
-    modelRequest: NonNullable<PromptRequestSnapshot["modelRequest"]>,
-  ) => {
-    setPromptSnapshots((current) => {
-      const snapshot = current[sessionId];
-      if (!snapshot || snapshot.snapshotId !== snapshotId) return current;
-      return {
-        ...current,
-        [sessionId]: { ...snapshot, modelRequest },
-      };
-    });
-  };
 
   const replaceSession = (next: ServerSession) => {
     setSessions((current) =>
@@ -275,10 +236,17 @@ export default function ChatPage() {
         session: persistedUserSession,
         memory: getMemory(),
       });
-      const promptSnapshot = capturePrompt(persistedUserSession, prompt, "send");
       const provisionalId = crypto.randomUUID();
       const reply = await sendChatMessage(
         prompt,
+        {
+          trigger: "send",
+          conversation: {
+            id: persistedUserSession.id,
+            title: persistedUserSession.title,
+            activeLeafId: persistedUserSession.activeLeafId ?? null,
+          },
+        },
         controller.signal,
         (_delta, accumulated) => {
           replaceSession(
@@ -289,8 +257,11 @@ export default function ChatPage() {
             ) as ServerSession,
           );
         },
-        (metadata) =>
-          attachModelMetadata(sessionId, promptSnapshot.snapshotId, metadata),
+        (envelope) =>
+          setPromptEnvelopes((current) => ({
+            ...current,
+            [sessionId]: envelope,
+          })),
       );
       const assistantResult = await appendServerMessage(sessionId, {
         parentMessageId: userMessage.id ?? null,
@@ -332,9 +303,16 @@ export default function ChatPage() {
 
     try {
       const prompt = buildAgentPrompt({ session: retrySession, memory: getMemory() });
-      const promptSnapshot = capturePrompt(retrySession, prompt, "retry");
       const reply = await sendChatMessage(
         prompt,
+        {
+          trigger: "retry",
+          conversation: {
+            id: retrySession.id,
+            title: retrySession.title,
+            activeLeafId: retrySession.activeLeafId ?? null,
+          },
+        },
         controller.signal,
         (_delta, accumulated) => {
           replaceSession(
@@ -346,8 +324,11 @@ export default function ChatPage() {
             ) as ServerSession,
           );
         },
-        (metadata) =>
-          attachModelMetadata(sessionId, promptSnapshot.snapshotId, metadata),
+        (envelope) =>
+          setPromptEnvelopes((current) => ({
+            ...current,
+            [sessionId]: envelope,
+          })),
       );
       await appendServerMessage(sessionId, {
         parentMessageId: message.parentId ?? null,
@@ -474,9 +455,9 @@ export default function ChatPage() {
               onChange={handleModeChange}
             />
             <PromptExportControl
-              snapshot={
+              envelope={
                 resolvedActiveSessionId
-                  ? promptSnapshots[resolvedActiveSessionId] ?? null
+                  ? promptEnvelopes[resolvedActiveSessionId] ?? null
                   : null
               }
             />

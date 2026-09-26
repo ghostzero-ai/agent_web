@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(10);
+      expect(migrations).toHaveLength(11);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -71,6 +71,7 @@ describe("database migrations", () => {
         "model_credentials",
         "notification_deliveries",
         "notification_preferences",
+        "prompt_runs",
         "push_subscriptions",
         "push_vapid_configurations",
         "scheduled_tasks",
@@ -246,6 +247,16 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[10].id,
+      );
+      const promptRunsAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename
+        FROM pg_tables
+        WHERE schemaname = 'public' AND tablename = 'prompt_runs'
+      `);
+      expect(promptRunsAfterRollback.rows).toEqual([]);
+
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[9].id,
       );
       const modeAfterRollback = await pglite.query<{ mode: string }>(
@@ -328,6 +339,7 @@ describe("database migrations", () => {
         migrations[7].id,
         migrations[8].id,
         migrations[9].id,
+        migrations[10].id,
       ]);
     },
     15_000,
@@ -364,6 +376,7 @@ describe("database migrations", () => {
       migrations[7].id,
       migrations[8].id,
       migrations[9].id,
+      migrations[10].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

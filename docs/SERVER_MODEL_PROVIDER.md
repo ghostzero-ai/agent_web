@@ -69,24 +69,30 @@ AI_ALLOW_INSECURE_HTTP=false
 
 ### `POST /api/v1/model/stream`
 
-请求只接受 Provider 标准消息：
+请求接受带来源的结构化 Prompt 和会话分支：
 
 ```json
 {
-  "messages": [
-    { "role": "system", "content": "保持专业" },
-    { "role": "user", "content": "解释数据库事务" }
+  "trigger": "send",
+  "conversation": {
+    "id": "conversation uuid",
+    "title": "事务学习",
+    "activeLeafId": "message uuid"
+  },
+  "prompt": [
+    { "kind": "instruction", "source": "policy", "role": "system", "content": "..." },
+    { "kind": "conversation", "source": "conversation", "role": "user", "content": "解释数据库事务" }
   ]
 }
 ```
 
-限制：1–500 条消息、单条最多 1,000,000 字符、总内容最多 2,000,000 字符；未知字段被拒绝。服务端解析存储凭据或环境变量兜底，补充 Model、Authorization 和 `stream=true` 后请求上游 `/chat/completions`。
+限制：1–500 层、单层最多 1,000,000 字符、总内容最多 2,000,000 字符；来源、角色组合和未知字段均严格校验。服务端生成 Prompt Envelope、验证会话分支并写入无明文 Run 审计，然后才把 Envelope 内的标准消息发送到上游 `/chat/completions`。
 
 成功响应为 `text/event-stream`：
 
 ```text
 event: meta
-data: {"requestId":"...","model":"deepseek-v4-flash-vision-exp"}
+data: {"requestId":"...","model":"deepseek-v4-flash-vision-exp","envelope":{"format":"ai-study-companion.prompt-envelope","schemaVersion":1,"...":"..."}}
 
 event: delta
 data: {"text":"增量文字"}
@@ -96,6 +102,10 @@ data: {}
 ```
 
 建立 SSE 前的配置/校验错误使用普通 JSON 和 400/503。建立 SSE 后的 Provider 错误使用 `event: error`，包含稳定 `code`、安全文案、`retryable` 和 `requestId`。
+
+### `POST /api/v1/model/prompt-export`
+
+请求携带本次 SSE 返回的 `envelope`、`format`（`json` 或 `markdown`）和 `includeMemory`。服务端重新计算 Envelope 哈希，并与 `prompt_runs` 中本地用户的审计记录核对；成功后返回可交给平台文件 Adapter 的 `{ filename, mediaType, content }`。不存在的 Run 返回 404，Envelope 被修改或与审计不一致返回 409。
 
 ## 4. 取消传播
 
@@ -126,4 +136,4 @@ Chat 的“停止生成”会中止浏览器 fetch；Route Handler 监听请求 
 - 当前是单用户自托管版本，没有应用登录。仅允许在 localhost 或 Tailscale 私有网络中使用，不得通过公网端口转发或 Tailscale Funnel 暴露。
 - 自定义 Base URL 目前依赖 HTTPS、URL 校验和服务端超时；公网多用户版本仍需 Provider/域名白名单、DNS/IP 出口策略与重定向复检，以进一步防御 SSRF。
 - 主密钥保存在环境变量，适合个人自托管；多用户云端应迁移到 KMS/Secrets 服务并支持密钥轮换。
-- 当前没有工具调用、Token 计量、Run 表或断线恢复；这些属于后续 Agent Runtime 和 Task 阶段。
+- 当前 Envelope 已预留工具、生成参数和 Context 处理字段，但尚未启用工具调用、Token 计量或流断线续传；这些属于后续 Agent Runtime 阶段。

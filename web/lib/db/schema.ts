@@ -32,6 +32,13 @@ export const messageStatus = pgEnum("message_status", [
   "failed",
 ]);
 
+export const promptRunStatus = pgEnum("prompt_run_status", [
+  "started",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
 export const taskScheduleType = pgEnum("task_schedule_type", [
   "once",
   "daily",
@@ -157,6 +164,45 @@ export const messages = pgTable(
       table.createdAt,
     ),
     index("messages_parent_idx").on(table.parentMessageId),
+  ],
+);
+
+export const promptRuns = pgTable(
+  "prompt_runs",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    activeLeafMessageId: uuid("active_leaf_message_id"),
+    trigger: text("trigger").notNull(),
+    envelopeSchemaVersion: integer("envelope_schema_version").notNull(),
+    composerVersion: text("composer_version").notNull(),
+    contentHash: text("content_hash").notNull(),
+    provider: text("provider").notNull(),
+    baseUrl: text("base_url").notNull(),
+    model: text("model").notNull(),
+    messageCount: integer("message_count").notNull(),
+    containsMemory: boolean("contains_memory").notNull().default(false),
+    status: promptRunStatus("status").notNull().default("started"),
+    errorCode: text("error_code"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    index("prompt_runs_conversation_created_idx").on(
+      table.conversationId,
+      table.createdAt,
+    ),
+    check("prompt_runs_trigger_supported", sql`${table.trigger} IN ('send', 'retry')`),
+    check("prompt_runs_schema_version_positive", sql`${table.envelopeSchemaVersion} > 0`),
+    check("prompt_runs_message_count_positive", sql`${table.messageCount} > 0`),
+    check("prompt_runs_content_hash_sha256", sql`${table.contentHash} ~ '^[0-9a-f]{64}$'`),
   ],
 );
 
@@ -487,6 +533,7 @@ export const notificationDeliveries = pgTable("notification_deliveries", {
 export type UserRecord = typeof users.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
+export type PromptRunRecord = typeof promptRuns.$inferSelect;
 export type ConversationImportRecord = typeof conversationImports.$inferSelect;
 export type ModelCredentialRecord = typeof modelCredentials.$inferSelect;
 export type ScheduledTaskRecord = typeof scheduledTasks.$inferSelect;

@@ -1,4 +1,5 @@
 import { z, ZodError } from "zod";
+import { createPromptEnvelope } from "@/lib/ai/promptEnvelope";
 import {
   ModelConfigError,
   type ModelProviderConfig,
@@ -13,23 +14,62 @@ import {
   OpenAICompatibleProvider,
   type ModelProvider,
 } from "@/lib/ai/server/modelProvider";
+import { getDatabase } from "@/lib/db/client";
+import {
+  createPromptRunRepository,
+  PromptRunRepositoryError,
+  type PromptRunRepositoryPort,
+} from "@/lib/repositories/promptRunRepository";
 
 type ModelApiDependencies = {
   getConfig: () => ModelProviderConfig | Promise<ModelProviderConfig>;
   getStatus: () => ModelProviderStatus | Promise<ModelProviderStatus>;
   createProvider: (config: ModelProviderConfig) => ModelProvider;
+  runs: PromptRunRepositoryPort;
 };
+
+const instructionPromptSchema = z
+  .object({
+    kind: z.literal("instruction"),
+    source: z.enum(["policy", "mode", "persona"]),
+    role: z.literal("system"),
+    content: z.string().min(1).max(1_000_000),
+  })
+  .strict();
+const contextPromptSchema = z
+  .object({
+    kind: z.literal("context"),
+    source: z.literal("memory"),
+    role: z.literal("system"),
+    content: z.string().min(1).max(1_000_000),
+  })
+  .strict();
+const conversationPromptSchema = z
+  .object({
+    kind: z.literal("conversation"),
+    source: z.literal("conversation"),
+    role: z.enum(["user", "assistant"]),
+    content: z.string().min(1).max(1_000_000),
+  })
+  .strict();
 
 const modelRequestSchema = z
   .object({
-    messages: z
+    trigger: z.enum(["send", "retry"]),
+    conversation: z
+      .object({
+        id: z.uuid(),
+        title: z.string().trim().min(1).max(200),
+        activeLeafId: z.uuid().nullable(),
+      })
+      .strict(),
+    prompt: z
       .array(
-        z
-          .object({
-            role: z.enum(["system", "user", "assistant"]),
-            content: z.string().min(1).max(1_000_000),
-          })
-          .strict(),
+        z.union([
+          instructionPromptSchema,
+          contextPromptSchema,
+          conversationPromptSchema,
+        ]),
       )
       .min(1)
       .max(500),
@@ -37,7 +77,7 @@ const modelRequestSchema = z
   .strict()
   .refine(
     (input) =>
-      input.messages.reduce((total, message) => total + message.content.length, 0) <=
+      input.prompt.reduce((total, message) => total + message.content.length, 0) <=
       2_000_000,
     { message: "Combined message content is too large." },
   );
@@ -118,10 +158,23 @@ export function createModelApi(dependencies: ModelApiDependencies) {
       const requestId = crypto.randomUUID();
       let input: z.infer<typeof modelRequestSchema>;
       let config: ModelProviderConfig;
+      let envelope: Awaited<ReturnType<typeof createPromptEnvelope>>;
 
       try {
         input = await parseRequest(request);
         config = await dependencies.getConfig();
+        envelope = await createPromptEnvelope({
+          runId: requestId,
+          trigger: input.trigger,
+          conversation: input.conversation,
+          prompt: input.prompt,
+          provider: {
+            provider: "openai-compatible",
+            baseUrl: config.baseUrl,
+            model: config.model,
+          },
+        });
+        await dependencies.runs.start(envelope);
       } catch (error) {
         if (error instanceof SyntaxError) {
           return apiError(
@@ -152,6 +205,15 @@ export function createModelApi(dependencies: ModelApiDependencies) {
             { missing: error.missing },
           );
         }
+        if (error instanceof PromptRunRepositoryError) {
+          return apiError(
+            requestId,
+            error.code === "CONVERSATION_NOT_FOUND" ? 404 : 409,
+            error.code,
+            error.message,
+            false,
+          );
+        }
         return apiError(
           requestId,
           500,
@@ -176,20 +238,37 @@ export function createModelApi(dependencies: ModelApiDependencies) {
                 provider: "openai-compatible",
                 baseUrl: config.baseUrl,
                 model: config.model,
+                envelope,
               }),
             );
+            let sawDone = false;
             for await (const event of provider.stream(
-              { messages: input.messages },
+              { messages: envelope.request.messages },
               abortController.signal,
             )) {
               if (event.type === "delta") {
                 controller.enqueue(sse("delta", { text: event.text }));
               } else {
+                await dependencies.runs.finish(envelope.runId, "completed");
+                sawDone = true;
                 controller.enqueue(sse("done", {}));
               }
             }
+            if (!sawDone) {
+              if (abortController.signal.aborted) {
+                await dependencies.runs.finish(envelope.runId, "cancelled");
+              } else {
+                throw new ModelProviderError(
+                  "PROVIDER_INVALID_RESPONSE",
+                  "Model stream ended without a completion event.",
+                  false,
+                );
+              }
+            }
           } catch (error) {
-            if (!abortController.signal.aborted) {
+            if (abortController.signal.aborted) {
+              await dependencies.runs.finish(envelope.runId, "cancelled");
+            } else {
               const providerError =
                 error instanceof ModelProviderError
                   ? error
@@ -198,6 +277,11 @@ export function createModelApi(dependencies: ModelApiDependencies) {
                       "Model stream failed.",
                       true,
                     );
+              await dependencies.runs.finish(
+                envelope.runId,
+                "failed",
+                providerError.code,
+              );
               controller.enqueue(
                 sse("error", {
                   code: providerError.code,
@@ -214,6 +298,7 @@ export function createModelApi(dependencies: ModelApiDependencies) {
         },
         cancel() {
           abortController.abort("Client cancelled the response stream.");
+          void dependencies.runs.finish(envelope.runId, "cancelled");
         },
       });
 
@@ -230,9 +315,11 @@ export function createModelApi(dependencies: ModelApiDependencies) {
 }
 
 export function getModelApi() {
+  const database = getDatabase();
   return createModelApi({
     getConfig: resolveModelProviderConfig,
     getStatus: resolveModelProviderStatus,
     createProvider: (config) => new OpenAICompatibleProvider(config),
+    runs: createPromptRunRepository(database),
   });
 }

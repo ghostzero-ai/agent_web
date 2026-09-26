@@ -1723,7 +1723,7 @@ toolName, errorCode
 | Sprint | 内容 | 验收 |
 |---|---|---|
 | 3.1 | Mode Registry + Policy Layer | 专业/陪伴/娱乐模式可注册，事实与安全策略不可被模式覆盖 |
-| 3.2 | Prompt Envelope + Export | 模型实际输入可安全导出 JSON/Markdown，API Key 与私有数据不泄露 |
+| 3.2 ✅ | Prompt Envelope + Export | 服务端生成真实输入 Envelope；Run 审计不保存 Prompt 明文；导出经哈希校验且默认脱敏 |
 | 3.3 | Web Search Tool + Citation Model | 最新问题有可点击来源 |
 | 3.4 | Response Verifier | 推断、时效和引用检查可见 |
 | 3.5 | 专业问答与模式边界评测集 | Prompt 或模式修改有回归分数 |
@@ -1971,11 +1971,11 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 1. 完成 M0.4 真机验收：通知授权、准时弹窗、点击跳转、暂停/删除撤销与重启恢复。
 2. 在新版 APK 上完成 M1.1 本地客户端与 M1.2 Prompt 系统分享的真机回归。
 3. 完成 M1.3 华为真机验收：断网、重启、时区、划掉应用和系统省电通知回归。
-4. 完成 Core 3.2：建立 Prompt Envelope、版本与安全导出，再开始大规模修改 Prompt。
+4. Core 3.2 已完成：Prompt Envelope、版本、无明文审计与安全导出已建立。
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
 
-当前优先级已切回 Core Track。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1 已完成 Mode Registry、`Policy → Mode → Persona → Memory → Conversation` 固定顺序，以及会话模式迁移、乐观锁更新 API 和选择 UI。下一步进入 Core 3.2：服务端 Prompt Envelope、版本与安全导出。
+当前优先级已切回 Core Track。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.2 已完成 Mode Registry、固定 Prompt 顺序、服务端 Envelope、Run 审计与安全导出。下一步进入 Core 3.3：Web Search Tool、Citation Model 与时效信息来源。
 7. 实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
 8. 建立独立 GameSession 后再实现角色扮演与 AI 跑团，禁止把虚构状态混入普通长期记忆。
 9. 用背书、解题和娱乐规则包共同验证 Capability Gateway 后，再冻结 Plugin API v1。

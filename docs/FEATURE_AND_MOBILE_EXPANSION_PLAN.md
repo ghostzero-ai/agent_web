@@ -103,9 +103,9 @@
 - Capacitor：Filesystem 写入缓存或文档目录，再调用系统 Share Sheet。
 - ArkTS：通过 ArkWeb bridge 调用系统文件选择/分享能力。
 
-服务端生成导出快照，客户端只负责保存，防止不同端各自重建 Prompt 后产生偏差。数据库只保存哈希、版本和审计元数据；默认不重复保存完整敏感 Prompt。
+Core 3.2 已实现服务端 Prompt Envelope 与校验导出：模型请求进入 Provider 前，服务端生成带 Run ID、层版本、非敏感参数和 SHA-256 的 Envelope，并把 Run 状态、哈希与审计元数据写入 PostgreSQL。完整 Prompt 不写数据库，只随本次 SSE 返回客户端运行内存；导出时由服务端重新校验 Envelope 与审计记录并生成文件，客户端只负责保存或分享。
 
-M1.2 的过渡实现已在模型请求边界捕获每个会话最近一次真实 `PromptMessage[]`，并用 SSE 元数据补齐 request ID、Provider、Base URL 和 Model。JSON/Markdown 均可在 Web 下载或由 APK 系统分享；记忆默认脱敏，显式确认后才包含。快照只保留在当前客户端运行期间，Core 3.2 建立服务端 Prompt Envelope/Run 后再迁移为服务端生成和可审计哈希。
+M1.2 的文件保存与系统分享 Adapter 继续复用；客户端自行重建 Prompt 文档的过渡实现已由 Core 3.2 取代。记忆仍默认脱敏，显式确认后才进入导出文件；刷新后完整 Envelope 不恢复，但数据库保留不含 Prompt 明文的长期 Run 审计记录。
 
 ## 5. AI 语音
 
@@ -186,7 +186,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 | Sprint | 内容 | 验收 |
 |---|---|---|
 | 3.1 ✅ | Mode Registry + Policy Layer | 注册表、核心策略、可回滚枚举迁移、乐观锁更新 API 与模式选择 UI 已完成 |
-| 3.2 | Prompt Envelope + Export | 模型实际输入可导出 JSON/Markdown，敏感字段测试通过 |
+| 3.2 ✅ | Prompt Envelope + Export | 服务端 Envelope、无明文 Run 审计、哈希校验 JSON/Markdown 导出与敏感字段测试已完成 |
 | 3.3 | Web Search + Citation | 时效问题包含可点击来源 |
 | 3.4 | Response Verifier + Evals | 引用、时效、模式边界有回归分数 |
 | 4.x | 新闻、书籍、思考问题 | 服务端生成、去重、有来源并进入 Inbox |

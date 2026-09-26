@@ -1,0 +1,173 @@
+import {
+  toChatCompletionMessages,
+  type ModelRequestMetadata,
+  type PromptMessage,
+} from "@/lib/ai/messages";
+
+export const PROMPT_ENVELOPE_SCHEMA_VERSION = 1 as const;
+export const PROMPT_COMPOSER_VERSION = "core-3.2/v1" as const;
+
+export type PromptTrigger = "send" | "retry";
+
+export type PromptEnvelope = {
+  format: "ai-study-companion.prompt-envelope";
+  schemaVersion: typeof PROMPT_ENVELOPE_SCHEMA_VERSION;
+  runId: string;
+  createdAt: string;
+  trigger: PromptTrigger;
+  conversation: {
+    id: string;
+    title: string;
+    activeLeafId: string | null;
+  };
+  composer: {
+    version: typeof PROMPT_COMPOSER_VERSION;
+    layerOrder: Array<PromptMessage["source"]>;
+  };
+  provider: ModelRequestMetadata;
+  request: {
+    transport: "openai-compatible-chat-completions";
+    stream: true;
+    messages: ReturnType<typeof toChatCompletionMessages>;
+    generation: {
+      temperature: null;
+      tools: [];
+    };
+  };
+  promptLayers: Array<
+    PromptMessage & {
+      position: number;
+      version: string;
+    }
+  >;
+  context: {
+    truncated: false;
+    compressed: false;
+    notes: [];
+  };
+  privacy: {
+    containsMemory: boolean;
+    persistedPromptContent: false;
+    alwaysExcluded: string[];
+  };
+  integrity: {
+    algorithm: "SHA-256";
+    canonicalization: "JSON.stringify/v1";
+    scope: "prompt-envelope-without-integrity";
+    contentHash: string;
+  };
+};
+
+const LAYER_VERSIONS: Record<PromptMessage["source"], string> = {
+  policy: "core-policy/v1",
+  mode: "mode-registry/v1",
+  persona: "persona/v1",
+  memory: "memory-context/v1",
+  conversation: "conversation-tree/v2",
+};
+
+async function sha256(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+export function promptEnvelopeContent(
+  envelope: PromptEnvelope,
+): Omit<PromptEnvelope, "integrity"> {
+  const { integrity, ...content } = envelope;
+  void integrity;
+  return content;
+}
+
+export async function hashPromptEnvelopeContent(
+  envelope: PromptEnvelope,
+): Promise<string> {
+  return sha256(JSON.stringify(promptEnvelopeContent(envelope)));
+}
+
+export async function verifyPromptEnvelope(
+  envelope: PromptEnvelope,
+): Promise<boolean> {
+  return (await hashPromptEnvelopeContent(envelope)) === envelope.integrity.contentHash;
+}
+
+export function isPromptEnvelope(value: unknown): value is PromptEnvelope {
+  if (!value || typeof value !== "object") return false;
+  const envelope = value as Partial<PromptEnvelope>;
+  return (
+    envelope.format === "ai-study-companion.prompt-envelope" &&
+    envelope.schemaVersion === PROMPT_ENVELOPE_SCHEMA_VERSION &&
+    typeof envelope.runId === "string" &&
+    typeof envelope.createdAt === "string" &&
+    (envelope.trigger === "send" || envelope.trigger === "retry") &&
+    Boolean(envelope.conversation) &&
+    typeof envelope.conversation?.id === "string" &&
+    Boolean(envelope.provider) &&
+    envelope.provider?.requestId === envelope.runId &&
+    Array.isArray(envelope.request?.messages) &&
+    Array.isArray(envelope.promptLayers) &&
+    typeof envelope.integrity?.contentHash === "string"
+  );
+}
+
+export async function createPromptEnvelope(input: {
+  runId: string;
+  createdAt?: string;
+  trigger: PromptTrigger;
+  conversation: PromptEnvelope["conversation"];
+  prompt: readonly PromptMessage[];
+  provider: Omit<ModelRequestMetadata, "requestId">;
+}): Promise<PromptEnvelope> {
+  const promptLayers = input.prompt.map((message, index) => ({
+    ...message,
+    position: index,
+    version: LAYER_VERSIONS[message.source],
+  }));
+  const envelope = {
+    format: "ai-study-companion.prompt-envelope" as const,
+    schemaVersion: PROMPT_ENVELOPE_SCHEMA_VERSION,
+    runId: input.runId,
+    createdAt: input.createdAt ?? new Date().toISOString(),
+    trigger: input.trigger,
+    conversation: { ...input.conversation },
+    composer: {
+      version: PROMPT_COMPOSER_VERSION,
+      layerOrder: promptLayers.map((layer) => layer.source),
+    },
+    provider: { requestId: input.runId, ...input.provider },
+    request: {
+      transport: "openai-compatible-chat-completions" as const,
+      stream: true as const,
+      messages: toChatCompletionMessages([...input.prompt]),
+      generation: { temperature: null, tools: [] as [] },
+    },
+    promptLayers,
+    context: { truncated: false as const, compressed: false as const, notes: [] as [] },
+    privacy: {
+      containsMemory: input.prompt.some((message) => message.source === "memory"),
+      persistedPromptContent: false as const,
+      alwaysExcluded: [
+        "model API key",
+        "database credentials",
+        "push tokens",
+        "internal error stacks",
+        "non-exportable plugin private data",
+      ],
+    },
+  };
+  const contentHash = await sha256(JSON.stringify(envelope));
+  return {
+    ...envelope,
+    integrity: {
+      algorithm: "SHA-256",
+      canonicalization: "JSON.stringify/v1",
+      scope: "prompt-envelope-without-integrity",
+      contentHash,
+    },
+  };
+}

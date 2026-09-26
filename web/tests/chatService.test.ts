@@ -16,6 +16,20 @@ import {
   installBrowserStorage,
   uninstallBrowserStorage,
 } from "./helpers/browserStorage";
+import {
+  createTestPromptEnvelope,
+  TEST_CONVERSATION_ID,
+  TEST_LEAF_ID,
+} from "./helpers/promptEnvelope";
+
+const requestContext = {
+  trigger: "send" as const,
+  conversation: {
+    id: TEST_CONVERSATION_ID,
+    title: "测试会话",
+    activeLeafId: TEST_LEAF_ID,
+  },
+};
 
 beforeEach(() => {
   installBrowserStorage();
@@ -29,10 +43,11 @@ afterEach(() => {
 
 describe("sendChatMessage", () => {
   it("streams through the server without browser provider credentials", async () => {
+    const envelope = await createTestPromptEnvelope();
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         [
-          'event: meta\ndata: {"requestId":"request-1","provider":"openai-compatible","baseUrl":"https://provider.example/v1","model":"server-model"}\n\n',
+          `event: meta\ndata: ${JSON.stringify({ envelope })}\n\n`,
           'event: delta\ndata: {"text":"回"}\n\n',
           'event: delta\ndata: {"text":"答"}\n\n',
           "event: done\ndata: {}\n\n",
@@ -42,7 +57,7 @@ describe("sendChatMessage", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     const onDelta = vi.fn();
-    const onMeta = vi.fn();
+    const onEnvelope = vi.fn();
 
     const prompt: PromptMessage[] = [
       {
@@ -65,9 +80,15 @@ describe("sendChatMessage", () => {
       },
     ];
 
-    await expect(sendChatMessage(prompt, undefined, onDelta, onMeta)).resolves.toBe(
-      "回答",
-    );
+    await expect(
+      sendChatMessage(
+        prompt,
+        requestContext,
+        undefined,
+        onDelta,
+        onEnvelope,
+      ),
+    ).resolves.toBe("回答");
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -75,25 +96,16 @@ describe("sendChatMessage", () => {
 
     const body = JSON.parse(String(init.body));
     expect(body).toEqual({
-      messages: [
-        { role: "system", content: "保持专业" },
-        { role: "system", content: "历史参考" },
-        { role: "user", content: "问题" },
-      ],
+      trigger: "send",
+      conversation: requestContext.conversation,
+      prompt,
     });
-    expect(JSON.stringify(body)).not.toContain('"kind"');
-    expect(JSON.stringify(body)).not.toContain('"source"');
     expect(init.headers).not.toHaveProperty("authorization");
     expect(onDelta.mock.calls).toEqual([
       ["回", "回"],
       ["答", "回答"],
     ]);
-    expect(onMeta).toHaveBeenCalledWith({
-      requestId: "request-1",
-      provider: "openai-compatible",
-      baseUrl: "https://provider.example/v1",
-      model: "server-model",
-    });
+    expect(onEnvelope).toHaveBeenCalledWith(envelope);
   });
 
   it("maps a non-successful server response to its safe message", async () => {
@@ -107,7 +119,7 @@ describe("sendChatMessage", () => {
       ),
     );
 
-    await expect(sendChatMessage([])).rejects.toThrow(
+    await expect(sendChatMessage([], requestContext)).rejects.toThrow(
       "Server model provider is not configured.",
     );
   });
@@ -123,7 +135,9 @@ describe("sendChatMessage", () => {
       ),
     );
 
-    await expect(sendChatMessage([])).resolves.toBe("（AI 未返回内容）");
+    await expect(sendChatMessage([], requestContext)).resolves.toBe(
+      "（AI 未返回内容）",
+    );
   });
 });
 
