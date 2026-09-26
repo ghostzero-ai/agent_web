@@ -13,7 +13,10 @@ import type { CoreModeId } from "@/lib/agent/modeRegistry";
 import { buildAgentPrompt } from "@/lib/agent/promptBuilder";
 import { applyRetryReply, applySendReply, sendChatMessage } from "@/lib/ai/chatService";
 import type { PromptEnvelope } from "@/lib/ai/promptEnvelope";
-import type { MessageCitation } from "@/lib/ai/messages";
+import type {
+  MessageCitation,
+  ResponseVerification,
+} from "@/lib/ai/messages";
 import type { SearchMode } from "@/lib/search/webSearch";
 import {
   appendServerMessage,
@@ -241,6 +244,7 @@ export default function ChatPage() {
       });
       const provisionalId = crypto.randomUUID();
       let citations: MessageCitation[] = [];
+      let verification: ResponseVerification | null = null;
       const reply = await sendChatMessage(
         prompt,
         {
@@ -270,12 +274,16 @@ export default function ChatPage() {
         (nextCitations) => {
           citations = nextCitations;
         },
+        (nextVerification) => {
+          verification = nextVerification;
+        },
       );
       const assistantResult = await appendServerMessage(sessionId, {
         parentMessageId: userMessage.id ?? null,
         role: "assistant",
         content: reply,
         citations,
+        verification,
       });
       replaceSession({
         ...appendMessage(
@@ -313,6 +321,7 @@ export default function ChatPage() {
     try {
       const prompt = buildAgentPrompt({ session: retrySession, memory: getMemory() });
       let citations: MessageCitation[] = [];
+      let verification: ResponseVerification | null = null;
       const reply = await sendChatMessage(
         prompt,
         {
@@ -343,12 +352,16 @@ export default function ChatPage() {
         (nextCitations) => {
           citations = nextCitations;
         },
+        (nextVerification) => {
+          verification = nextVerification;
+        },
       );
       await appendServerMessage(sessionId, {
         parentMessageId: message.parentId ?? null,
         role: "assistant",
         content: reply,
         citations,
+        verification,
       });
       replaceSession(await getServerSession(sessionId));
     } catch (retryError) {

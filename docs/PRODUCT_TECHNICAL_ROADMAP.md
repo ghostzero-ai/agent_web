@@ -398,6 +398,7 @@ interface Message {
   parentMessageId: string | null;
   model: string | null;
   citations: Citation[];
+  verification: ResponseVerification | null;
   createdAt: string;
 }
 ```
@@ -1725,7 +1726,7 @@ toolName, errorCode
 | 3.1 | Mode Registry + Policy Layer | 专业/陪伴/娱乐模式可注册，事实与安全策略不可被模式覆盖 |
 | 3.2 ✅ | Prompt Envelope + Export | 服务端生成真实输入 Envelope；Run 审计不保存 Prompt 明文；导出经哈希校验且默认脱敏 |
 | 3.3 ✅ | Web Search Tool + Citation Model | 已完成：可控 SearXNG 检索、证据隔离、结构化持久化与分支级可点击来源 |
-| 3.4 | Response Verifier | 推断、时效和引用检查可见 |
+| 3.4 ✅ | Response Verifier | 已完成：确定性引用完整性、摘要支持度、时效与推断边界检查随回答分支可见并持久化 |
 | 3.5 | 专业问答与模式边界评测集 | Prompt 或模式修改有回归分数 |
 
 ### Phase 4：新闻、书籍与思考问题（2–4 周）
@@ -1975,7 +1976,7 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
 
-当前优先级已切回 Core Track。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.3 已完成 Mode Registry、服务端 Envelope、Run 审计、安全导出、受控 Web Search 与分支级 Citation 持久化。下一步进入 Core 3.4：Response Verifier、时效/推断/引用支持检查与可见结果。
+当前优先级已切回 Core Track。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.4 已完成 Mode Registry、服务端 Envelope、Run 审计、安全导出、受控 Web Search、分支级 Citation 与可见 Response Verifier。下一步进入 Core 3.5：专业问答评测集、模式边界样例与回归分数。
 7. 实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
 8. 建立独立 GameSession 后再实现角色扮演与 AI 跑团，禁止把虚构状态混入普通长期记忆。
 9. 用背书、解题和娱乐规则包共同验证 Capability Gateway 后，再冻结 Plugin API v1。

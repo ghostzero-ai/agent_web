@@ -11,6 +11,7 @@ import {
 } from "@/components/chat/MarkdownMessage";
 import { SessionSidebar } from "@/components/chat/SessionSidebar";
 import type { ChatMessage, Session } from "@/lib/config";
+import { verifyResponse } from "@/lib/ai/responseVerifier";
 
 const noop = vi.fn();
 
@@ -171,6 +172,27 @@ describe("chat presentation components", () => {
   });
 
   it("renders persisted citations as safe clickable source cards", () => {
+    const verification = verifyResponse({
+      answer: "结论 [S1]",
+      query: "普通问题",
+      retrieval: {
+        status: "completed",
+        reason: "completed",
+        query: "普通问题",
+        citations: [
+          {
+            id: "S1",
+            title: "官方来源",
+            url: "https://example.com/report",
+            snippet: "结论",
+            source: "example.com",
+            publishedAt: null,
+            fetchedAt: "2026-09-26T00:00:00.000Z",
+          },
+        ],
+      },
+      checkedAt: "2026-09-26T01:00:00.000Z",
+    });
     const message: ChatMessage = {
       id: "assistant-source",
       parentId: null,
@@ -184,6 +206,7 @@ describe("chat presentation components", () => {
           source: "example.com",
         },
       ],
+      verification,
     };
     const html = renderToStaticMarkup(
       <MessageList
@@ -200,6 +223,9 @@ describe("chat presentation components", () => {
     expect(html).toContain("[S1] 官方来源");
     expect(html).toContain('href="https://example.com/report"');
     expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain("回答规则检查");
+    expect(html).toContain("引用完整性");
+    expect(html).toContain("这是确定性规则检查");
   });
 
   it("renders the thinking state without retry actions", () => {

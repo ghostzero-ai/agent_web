@@ -2,6 +2,11 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createPromptEnvelope } from "../lib/ai/promptEnvelope";
 import { createPromptExportArtifact } from "../lib/ai/promptExport";
+import { verifyResponse } from "../lib/ai/responseVerifier";
+import type {
+  MessageCitation,
+  ResponseVerification,
+} from "../lib/ai/messages";
 
 type MockMessage = {
   id: string;
@@ -10,7 +15,8 @@ type MockMessage = {
   content: string;
   status: "complete";
   model: null;
-  citations: never[];
+  citations: MessageCitation[];
+  verification?: ResponseVerification | null;
   createdAt: string;
 };
 
@@ -85,6 +91,7 @@ async function installServerDataMock(page: Page) {
           status: "complete",
           model: null,
           citations: [],
+          verification: null,
           createdAt: new Date(message.createdAt).toISOString(),
         })),
       });
@@ -168,14 +175,15 @@ async function installServerDataMock(page: Page) {
     if (child === "messages" && request.method() === "POST") {
       const body = request.postDataJSON() as Pick<
         MockMessage,
-        "parentMessageId" | "role" | "content"
+        "parentMessageId" | "role" | "content" | "citations" | "verification"
       >;
       const message: MockMessage = {
         ...body,
         id: crypto.randomUUID(),
         status: "complete",
         model: null,
-        citations: [],
+        citations: body.citations ?? [],
+        verification: body.verification ?? null,
         createdAt: new Date().toISOString(),
       };
       conversation.messages.push(message);
@@ -241,10 +249,11 @@ test("chat session lifecycle survives reloads", async ({ page }) => {
 
   await page.getByPlaceholder("请输入你的问题").fill("不会发送到模型");
   await page.getByPlaceholder("请输入你的问题").press("Enter");
-  await expect(
-    page.getByText("Server model provider is not configured."),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "关闭" }).click();
+  const providerError = page.getByText(
+    "Server model provider is not configured.",
+  );
+  await expect(providerError).toBeVisible();
+  await providerError.locator("..").getByRole("button", { name: "关闭" }).click();
   await expect(
     page.getByText("Server model provider is not configured."),
   ).toBeHidden();
@@ -463,6 +472,63 @@ test("regenerating an earlier answer creates and restores branches", async ({
     page.getByText("第一版回答的新分支", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("第二问", { exact: true })).toHaveCount(0);
+});
+
+test("persists and restores visible response verification", async ({ page }) => {
+  await installServerDataMock(page);
+  const citation = {
+    id: "S1",
+    title: "人工智能产业最新报告",
+    url: "https://example.com/ai-report",
+    snippet: "人工智能产业在 2026 年继续增长，研究机构发布了最新数据。",
+    source: "example.com",
+    publishedAt: "2026-09-25T00:00:00.000Z",
+    fetchedAt: "2026-09-26T00:00:00.000Z",
+  };
+  const answer =
+    "截至 2026年9月，人工智能产业继续增长，研究机构发布了最新数据。[S1]";
+  const verification = verifyResponse({
+    answer,
+    query: "今天人工智能产业有什么最新消息？",
+    retrieval: {
+      status: "completed",
+      reason: "completed",
+      query: "今天人工智能产业有什么最新消息？",
+      citations: [citation],
+    },
+    checkedAt: "2026-09-26T01:00:00.000Z",
+  });
+  await page.route("**/api/v1/model/stream", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        'event: meta\ndata: {"model":"e2e-model"}\n\n',
+        `event: delta\ndata: ${JSON.stringify({ text: answer })}\n\n`,
+        `event: done\ndata: ${JSON.stringify({
+          citations: [citation],
+          verification,
+        })}\n\n`,
+      ].join(""),
+    }),
+  );
+
+  await page.goto("/chat");
+  await page.getByRole("button", { name: "+ 新建对话" }).click();
+  const composer = page.getByPlaceholder("请输入你的问题");
+  await composer.fill("今天人工智能产业有什么最新消息？");
+  await composer.press("Enter");
+
+  await expect(page.getByText("人工智能产业最新报告", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("回答规则检查：规则检查未发现明显问题", { exact: true }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText("人工智能产业最新报告", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("回答规则检查：规则检查未发现明显问题", { exact: true }),
+  ).toBeVisible();
 });
 
 test("renders dollar and slash-delimited math in the chat page", async ({

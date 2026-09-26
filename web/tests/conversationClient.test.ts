@@ -5,6 +5,19 @@ import {
   renameServerSession,
   updateServerSession,
 } from "@/lib/api/conversationClient";
+import { verifyResponse } from "@/lib/ai/responseVerifier";
+
+const verification = verifyResponse({
+  answer: "已持久化",
+  query: "问题",
+  retrieval: {
+    status: "skipped",
+    reason: "not-needed",
+    query: "问题",
+    citations: [],
+  },
+  checkedAt: "2026-09-26T00:00:00.000Z",
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -50,6 +63,7 @@ describe("conversation browser client", () => {
                     url: "https://example.com/",
                   },
                 ],
+                verification,
                 createdAt: "2026-09-06T00:00:00.000Z",
               },
             ],
@@ -73,6 +87,7 @@ describe("conversation browser client", () => {
       citations: [
         { id: "S1", title: "来源", url: "https://example.com/" },
       ],
+      verification,
     });
   });
 
@@ -89,11 +104,12 @@ describe("conversation browser client", () => {
 
     await appendServerMessage("conversation-id", {
       parentMessageId: null,
-      role: "user",
-      content: "问题",
+      role: "assistant",
+      content: "回答",
       citations: [
         { id: "S1", title: "来源", url: "https://example.com/" },
       ],
+      verification,
     });
     await renameServerSession("conversation-id", "问题", 2);
     await updateServerSession("conversation-id", {
@@ -106,13 +122,14 @@ describe("conversation browser client", () => {
     const modeBody = JSON.parse(fetchMock.mock.calls[2][1].body as string);
     expect(messageBody).toEqual({
       parentMessageId: null,
-      role: "user",
-      content: "问题",
+      role: "assistant",
+      content: "回答",
       status: "complete",
       model: null,
       citations: [
         { id: "S1", title: "来源", url: "https://example.com/" },
       ],
+      verification,
     });
     expect(titleBody).toEqual({ title: "问题", expectedVersion: 2 });
     expect(modeBody).toEqual({ mode: "entertainment", expectedVersion: 3 });

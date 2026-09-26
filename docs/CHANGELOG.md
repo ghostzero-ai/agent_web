@@ -4,6 +4,25 @@
 
 ---
 
+## Core 3.4 — 确定性 Response Verifier
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增服务端 `core-3.4/rule-v1` Verifier，在流式回答结束后检查引用完整性、搜索摘要支持度、时效日期与推断边界。
+- Verifier 不进行第二次模型调用，不增加 Token 成本，不改写或拦截原回答；空回答也不会被误标为通过。
+- 检查结果使用 `pass / warning / fail / not-applicable`，并始终附带“规则检查不等于事实证明”的局限声明。
+- SSE `done` 同时返回结构化 Citation 与 Verification；新增可回滚迁移，为 `messages` 增加可空 JSONB `verification`。
+- Chat 新增可折叠检查面板：通过默认折叠，警告或失败默认展开；结果随树形回答分支持久化并跨设备恢复。
+- API 严格校验版本、四个唯一检查项、状态和 Assistant 角色；客户端再次进行运行时校验，拒绝畸形持久化对象。
+- 新增 Verifier 规则、SSE、API、Repository、迁移回滚、客户端恢复与 UI 渲染回归测试。
+
+### 当前边界
+
+- 摘要支持度是中英文词面启发式，只能提示人工复核，不能判定事实真伪或替代阅读原文。
+- 当前不抓取网页全文，也不进行第二模型裁判；语义验证与误报/漏报测量进入 Core 3.5 评测集。
+
 ## Core 3.3 — 受控 Web Search 与 Citation Model
 
 **Commit**: `same delivery commit`

@@ -99,8 +99,10 @@ event: delta
 data: {"text":"增量文字"}
 
 event: done
-data: {"citations":[{"id":"S1","title":"...","url":"https://..."}]}
+data: {"citations":[{"id":"S1","title":"...","url":"https://..."}],"verification":{"schemaVersion":1,"verifierVersion":"core-3.4/rule-v1","status":"warning","checks":["..."]}}
 ```
+
+`verification` 是服务端在流完成后执行的确定性规则检查，覆盖引用完整性、搜索摘要支持度、时效日期和推断边界。它不发起第二次模型调用，也不代表事实已经被证明；完整结果与 Assistant Message 一起保存到 `messages.verification`。
 
 建立 SSE 前的配置/校验错误使用普通 JSON 和 400/503。建立 SSE 后的 Provider 错误使用 `event: error`，包含稳定 `code`、安全文案、`retryable` 和 `requestId`。
 

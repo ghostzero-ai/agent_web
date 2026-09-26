@@ -8,6 +8,7 @@ import {
   type MessageCitation,
   type MessageRecord,
 } from "@/lib/db/schema";
+import type { ResponseVerification } from "@/lib/ai/messages";
 import * as schema from "@/lib/db/schema";
 
 export const LOCAL_USER_ID = "00000000-0000-4000-8000-000000000001";
@@ -39,6 +40,7 @@ export type AppendMessageInput = {
   status: MessageStatus;
   model: string | null;
   citations: MessageCitation[];
+  verification?: ResponseVerification | null;
 };
 
 export class RepositoryError extends Error {
@@ -262,6 +264,7 @@ export class ConversationRepository<
           status: input.status,
           model: input.model,
           citations: input.citations,
+          verification: input.verification ?? null,
         })
         .returning();
 

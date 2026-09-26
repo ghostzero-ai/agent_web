@@ -187,6 +187,7 @@ describe("Model API", () => {
       .toContain("Web Search Evidence");
     expect(body).toContain('"status":"completed"');
     expect(body).toContain('"citations":[{"id":"S1"');
+    expect(body).toContain('"verifierVersion":"core-3.4/rule-v1"');
   });
 
   it("returns a safe error when model status storage is unavailable", async () => {

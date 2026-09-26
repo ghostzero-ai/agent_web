@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(11);
+      expect(migrations).toHaveLength(12);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -91,15 +91,17 @@ describe("database migrations", () => {
       const messageResult = await pglite.query<{
         citations: unknown[];
         status: string;
+        verification: unknown;
       }>(
         `INSERT INTO messages (conversation_id, role, content)
          VALUES ($1, 'user', 'Hello')
-         RETURNING citations, status`,
+         RETURNING citations, status, verification`,
         [conversationResult.rows[0].id],
       );
       expect(messageResult.rows[0]).toMatchObject({
         citations: [],
         status: "complete",
+        verification: null,
       });
       const entertainmentMode = await pglite.query<{ mode: string }>(
         `UPDATE conversations
@@ -247,6 +249,18 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[11].id,
+      );
+      const verificationAfterRollback = await pglite.query<{ column_name: string }>(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'messages'
+          AND column_name = 'verification'
+      `);
+      expect(verificationAfterRollback.rows).toEqual([]);
+
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[10].id,
       );
       const promptRunsAfterRollback = await pglite.query<{ tablename: string }>(`
@@ -340,6 +354,7 @@ describe("database migrations", () => {
         migrations[8].id,
         migrations[9].id,
         migrations[10].id,
+        migrations[11].id,
       ]);
     },
     15_000,
@@ -377,6 +392,7 @@ describe("database migrations", () => {
       migrations[8].id,
       migrations[9].id,
       migrations[10].id,
+      migrations[11].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

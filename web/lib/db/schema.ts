@@ -14,6 +14,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { ResponseVerification } from "@/lib/ai/messages";
 
 export const conversationMode = pgEnum("conversation_mode", CORE_MODE_IDS);
 
@@ -159,6 +160,7 @@ export const messages = pgTable(
       .$type<MessageCitation[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
+    verification: jsonb("verification").$type<ResponseVerification | null>(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),

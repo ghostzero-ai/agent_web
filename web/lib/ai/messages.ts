@@ -12,6 +12,34 @@ export type MessageCitation = {
   fetchedAt?: string;
 };
 
+export type VerificationCheckId =
+  | "citation-integrity"
+  | "citation-support"
+  | "freshness"
+  | "inference-boundary";
+
+export type VerificationCheckStatus =
+  | "pass"
+  | "warning"
+  | "fail"
+  | "not-applicable";
+
+export type ResponseVerification = {
+  schemaVersion: 1;
+  verifierVersion: "core-3.4/rule-v1";
+  status: "pass" | "warning" | "fail";
+  checkedAt: string;
+  summary: string;
+  checks: Array<{
+    id: VerificationCheckId;
+    label: string;
+    status: VerificationCheckStatus;
+    detail: string;
+    citationIds?: string[];
+  }>;
+  limitations: string[];
+};
+
 export type ChatMessage = {
   id?: string;
   parentId?: string | null;
@@ -21,6 +49,7 @@ export type ChatMessage = {
   versions?: string[];
   activeVersion?: number;
   citations?: MessageCitation[];
+  verification?: ResponseVerification | null;
 };
 
 export type PromptMessage =

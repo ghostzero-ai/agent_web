@@ -4,6 +4,8 @@ import {
 } from "@/lib/config";
 import type { PromptMessage } from "@/lib/ai/messages";
 import type { MessageCitation } from "@/lib/ai/messages";
+import type { ResponseVerification } from "@/lib/ai/messages";
+import { isResponseVerification } from "@/lib/ai/responseVerifier";
 import type { SearchMode } from "@/lib/search/webSearch";
 import {
   isPromptEnvelope,
@@ -31,6 +33,7 @@ export async function sendChatMessage(
   onDelta?: (text: string, accumulated: string) => void,
   onEnvelope?: (envelope: PromptEnvelope) => void,
   onCitations?: (citations: MessageCitation[]) => void,
+  onVerification?: (verification: ResponseVerification) => void,
 ): Promise<string> {
   const response = await apiFetch("/api/v1/model/stream", {
     method: "POST",
@@ -93,8 +96,13 @@ export async function sendChatMessage(
         throw new Error(
           typeof data.message === "string" ? data.message : "模型生成失败",
         );
-      } else if (event === "done" && Array.isArray(data.citations)) {
-        onCitations?.(data.citations as MessageCitation[]);
+      } else if (event === "done") {
+        if (Array.isArray(data.citations)) {
+          onCitations?.(data.citations as MessageCitation[]);
+        }
+        if (isResponseVerification(data.verification)) {
+          onVerification?.(data.verification);
+        }
       }
     }
 

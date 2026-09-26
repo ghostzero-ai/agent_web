@@ -6,6 +6,7 @@ import {
   sendChatMessage,
 } from "../lib/ai/chatService";
 import type { PromptMessage } from "../lib/ai/messages";
+import { verifyResponse } from "../lib/ai/responseVerifier";
 import type { Session } from "../lib/config";
 import {
   getActiveMessages,
@@ -44,13 +45,29 @@ afterEach(() => {
 describe("sendChatMessage", () => {
   it("streams through the server without browser provider credentials", async () => {
     const envelope = await createTestPromptEnvelope();
+    const verification = verifyResponse({
+      answer: "回答",
+      query: "问题",
+      retrieval: {
+        status: "skipped",
+        reason: "not-needed",
+        query: "问题",
+        citations: [],
+      },
+      checkedAt: "2026-09-26T00:00:00.000Z",
+    });
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         [
           `event: meta\ndata: ${JSON.stringify({ envelope })}\n\n`,
           'event: delta\ndata: {"text":"回"}\n\n',
           'event: delta\ndata: {"text":"答"}\n\n',
-          'event: done\ndata: {"citations":[{"id":"S1","title":"来源","url":"https://example.com/"}]}\n\n',
+          `event: done\ndata: ${JSON.stringify({
+            citations: [
+              { id: "S1", title: "来源", url: "https://example.com/" },
+            ],
+            verification,
+          })}\n\n`,
         ].join(""),
         { status: 200, headers: { "content-type": "text/event-stream" } },
       ),
@@ -59,6 +76,7 @@ describe("sendChatMessage", () => {
     const onDelta = vi.fn();
     const onEnvelope = vi.fn();
     const onCitations = vi.fn();
+    const onVerification = vi.fn();
 
     const prompt: PromptMessage[] = [
       {
@@ -89,6 +107,7 @@ describe("sendChatMessage", () => {
         onDelta,
         onEnvelope,
         onCitations,
+        onVerification,
       ),
     ).resolves.toBe("回答");
 
@@ -112,6 +131,7 @@ describe("sendChatMessage", () => {
     expect(onCitations).toHaveBeenCalledWith([
       { id: "S1", title: "来源", url: "https://example.com/" },
     ]);
+    expect(onVerification).toHaveBeenCalledWith(verification);
   });
 
   it("maps a non-successful server response to its safe message", async () => {

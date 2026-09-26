@@ -37,6 +37,41 @@ const createConversationSchema = z
   })
   .strict();
 
+const verificationCheckSchema = z
+  .object({
+    id: z.enum([
+      "citation-integrity",
+      "citation-support",
+      "freshness",
+      "inference-boundary",
+    ]),
+    label: z.string().trim().min(1).max(100),
+    status: z.enum(["pass", "warning", "fail", "not-applicable"]),
+    detail: z.string().trim().min(1).max(2_000),
+    citationIds: z
+      .array(z.string().regex(/^S[1-9]\d*$/u))
+      .max(100)
+      .optional(),
+  })
+  .strict();
+
+const responseVerificationSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    verifierVersion: z.literal("core-3.4/rule-v1"),
+    status: z.enum(["pass", "warning", "fail"]),
+    checkedAt: z.iso.datetime(),
+    summary: z.string().trim().min(1).max(500),
+    checks: z.array(verificationCheckSchema).length(4),
+    limitations: z.array(z.string().trim().min(1).max(500)).max(10),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      new Set(value.checks.map((check) => check.id)).size === 4,
+    { message: "Verification checks must contain each check exactly once." },
+  );
+
 const appendMessageSchema = z
   .object({
     parentMessageId: z.uuid().nullable().default(null),
@@ -64,8 +99,13 @@ const appendMessageSchema = z
       )
       .max(100)
       .default([]),
+    verification: responseVerificationSchema.nullable().default(null),
   })
-  .strict();
+  .strict()
+  .refine(
+    (input) => input.role === "assistant" || input.verification === null,
+    { message: "Only assistant messages may include verification results." },
+  );
 
 const setActiveLeafSchema = z
   .object({

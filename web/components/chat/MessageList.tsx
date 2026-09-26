@@ -1,5 +1,6 @@
 import type { ChatMessage } from "@/lib/config";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
+import { ResponseVerificationPanel } from "@/components/chat/ResponseVerificationPanel";
 
 type MessageListProps = {
   hasActiveSession: boolean;
@@ -126,6 +127,11 @@ export function MessageList({
                     </div>
                   </div>
                 )}
+              {message.role === "assistant" && message.verification && (
+                <ResponseVerificationPanel
+                  verification={message.verification}
+                />
+              )}
             </div>
 
             <div

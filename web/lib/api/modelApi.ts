@@ -27,6 +27,7 @@ import {
   type WebSearchProvider,
 } from "@/lib/search/webSearch";
 import { createConfiguredWebSearchProvider } from "@/lib/search/searxngProvider";
+import { verifyResponse } from "@/lib/ai/responseVerifier";
 
 type ModelApiDependencies = {
   getConfig: () => ModelProviderConfig | Promise<ModelProviderConfig>;
@@ -271,9 +272,16 @@ export function createModelApi(dependencies: ModelApiDependencies) {
               } else {
                 await dependencies.runs.finish(envelope.runId, "completed");
                 sawDone = true;
+                const citations = citedSources(answer, retrieval.citations);
+                const verification = verifyResponse({
+                  answer,
+                  query: retrieval.query,
+                  retrieval,
+                });
                 controller.enqueue(
                   sse("done", {
-                    citations: citedSources(answer, retrieval.citations),
+                    citations,
+                    verification,
                   }),
                 );
               }

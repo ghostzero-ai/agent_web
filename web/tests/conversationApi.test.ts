@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createConversationApi } from "@/lib/api/conversationApi";
+import { verifyResponse } from "@/lib/ai/responseVerifier";
 import {
   loadMigrations,
   migrateDatabase,
@@ -143,6 +144,45 @@ describe("Conversation API", () => {
       content: "服务端消息",
       status: "complete",
     });
+
+    const verification = verifyResponse({
+      answer: "服务端回答",
+      query: "服务端消息",
+      retrieval: {
+        status: "skipped",
+        reason: "not-needed",
+        query: "服务端消息",
+        citations: [],
+      },
+      checkedAt: "2026-09-26T00:00:00.000Z",
+    });
+    const assistantResponse = await api.appendMessage(
+      conversation.id,
+      jsonRequest(
+        `/api/v1/conversations/${conversation.id}/messages`,
+        "POST",
+        {
+          parentMessageId: appendBody.data.message.id,
+          role: "assistant",
+          content: "服务端回答",
+          verification,
+        },
+      ),
+    );
+    expect(assistantResponse.status).toBe(201);
+    expect((await assistantResponse.json()).data.message.verification).toEqual(
+      verification,
+    );
+
+    const invalidUserVerification = await api.appendMessage(
+      conversation.id,
+      jsonRequest(
+        `/api/v1/conversations/${conversation.id}/messages`,
+        "POST",
+        { role: "user", content: "伪造检查", verification },
+      ),
+    );
+    expect(invalidUserVerification.status).toBe(400);
 
     const conflictResponse = await api.setActiveLeaf(
       conversation.id,

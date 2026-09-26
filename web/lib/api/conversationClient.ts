@@ -1,4 +1,9 @@
-import type { ChatMessage, MessageCitation } from "@/lib/ai/messages";
+import type {
+  ChatMessage,
+  MessageCitation,
+  ResponseVerification,
+} from "@/lib/ai/messages";
+import { isResponseVerification } from "@/lib/ai/responseVerifier";
 import { isCoreModeId, type CoreModeId } from "@/lib/agent/modeRegistry";
 import type { Session } from "@/lib/config";
 import { CONVERSATION_SCHEMA_VERSION } from "@/lib/conversation/tree";
@@ -19,6 +24,7 @@ type MessageRecord = {
   role: "system" | "developer" | "user" | "assistant" | "tool";
   content: string;
   citations?: MessageCitation[];
+  verification?: ResponseVerification | null;
   createdAt: string;
 };
 
@@ -79,6 +85,9 @@ function toChatMessage(record: MessageRecord): ChatMessage | null {
     content: record.content,
     createdAt: toTimestamp(record.createdAt),
     citations: safeCitations(record.citations),
+    verification: isResponseVerification(record.verification)
+      ? record.verification
+      : null,
   };
 }
 
@@ -176,6 +185,7 @@ export async function appendServerMessage(
     role: "user" | "assistant";
     content: string;
     citations?: MessageCitation[];
+    verification?: ResponseVerification | null;
   },
 ): Promise<{ conversation: ConversationRecord; message: MessageRecord }> {
   return apiRequest(`/api/v1/conversations/${conversationId}/messages`, {
@@ -185,6 +195,7 @@ export async function appendServerMessage(
       status: "complete",
       model: null,
       citations: input.citations ?? [],
+      verification: input.verification ?? null,
     }),
   });
 }
