@@ -4,6 +4,7 @@ import {
 } from "@/lib/config";
 import {
   toChatCompletionMessages,
+  type ModelRequestMetadata,
   type PromptMessage,
 } from "@/lib/ai/messages";
 import {
@@ -20,6 +21,7 @@ export async function sendChatMessage(
   messages: PromptMessage[],
   signal?: AbortSignal,
   onDelta?: (text: string, accumulated: string) => void,
+  onMeta?: (metadata: ModelRequestMetadata) => void,
 ): Promise<string> {
   const response = await apiFetch("/api/v1/model/stream", {
     method: "POST",
@@ -70,7 +72,20 @@ export async function sendChatMessage(
       if (!dataText) continue;
 
       const data = JSON.parse(dataText);
-      if (event === "delta" && typeof data.text === "string") {
+      if (
+        event === "meta" &&
+        typeof data.requestId === "string" &&
+        data.provider === "openai-compatible" &&
+        typeof data.baseUrl === "string" &&
+        typeof data.model === "string"
+      ) {
+        onMeta?.({
+          requestId: data.requestId,
+          provider: data.provider,
+          baseUrl: data.baseUrl,
+          model: data.model,
+        });
+      } else if (event === "delta" && typeof data.text === "string") {
         result += data.text;
         onDelta?.(data.text, result);
       } else if (event === "error") {

@@ -1,6 +1,6 @@
 # Android Debug APK 开发与安装
 
-- 当前阶段：Mobile M1.1 本地 React Client 已完成，等待新版 APK 真机回归
+- 当前阶段：Mobile M1.2 Prompt 文件导出与系统分享已完成，等待新版 APK 真机回归
 - 构建类型：仅 Debug APK，不是可发布签名版本
 - 应用 ID：`com.ghostzero.aistudycompanion`
 
@@ -117,6 +117,18 @@ https://<你的设备名>.<你的-tailnet>.ts.net/api/v1/health
 当前 HarmonyOS 5 / 卓易通实测为前台、后台成功，系统清理后失败。如果仅第 4 组失败，说明系统清理很可能将兼容层应用置于类似 Android 强行停止的状态；下一步应验证系统自启动/后台运行白名单，并评估 Huawei Push 或 ArkTS 代理提醒，而不是增加耗电且不可靠的常驻保活服务。
 
 本地通知只提醒已同步的任务时间。AI 主动聊天、每日新闻、书籍推荐等服务端新内容仍需要 Huawei Push Kit。
+
+## M1.2 Prompt 导出验收
+
+1. 在 Chat 中新建会话并成功发送一次消息；此前“导出 Prompt”按钮应保持禁用。
+2. 点击“导出 Prompt”，确认窗口显示最近一次请求的模型和捕获时间。
+3. 导出 JSON：Web 应下载 `.json`；APK 应打开系统分享面板并提供 `.json` 文件。
+4. 导出 Markdown：APK 应同样提供可分享的 `.md` 文件，中文与数学符号保持正常。
+5. 未勾选“包含个人记忆上下文”时，文件中的 memory 内容应显示为脱敏占位符；显式勾选后才包含完整记忆。
+6. 文件中可以出现 Provider、Base URL、Model 和 Request ID，但不得出现 API Key、Authorization Header、数据库连接或 Push Token。
+7. 页面刷新后导出按钮重新禁用；M1.2 不把敏感 Prompt 存入 localStorage 或 PostgreSQL，需要再次发送消息生成新快照。
+
+APK 使用 Capacitor Filesystem 将 UTF-8 文件写入应用 Cache，再通过 Share 插件打开系统分享面板，不申请公共存储权限。分享后的目标副本由用户选择的应用管理。
 
 ## 安全边界
 

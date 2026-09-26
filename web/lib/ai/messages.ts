@@ -41,6 +41,13 @@ export type ChatCompletionMessage = {
   content: string;
 };
 
+export type ModelRequestMetadata = {
+  requestId: string;
+  provider: "openai-compatible";
+  baseUrl: string;
+  model: string;
+};
+
 export function toChatCompletionMessages(
   messages: PromptMessage[],
 ): ChatCompletionMessage[] {

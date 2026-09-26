@@ -32,7 +32,7 @@ describe("sendChatMessage", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         [
-          'event: meta\ndata: {"model":"server-model"}\n\n',
+          'event: meta\ndata: {"requestId":"request-1","provider":"openai-compatible","baseUrl":"https://provider.example/v1","model":"server-model"}\n\n',
           'event: delta\ndata: {"text":"回"}\n\n',
           'event: delta\ndata: {"text":"答"}\n\n',
           "event: done\ndata: {}\n\n",
@@ -42,6 +42,7 @@ describe("sendChatMessage", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     const onDelta = vi.fn();
+    const onMeta = vi.fn();
 
     const prompt: PromptMessage[] = [
       {
@@ -64,7 +65,7 @@ describe("sendChatMessage", () => {
       },
     ];
 
-    await expect(sendChatMessage(prompt, undefined, onDelta)).resolves.toBe(
+    await expect(sendChatMessage(prompt, undefined, onDelta, onMeta)).resolves.toBe(
       "回答",
     );
 
@@ -87,6 +88,12 @@ describe("sendChatMessage", () => {
       ["回", "回"],
       ["答", "回答"],
     ]);
+    expect(onMeta).toHaveBeenCalledWith({
+      requestId: "request-1",
+      provider: "openai-compatible",
+      baseUrl: "https://provider.example/v1",
+      model: "server-model",
+    });
   });
 
   it("maps a non-successful server response to its safe message", async () => {

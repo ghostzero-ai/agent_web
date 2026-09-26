@@ -4,6 +4,27 @@
 
 ---
 
+## Mobile M1.2 — Prompt 文件导出与系统分享
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 在模型请求边界捕获每个会话最近一次真实 Prompt 快照，覆盖普通发送与树形分支重新生成，不使用聊天气泡二次拼接。
+- SSE 元数据新增 request ID、Provider、Base URL 与 Model；API Key 和 Authorization Header 仍只存在服务端请求内部。
+- 新增 JSON 与 Markdown 导出格式，包含 Prompt 层、实际 Provider messages、隐私标记和 SHA-256 内容哈希。
+- 记忆上下文默认替换为脱敏占位符；只有用户在导出窗口显式勾选后才进入文件，并用 `exactRequestContent` 标识完整性。
+- 实现 `FileExportAdapter`：Web 使用 Blob 下载，Capacitor 使用 Filesystem Cache + 系统 Share Sheet，不申请公共存储权限。
+- 聊天页新增响应式导出入口、格式选择、隐私说明、忙碌/成功/错误状态；没有请求快照时按钮保持禁用。
+- 将 Vitest worker 固定为 4，避免多个 PGlite 数据库初始化并发导致 10 秒 Hook 假超时。
+
+### 验证与边界
+
+- Vitest 全量 55 个文件、213 项测试通过；Microsoft Edge 9 项 E2E 全部通过，包含真实 Blob JSON 下载与内容断言。
+- ESLint、TypeScript、Next.js/Vite 生产构建与 Android `assembleDebug` 通过。
+- Debug APK 为 5,532,331 字节，SHA-256 为 `631C66AF5C97EA0489F5007BDCFB0E7B87F701DA509582FCFB9FC5BAA73D69F1`。
+- M1.2 快照只存在当前客户端运行期，刷新后需再次发送；服务端 Prompt Envelope 与长期 Run 审计留给 Core 3.2。
+
 ## Mobile M1.1 — 本地可打包 React Client
 
 **Commit**: `same delivery commit`

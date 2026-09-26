@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 type MockMessage = {
   id: string;
@@ -278,6 +279,54 @@ test("mobile chat uses a collapsible conversation drawer", async ({ page }) => {
     .getByRole("button", { name: "关闭对话列表", exact: true })
     .click();
   await expect(page.getByRole("dialog", { name: "对话列表" })).toHaveCount(0);
+});
+
+test("exports the exact latest model Prompt as JSON", async ({ page }) => {
+  await installServerDataMock(page);
+  await page.route("**/api/v1/model/stream", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        'event: meta\ndata: {"requestId":"e2e-request","provider":"openai-compatible","baseUrl":"https://provider.example/v1","model":"e2e-model"}\n\n',
+        'event: delta\ndata: {"text":"导出测试回答"}\n\n',
+        "event: done\ndata: {}\n\n",
+      ].join(""),
+    }),
+  );
+
+  await page.goto("/chat");
+  await page.getByRole("button", { name: "+ 新建对话" }).click();
+  const exportButton = page.getByRole("button", { name: "导出 Prompt" });
+  await expect(exportButton).toBeDisabled();
+
+  const composer = page.getByPlaceholder("请输入你的问题");
+  await composer.fill("请导出这一条实际请求");
+  await composer.press("Enter");
+  await expect(page.getByText("导出测试回答", { exact: true })).toBeVisible();
+  await expect(exportButton).toBeEnabled();
+  await exportButton.click();
+
+  const dialog = page.getByRole("dialog", { name: "导出最近一次 Prompt" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("e2e-model", { exact: true })).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "导出 JSON" }).click();
+  const download = await downloadPromise;
+  const path = await download.path();
+  expect(path).not.toBeNull();
+  const exported = JSON.parse(await readFile(path!, "utf8"));
+
+  expect(exported.provider).toMatchObject({
+    requestId: "e2e-request",
+    model: "e2e-model",
+  });
+  expect(exported.request.messages.at(-1)).toEqual({
+    role: "user",
+    content: "请导出这一条实际请求",
+  });
+  expect(JSON.stringify(exported)).not.toContain("apiKey");
 });
 
 test("regenerating an earlier answer creates and restores branches", async ({

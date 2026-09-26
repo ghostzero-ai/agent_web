@@ -54,6 +54,12 @@ describe("Model API", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(body).toContain(
+      'event: meta\ndata: {"requestId":',
+    );
+    expect(body).toContain('"provider":"openai-compatible"');
+    expect(body).toContain('"baseUrl":"https://provider.example/v1"');
+    expect(body).toContain('"model":"test-model"');
     expect(body).toContain('event: delta\ndata: {"text":"专业"}');
     expect(body).toContain('event: delta\ndata: {"text":"回答"}');
     expect(body).toContain("event: done");

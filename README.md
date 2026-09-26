@@ -91,6 +91,8 @@ Mobile M0.4 已加入循环式手机闹钟时间滚轮和 Capacitor 本地任务
 
 Mobile M1.1 已加入本地可打包 React Client、Hash Router、共享跨端 API Client、严格的 Capacitor Origin CORS 与离线连接诊断。构建脚本会同时检查生成配置和 APK 内容，确保交付包内含本地页面且没有 `server.url`。
 
+Mobile M1.2 已支持导出最近一次真实模型请求：JSON 用于复现和调试，Markdown 用于阅读；Web 使用文件下载，APK 使用 Capacitor Filesystem + Share 调起系统分享面板。个人记忆默认脱敏，API Key 等凭据永不进入导出文件。
+
 ---
 
 ## 项目原则

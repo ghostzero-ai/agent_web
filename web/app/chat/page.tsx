@@ -5,10 +5,12 @@ import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatErrorBanner } from "@/components/chat/ChatErrorBanner";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { MessageList } from "@/components/chat/MessageList";
+import { PromptExportControl } from "@/components/chat/PromptExportControl";
 import { SessionSidebar } from "@/components/chat/SessionSidebar";
 import { getMemory } from "@/lib/agent/memory";
 import { buildAgentPrompt } from "@/lib/agent/promptBuilder";
 import { applyRetryReply, applySendReply, sendChatMessage } from "@/lib/ai/chatService";
+import type { PromptRequestSnapshot } from "@/lib/ai/promptExport";
 import {
   appendServerMessage,
   createServerSession,
@@ -58,6 +60,48 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [promptSnapshots, setPromptSnapshots] = useState<
+    Record<string, PromptRequestSnapshot>
+  >({});
+
+  const capturePrompt = (
+    session: Pick<Session, "id" | "title" | "activeLeafId">,
+    prompt: PromptRequestSnapshot["prompt"],
+    trigger: PromptRequestSnapshot["trigger"],
+  ) => {
+    const snapshot: PromptRequestSnapshot = {
+      snapshotId: crypto.randomUUID(),
+      capturedAt: new Date().toISOString(),
+      trigger,
+      conversation: {
+        id: session.id,
+        title: session.title,
+        activeLeafId: session.activeLeafId ?? null,
+      },
+      prompt: prompt.map((message) => ({ ...message })),
+      modelRequest: null,
+    };
+    setPromptSnapshots((current) => ({
+      ...current,
+      [session.id]: snapshot,
+    }));
+    return snapshot;
+  };
+
+  const attachModelMetadata = (
+    sessionId: string,
+    snapshotId: string,
+    modelRequest: NonNullable<PromptRequestSnapshot["modelRequest"]>,
+  ) => {
+    setPromptSnapshots((current) => {
+      const snapshot = current[sessionId];
+      if (!snapshot || snapshot.snapshotId !== snapshotId) return current;
+      return {
+        ...current,
+        [sessionId]: { ...snapshot, modelRequest },
+      };
+    });
+  };
 
   const replaceSession = (next: ServerSession) => {
     setSessions((current) =>
@@ -225,6 +269,7 @@ export default function ChatPage() {
         session: persistedUserSession,
         memory: getMemory(),
       });
+      const promptSnapshot = capturePrompt(persistedUserSession, prompt, "send");
       const provisionalId = crypto.randomUUID();
       const reply = await sendChatMessage(
         prompt,
@@ -238,6 +283,8 @@ export default function ChatPage() {
             ) as ServerSession,
           );
         },
+        (metadata) =>
+          attachModelMetadata(sessionId, promptSnapshot.snapshotId, metadata),
       );
       const assistantResult = await appendServerMessage(sessionId, {
         parentMessageId: userMessage.id ?? null,
@@ -279,6 +326,7 @@ export default function ChatPage() {
 
     try {
       const prompt = buildAgentPrompt({ session: retrySession, memory: getMemory() });
+      const promptSnapshot = capturePrompt(retrySession, prompt, "retry");
       const reply = await sendChatMessage(
         prompt,
         controller.signal,
@@ -292,6 +340,8 @@ export default function ChatPage() {
             ) as ServerSession,
           );
         },
+        (metadata) =>
+          attachModelMetadata(sessionId, promptSnapshot.snapshotId, metadata),
       );
       await appendServerMessage(sessionId, {
         parentMessageId: message.parentId ?? null,
@@ -365,6 +415,15 @@ export default function ChatPage() {
       <ChatHeader
         onOpenSidebar={() => setSidebarOpen(true)}
         sidebarOpen={sidebarOpen}
+        actions={
+          <PromptExportControl
+            snapshot={
+              resolvedActiveSessionId
+                ? promptSnapshots[resolvedActiveSessionId] ?? null
+                : null
+            }
+          />
+        }
       />
 
       {legacySessions.length > 0 && (

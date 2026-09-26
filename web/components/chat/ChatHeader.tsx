@@ -1,13 +1,16 @@
+import type { ReactNode } from "react";
 import { AppLink } from "@/components/platform/AppLink";
 
 type ChatHeaderProps = {
   onOpenSidebar?: () => void;
   sidebarOpen?: boolean;
+  actions?: ReactNode;
 };
 
 export function ChatHeader({
   onOpenSidebar,
   sidebarOpen = false,
+  actions,
 }: ChatHeaderProps) {
   return (
     <header className="flex items-center justify-between border-b border-zinc-200 px-3 py-3 sm:px-6 dark:border-zinc-800">
@@ -39,6 +42,7 @@ export function ChatHeader({
         </h1>
       </div>
       <nav className="flex items-center gap-2 text-xs font-medium text-zinc-500 sm:gap-4 dark:text-zinc-400">
+        {actions}
         <AppLink
           href="/inbox"
           className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"

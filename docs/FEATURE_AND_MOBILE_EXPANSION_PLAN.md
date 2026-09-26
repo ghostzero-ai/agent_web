@@ -105,6 +105,8 @@
 
 服务端生成导出快照，客户端只负责保存，防止不同端各自重建 Prompt 后产生偏差。数据库只保存哈希、版本和审计元数据；默认不重复保存完整敏感 Prompt。
 
+M1.2 的过渡实现已在模型请求边界捕获每个会话最近一次真实 `PromptMessage[]`，并用 SSE 元数据补齐 request ID、Provider、Base URL 和 Model。JSON/Markdown 均可在 Web 下载或由 APK 系统分享；记忆默认脱敏，显式确认后才包含。快照只保留在当前客户端运行期间，Core 3.2 建立服务端 Prompt Envelope/Run 后再迁移为服务端生成和可审计哈希。
+
 ## 5. AI 语音
 
 ### 5.1 分层
@@ -200,7 +202,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 | M0.3 ✅ | 卓易通首轮兼容矩阵 | 登录、SSE、公式与树形对话通过；Web Push 失败已归类为平台能力差异 |
 | M0.4 | 循环时间滚轮 + 本地提醒 | 任务 CRUD 与 10 秒发送/取消诊断已完成，系统清理后的送达待继续验证 |
 | M1.1 ✅ | 本地可打包 React Client 边界 | 不使用生产 `server.url`，共享 API Client，无业务双写 |
-| M1.2 | 文件导出与 Share Adapter | Prompt JSON/Markdown 能保存/分享 |
+| M1.2 ✅ | 文件导出与 Share Adapter | Prompt JSON/Markdown 能保存/分享，记忆默认脱敏 |
 | M1.3 | Local Notification 发布加固 | 本地 Web Bundle 下完成断网、重启、时区和系统省电回归 |
 | M1.4 | Speech Output Adapter | 试听、播放、停止、锁屏/耳机行为通过真机验证 |
 | M2.1 | HMS Push Capacitor Plugin Spike | 卓易通中 Token、后台 Push 和深链得到实测结论 |

@@ -171,7 +171,12 @@ export function createModelApi(dependencies: ModelApiDependencies) {
         async start(controller) {
           try {
             controller.enqueue(
-              sse("meta", { requestId, model: config.model }),
+              sse("meta", {
+                requestId,
+                provider: "openai-compatible",
+                baseUrl: config.baseUrl,
+                model: config.model,
+              }),
             );
             for await (const event of provider.stream(
               { messages: input.messages },
