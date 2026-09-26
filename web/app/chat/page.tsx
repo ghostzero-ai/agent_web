@@ -13,6 +13,8 @@ import type { CoreModeId } from "@/lib/agent/modeRegistry";
 import { buildAgentPrompt } from "@/lib/agent/promptBuilder";
 import { applyRetryReply, applySendReply, sendChatMessage } from "@/lib/ai/chatService";
 import type { PromptEnvelope } from "@/lib/ai/promptEnvelope";
+import type { MessageCitation } from "@/lib/ai/messages";
+import type { SearchMode } from "@/lib/search/webSearch";
 import {
   appendServerMessage,
   createServerSession,
@@ -61,6 +63,7 @@ export default function ChatPage() {
   );
   const [importing, setImporting] = useState(false);
   const [input, setInput] = useState("");
+  const [searchMode, setSearchMode] = useState<SearchMode>("auto");
   const [updatingModeSessionId, setUpdatingModeSessionId] = useState<
     string | null
   >(null);
@@ -237,6 +240,7 @@ export default function ChatPage() {
         memory: getMemory(),
       });
       const provisionalId = crypto.randomUUID();
+      let citations: MessageCitation[] = [];
       const reply = await sendChatMessage(
         prompt,
         {
@@ -246,6 +250,7 @@ export default function ChatPage() {
             title: persistedUserSession.title,
             activeLeafId: persistedUserSession.activeLeafId ?? null,
           },
+          searchMode,
         },
         controller.signal,
         (_delta, accumulated) => {
@@ -262,11 +267,15 @@ export default function ChatPage() {
             ...current,
             [sessionId]: envelope,
           })),
+        (nextCitations) => {
+          citations = nextCitations;
+        },
       );
       const assistantResult = await appendServerMessage(sessionId, {
         parentMessageId: userMessage.id ?? null,
         role: "assistant",
         content: reply,
+        citations,
       });
       replaceSession({
         ...appendMessage(
@@ -303,6 +312,7 @@ export default function ChatPage() {
 
     try {
       const prompt = buildAgentPrompt({ session: retrySession, memory: getMemory() });
+      let citations: MessageCitation[] = [];
       const reply = await sendChatMessage(
         prompt,
         {
@@ -312,6 +322,7 @@ export default function ChatPage() {
             title: retrySession.title,
             activeLeafId: retrySession.activeLeafId ?? null,
           },
+          searchMode,
         },
         controller.signal,
         (_delta, accumulated) => {
@@ -329,11 +340,15 @@ export default function ChatPage() {
             ...current,
             [sessionId]: envelope,
           })),
+        (nextCitations) => {
+          citations = nextCitations;
+        },
       );
       await appendServerMessage(sessionId, {
         parentMessageId: message.parentId ?? null,
         role: "assistant",
         content: reply,
+        citations,
       });
       replaceSession(await getServerSession(sessionId));
     } catch (retryError) {
@@ -555,7 +570,9 @@ export default function ChatPage() {
             <ChatComposer
               value={input}
               loading={loading}
+              searchMode={searchMode}
               onChange={setInput}
+              onSearchModeChange={setSearchMode}
               onSend={sendMessage}
               onStop={() =>
                 controllers.current.get(resolvedActiveSessionId)?.abort()

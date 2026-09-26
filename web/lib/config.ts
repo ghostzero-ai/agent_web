@@ -47,7 +47,16 @@ export function isChatMessage(value: unknown): value is ChatMessage {
       (Array.isArray(message.versions) &&
         message.versions.every((version) => typeof version === "string"))) &&
     (message.activeVersion === undefined ||
-      typeof message.activeVersion === "number")
+      typeof message.activeVersion === "number") &&
+    (message.citations === undefined ||
+      (Array.isArray(message.citations) &&
+        message.citations.every(
+          (citation) =>
+            citation &&
+            typeof citation === "object" &&
+            typeof citation.title === "string" &&
+            typeof citation.url === "string",
+        )))
   );
 }
 

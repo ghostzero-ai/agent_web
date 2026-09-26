@@ -1,6 +1,19 @@
 name: agent-web
 
 services:
+  search:
+    image: docker.io/searxng/searxng:latest
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-agent-web-local-search-only}
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - searxng-cache:/var/cache/searxng
+    expose:
+      - "8080"
+    security_opt:
+      - no-new-privileges:true
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -28,6 +41,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      search:
+        condition: service_started
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.selfhost}
       CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?Set CREDENTIAL_MASTER_KEY in .env.selfhost}
@@ -35,6 +50,7 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-}
       AI_MODEL: ${AI_MODEL:-}
       AI_ALLOW_INSECURE_HTTP: ${AI_ALLOW_INSECURE_HTTP:-false}
+      WEB_SEARCH_BASE_URL: ${WEB_SEARCH_BASE_URL:-http://search:8080/}
       MOBILE_ALLOWED_ORIGINS: ${MOBILE_ALLOWED_ORIGINS:-https://localhost}
       HOSTNAME: 0.0.0.0
       PORT: 3000
@@ -76,3 +92,4 @@ services:
 
 volumes:
   postgres-data:
+  searxng-cache:

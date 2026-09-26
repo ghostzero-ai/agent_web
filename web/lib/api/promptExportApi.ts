@@ -14,8 +14,10 @@ import {
 const sourceSchema = z.enum([
   "policy",
   "mode",
+  "citation",
   "persona",
   "memory",
+  "web-search",
   "conversation",
 ]);
 const promptLayerSchema = z
@@ -44,7 +46,7 @@ const envelopeSchema = z
       .strict(),
     composer: z
       .object({
-        version: z.literal("core-3.2/v1"),
+        version: z.enum(["core-3.2/v1", "core-3.3/v1"]),
         layerOrder: z.array(sourceSchema).min(1).max(500),
       })
       .strict(),

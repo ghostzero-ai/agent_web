@@ -187,7 +187,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 |---|---|---|
 | 3.1 ✅ | Mode Registry + Policy Layer | 注册表、核心策略、可回滚枚举迁移、乐观锁更新 API 与模式选择 UI 已完成 |
 | 3.2 ✅ | Prompt Envelope + Export | 服务端 Envelope、无明文 Run 审计、哈希校验 JSON/Markdown 导出与敏感字段测试已完成 |
-| 3.3 | Web Search + Citation | 时效问题包含可点击来源 |
+| 3.3 ✅ | Web Search + Citation | 已完成：自动/强制/关闭检索、证据隔离与可点击持久化来源 |
 | 3.4 | Response Verifier + Evals | 引用、时效、模式边界有回归分数 |
 | 4.x | 新闻、书籍、思考问题 | 服务端生成、去重、有来源并进入 Inbox |
 | 5.x | 记忆、Persona、TTS、主动性 | 语音不改变事实；主动联系受预算和安静时段控制 |

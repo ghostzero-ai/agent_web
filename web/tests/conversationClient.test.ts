@@ -43,6 +43,13 @@ describe("conversation browser client", () => {
                 parentMessageId: null,
                 role: "assistant",
                 content: "已持久化",
+                citations: [
+                  {
+                    id: "S1",
+                    title: "来源",
+                    url: "https://example.com/",
+                  },
+                ],
                 createdAt: "2026-09-06T00:00:00.000Z",
               },
             ],
@@ -63,6 +70,9 @@ describe("conversation browser client", () => {
       parentId: null,
       role: "assistant",
       content: "已持久化",
+      citations: [
+        { id: "S1", title: "来源", url: "https://example.com/" },
+      ],
     });
   });
 
@@ -81,6 +91,9 @@ describe("conversation browser client", () => {
       parentMessageId: null,
       role: "user",
       content: "问题",
+      citations: [
+        { id: "S1", title: "来源", url: "https://example.com/" },
+      ],
     });
     await renameServerSession("conversation-id", "问题", 2);
     await updateServerSession("conversation-id", {
@@ -97,7 +110,9 @@ describe("conversation browser client", () => {
       content: "问题",
       status: "complete",
       model: null,
-      citations: [],
+      citations: [
+        { id: "S1", title: "来源", url: "https://example.com/" },
+      ],
     });
     expect(titleBody).toEqual({ title: "问题", expectedVersion: 2 });
     expect(modeBody).toEqual({ mode: "entertainment", expectedVersion: 3 });

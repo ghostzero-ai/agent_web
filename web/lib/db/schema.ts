@@ -82,8 +82,13 @@ export type TaskKind = "reminder" | "agent_prompt";
 export type InboxSource = TaskKind;
 
 export type MessageCitation = {
+  id?: string;
   title: string;
   url: string;
+  snippet?: string;
+  source?: string;
+  publishedAt?: string | null;
+  fetchedAt?: string;
 };
 
 export const users = pgTable(

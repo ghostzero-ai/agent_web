@@ -2,6 +2,16 @@
  * 会被持久化并展示给用户的真实会话消息。
  * 系统指令、记忆上下文和工具过程不得写入这个类型。
  */
+export type MessageCitation = {
+  id?: string;
+  title: string;
+  url: string;
+  snippet?: string;
+  source?: string;
+  publishedAt?: string | null;
+  fetchedAt?: string;
+};
+
 export type ChatMessage = {
   id?: string;
   parentId?: string | null;
@@ -10,18 +20,19 @@ export type ChatMessage = {
   createdAt?: number;
   versions?: string[];
   activeVersion?: number;
+  citations?: MessageCitation[];
 };
 
 export type PromptMessage =
   | {
       kind: "instruction";
-      source: "policy" | "mode" | "persona";
+      source: "policy" | "mode" | "citation" | "persona";
       role: "system";
       content: string;
     }
   | {
       kind: "context";
-      source: "memory";
+      source: "memory" | "web-search";
       role: "system";
       content: string;
     }

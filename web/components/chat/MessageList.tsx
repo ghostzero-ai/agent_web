@@ -20,6 +20,14 @@ function formatMessageTime(timestamp: number): string {
   });
 }
 
+function isSafeSourceUrl(value: string): boolean {
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
 export function MessageList({
   hasActiveSession,
   messages,
@@ -86,6 +94,38 @@ export function MessageList({
               }`}
             >
               <MarkdownMessage content={message.content} />
+              {message.role === "assistant" &&
+                message.citations &&
+                message.citations.some((citation) => isSafeSourceUrl(citation.url)) && (
+                  <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                    <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                      参考来源
+                    </p>
+                    <div className="grid gap-2">
+                      {message.citations
+                        .filter((citation) => isSafeSourceUrl(citation.url))
+                        .map((citation, citationIndex) => (
+                        <a
+                          key={`${citation.url}-${citationIndex}`}
+                          href={citation.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-lg border border-zinc-200 px-3 py-2 transition-colors hover:border-blue-400 hover:bg-blue-50/50 dark:border-zinc-800 dark:hover:border-blue-700 dark:hover:bg-blue-950/20"
+                        >
+                          <span className="block text-xs font-medium text-blue-700 dark:text-blue-400">
+                            {citation.id ? `[${citation.id}] ` : ""}
+                            {citation.title}
+                          </span>
+                          {citation.source && (
+                            <span className="mt-1 block truncate text-[11px] text-zinc-400 dark:text-zinc-500">
+                              {citation.source}
+                            </span>
+                          )}
+                        </a>
+                        ))}
+                    </div>
+                  </div>
+                )}
             </div>
 
             <div

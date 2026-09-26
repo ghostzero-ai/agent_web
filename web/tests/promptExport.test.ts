@@ -33,7 +33,7 @@ describe("Prompt export", () => {
     );
     expect(document.envelope).toMatchObject({
       runId: envelope.runId,
-      composerVersion: "core-3.2/v1",
+      composerVersion: "core-3.3/v1",
     });
     expect(JSON.stringify(document)).not.toContain("apiKey");
   });

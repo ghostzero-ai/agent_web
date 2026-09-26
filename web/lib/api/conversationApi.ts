@@ -50,8 +50,15 @@ const appendMessageSchema = z
       .array(
         z
           .object({
+            id: z.string().regex(/^S[1-9]\d*$/u).optional(),
             title: z.string().trim().min(1).max(500),
-            url: z.url(),
+            url: z
+              .url()
+              .refine((value) => ["http:", "https:"].includes(new URL(value).protocol)),
+            snippet: z.string().trim().max(2_000).optional(),
+            source: z.string().trim().min(1).max(255).optional(),
+            publishedAt: z.iso.datetime().nullable().optional(),
+            fetchedAt: z.iso.datetime().optional(),
           })
           .strict(),
       )

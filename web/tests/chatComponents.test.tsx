@@ -170,6 +170,38 @@ describe("chat presentation components", () => {
     expect(html).toContain("重新生成");
   });
 
+  it("renders persisted citations as safe clickable source cards", () => {
+    const message: ChatMessage = {
+      id: "assistant-source",
+      parentId: null,
+      role: "assistant",
+      content: "结论 [S1]",
+      citations: [
+        {
+          id: "S1",
+          title: "官方来源",
+          url: "https://example.com/report",
+          source: "example.com",
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <MessageList
+        hasActiveSession
+        messages={[message]}
+        allMessages={[message]}
+        loading={false}
+        onRetry={noop}
+        onSwitchVersion={noop}
+      />,
+    );
+
+    expect(html).toContain("参考来源");
+    expect(html).toContain("[S1] 官方来源");
+    expect(html).toContain('href="https://example.com/report"');
+    expect(html).toContain('rel="noopener noreferrer"');
+  });
+
   it("renders the thinking state without retry actions", () => {
     const html = renderToStaticMarkup(
       <MessageList
@@ -231,7 +263,9 @@ describe("chat presentation components", () => {
       <ChatComposer
         value="待发送内容"
         loading={false}
+        searchMode="auto"
         onChange={noop}
+        onSearchModeChange={noop}
         onSend={noop}
         onStop={noop}
       />,
@@ -240,7 +274,9 @@ describe("chat presentation components", () => {
       <ChatComposer
         value=""
         loading
+        searchMode="on"
         onChange={noop}
+        onSearchModeChange={noop}
         onSend={noop}
         onStop={noop}
       />,
@@ -248,6 +284,9 @@ describe("chat presentation components", () => {
 
     expect(readyHtml).toContain("待发送内容");
     expect(readyHtml).toContain("发送");
+    expect(readyHtml).toContain("自动");
+    expect(readyHtml).toContain("联网");
+    expect(readyHtml).toContain("关闭");
     expect(readyHtml).not.toContain("停止生成");
     expect(loadingHtml).toContain("停止生成");
     expect(loadingHtml).toContain("disabled");

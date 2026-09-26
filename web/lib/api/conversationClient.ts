@@ -1,4 +1,4 @@
-import type { ChatMessage } from "@/lib/ai/messages";
+import type { ChatMessage, MessageCitation } from "@/lib/ai/messages";
 import { isCoreModeId, type CoreModeId } from "@/lib/agent/modeRegistry";
 import type { Session } from "@/lib/config";
 import { CONVERSATION_SCHEMA_VERSION } from "@/lib/conversation/tree";
@@ -18,6 +18,7 @@ type MessageRecord = {
   parentMessageId: string | null;
   role: "system" | "developer" | "user" | "assistant" | "tool";
   content: string;
+  citations?: MessageCitation[];
   createdAt: string;
 };
 
@@ -55,6 +56,20 @@ function toTimestamp(value: string): number {
   return Number.isNaN(timestamp) ? Date.now() : timestamp;
 }
 
+function safeCitations(value: MessageCitation[] | undefined): MessageCitation[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((citation) => {
+    if (!citation || typeof citation.title !== "string" || typeof citation.url !== "string") {
+      return false;
+    }
+    try {
+      return ["http:", "https:"].includes(new URL(citation.url).protocol);
+    } catch {
+      return false;
+    }
+  });
+}
+
 function toChatMessage(record: MessageRecord): ChatMessage | null {
   if (record.role !== "user" && record.role !== "assistant") return null;
   return {
@@ -63,6 +78,7 @@ function toChatMessage(record: MessageRecord): ChatMessage | null {
     role: record.role,
     content: record.content,
     createdAt: toTimestamp(record.createdAt),
+    citations: safeCitations(record.citations),
   };
 }
 
@@ -159,6 +175,7 @@ export async function appendServerMessage(
     parentMessageId: string | null;
     role: "user" | "assistant";
     content: string;
+    citations?: MessageCitation[];
   },
 ): Promise<{ conversation: ConversationRecord; message: MessageRecord }> {
   return apiRequest(`/api/v1/conversations/${conversationId}/messages`, {
@@ -167,7 +184,7 @@ export async function appendServerMessage(
       ...input,
       status: "complete",
       model: null,
-      citations: [],
+      citations: input.citations ?? [],
     }),
   });
 }

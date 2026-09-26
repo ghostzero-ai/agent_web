@@ -1,6 +1,6 @@
 # 单用户自托管运行手册
 
-当前基线由 Docker Compose 中的 Next.js Web/API、独立 Reminder Worker 与 PostgreSQL 组成，面向个人笔记本运行，并保留未来迁移到云主机时不改领域代码的路径。手机远程访问首选 Tailscale 私有网络；数据库不映射宿主机端口，Web 默认只绑定 localhost。
+当前基线由 Docker Compose 中的 Next.js Web/API、独立 Reminder Worker、PostgreSQL 与内网 SearXNG 搜索服务组成，面向个人笔记本运行，并保留未来迁移到云主机时不改领域代码的路径。手机远程访问首选 Tailscale 私有网络；数据库和搜索服务不映射宿主机端口，Web 默认只绑定 localhost。
 
 ## 1. 前提
 
@@ -31,6 +31,7 @@ $rng.Dispose()
 ```
 
 - `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 是可选的管理员兜底。推荐先留空，启动后在 `/api-key` 页面测试并保存凭据。
+- 为 `SEARXNG_SECRET` 设置另一条长随机字符串。`WEB_SEARCH_BASE_URL=http://search:8080/` 保持默认值即可。
 - 保持 `APP_BIND_ADDRESS=127.0.0.1`。Tailscale Serve 可以代理 localhost，无需将应用暴露到整个局域网。
 
 启动并构建：
@@ -42,7 +43,7 @@ docker compose --env-file .env.selfhost logs --tail 100 web
 docker compose --env-file .env.selfhost logs --tail 100 worker
 ```
 
-Web 与 Worker 容器都会等待 PostgreSQL 健康，并通过数据库迁移锁安全地先完成迁移。电脑本机打开 `http://127.0.0.1:3000/api-key` 测试并保存模型凭据，之后可使用 `/chat`、`/tasks`、`/inbox` 与 `/notifications`。Worker 默认每 5 秒扫描到期任务和待投递通知，网页关闭后仍运行。Web Push 启用与真机排障见 `WEB_PUSH.md`。
+Web 与 Worker 容器都会等待 PostgreSQL 健康，并通过数据库迁移锁安全地先完成迁移。首次启动还会下载官方 SearXNG 镜像；它只接受 Compose 内部的搜索请求。电脑本机打开 `http://127.0.0.1:3000/api-key` 测试并保存模型凭据，之后可使用 `/chat`、`/tasks`、`/inbox` 与 `/notifications`。Worker 默认每 5 秒扫描到期任务和待投递通知，网页关闭后仍运行。Web Push 启用与真机排障见 `WEB_PUSH.md`。
 
 ## 3. Tailscale 手机私有访问
 
@@ -85,6 +86,7 @@ tailscale serve reset
 ```powershell
 Invoke-RestMethod http://127.0.0.1:3000/api/v1/health
 docker compose --env-file .env.selfhost ps
+docker compose --env-file .env.selfhost logs --tail 100 search
 ```
 
 ## 5. 停止、升级与重启恢复

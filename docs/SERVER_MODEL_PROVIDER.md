@@ -79,6 +79,7 @@ AI_ALLOW_INSECURE_HTTP=false
     "title": "事务学习",
     "activeLeafId": "message uuid"
   },
+  "searchMode": "auto",
   "prompt": [
     { "kind": "instruction", "source": "policy", "role": "system", "content": "..." },
     { "kind": "conversation", "source": "conversation", "role": "user", "content": "解释数据库事务" }
@@ -86,19 +87,19 @@ AI_ALLOW_INSECURE_HTTP=false
 }
 ```
 
-限制：1–500 层、单层最多 1,000,000 字符、总内容最多 2,000,000 字符；来源、角色组合和未知字段均严格校验。服务端生成 Prompt Envelope、验证会话分支并写入无明文 Run 审计，然后才把 Envelope 内的标准消息发送到上游 `/chat/completions`。
+限制：1–500 层、单层最多 1,000,000 字符、总内容最多 2,000,000 字符；来源、角色组合和未知字段均严格校验。`searchMode` 可选 `auto`、`on` 或 `off`。检索由服务端从最后一条用户消息发起；成功后插入 Citation Policy 与不可信 Web Evidence，再生成 Prompt Envelope、验证会话分支并写入无明文 Run 审计，最后才把 Envelope 内的标准消息发送到上游 `/chat/completions`。
 
 成功响应为 `text/event-stream`：
 
 ```text
 event: meta
-data: {"requestId":"...","model":"deepseek-v4-flash-vision-exp","envelope":{"format":"ai-study-companion.prompt-envelope","schemaVersion":1,"...":"..."}}
+data: {"requestId":"...","model":"deepseek-v4-flash-vision-exp","envelope":{"format":"ai-study-companion.prompt-envelope","schemaVersion":1,"...":"..."},"retrieval":{"status":"completed","query":"...","citations":["..."]}}
 
 event: delta
 data: {"text":"增量文字"}
 
 event: done
-data: {}
+data: {"citations":[{"id":"S1","title":"...","url":"https://..."}]}
 ```
 
 建立 SSE 前的配置/校验错误使用普通 JSON 和 400/503。建立 SSE 后的 Provider 错误使用 `event: error`，包含稳定 `code`、安全文案、`retryable` 和 `requestId`。

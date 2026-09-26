@@ -20,12 +20,20 @@ import {
   PromptRunRepositoryError,
   type PromptRunRepositoryPort,
 } from "@/lib/repositories/promptRunRepository";
+import {
+  citedSources,
+  retrieveWebEvidence,
+  SEARCH_MODES,
+  type WebSearchProvider,
+} from "@/lib/search/webSearch";
+import { createConfiguredWebSearchProvider } from "@/lib/search/searxngProvider";
 
 type ModelApiDependencies = {
   getConfig: () => ModelProviderConfig | Promise<ModelProviderConfig>;
   getStatus: () => ModelProviderStatus | Promise<ModelProviderStatus>;
   createProvider: (config: ModelProviderConfig) => ModelProvider;
   runs: PromptRunRepositoryPort;
+  search?: WebSearchProvider;
 };
 
 const instructionPromptSchema = z
@@ -73,6 +81,7 @@ const modelRequestSchema = z
       )
       .min(1)
       .max(500),
+    searchMode: z.enum(SEARCH_MODES).default("auto"),
   })
   .strict()
   .refine(
@@ -159,15 +168,23 @@ export function createModelApi(dependencies: ModelApiDependencies) {
       let input: z.infer<typeof modelRequestSchema>;
       let config: ModelProviderConfig;
       let envelope: Awaited<ReturnType<typeof createPromptEnvelope>>;
+      let retrieval: Awaited<ReturnType<typeof retrieveWebEvidence>>["retrieval"];
 
       try {
         input = await parseRequest(request);
         config = await dependencies.getConfig();
+        const prepared = await retrieveWebEvidence({
+          prompt: input.prompt,
+          mode: input.searchMode,
+          provider: dependencies.search,
+          signal: request.signal,
+        });
+        retrieval = prepared.retrieval;
         envelope = await createPromptEnvelope({
           runId: requestId,
           trigger: input.trigger,
           conversation: input.conversation,
-          prompt: input.prompt,
+          prompt: prepared.prompt,
           provider: {
             provider: "openai-compatible",
             baseUrl: config.baseUrl,
@@ -239,19 +256,26 @@ export function createModelApi(dependencies: ModelApiDependencies) {
                 baseUrl: config.baseUrl,
                 model: config.model,
                 envelope,
+                retrieval,
               }),
             );
             let sawDone = false;
+            let answer = "";
             for await (const event of provider.stream(
               { messages: envelope.request.messages },
               abortController.signal,
             )) {
               if (event.type === "delta") {
+                answer += event.text;
                 controller.enqueue(sse("delta", { text: event.text }));
               } else {
                 await dependencies.runs.finish(envelope.runId, "completed");
                 sawDone = true;
-                controller.enqueue(sse("done", {}));
+                controller.enqueue(
+                  sse("done", {
+                    citations: citedSources(answer, retrieval.citations),
+                  }),
+                );
               }
             }
             if (!sawDone) {
@@ -321,5 +345,6 @@ export function getModelApi() {
     getStatus: resolveModelProviderStatus,
     createProvider: (config) => new OpenAICompatibleProvider(config),
     runs: createPromptRunRepository(database),
+    search: createConfiguredWebSearchProvider(),
   });
 }

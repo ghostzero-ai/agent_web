@@ -4,6 +4,26 @@
 
 ---
 
+## Core 3.3 — 受控 Web Search 与 Citation Model
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增 `auto / on / off` 联网控制；自动模式只在时效、新闻、价格、现任信息或显式引用需求时检索。
+- 新增服务端 `WebSearchProvider` 与 SearXNG 实现。Compose 内部启动独立搜索容器，不暴露宿主机端口且不需要第三方搜索 API Key。
+- 搜索结果经过协议校验、去重、HTML 清理、数量/长度/超时限制后，作为明确的“不可信外部数据”进入 Prompt。
+- Prompt 新增 Citation Policy 与 Web Search Evidence 层，Composer 升级到 `core-3.3/v1`，真实搜索证据进入 Envelope、哈希与导出。
+- 模型用 `[S1]` 编号引用；服务端只回传回答实际使用的来源，Assistant Message 将结构化 Citation 保存到 PostgreSQL JSONB。
+- Chat 在网页与 APK 共享界面展示可点击来源卡片；重新生成的每个回答分支独立保存自己的来源。
+- 新增搜索决策、失败降级、提示注入隔离、SearXNG 归一化、SSE 引用回传、持久化与渲染测试。
+
+### 当前边界
+
+- 当前使用搜索摘要，不抓取完整页面；来源是否逐条支持断言由 Core 3.4 Response Verifier 继续完成。
+- 搜索故障会降级为普通回答，不阻断聊天；此时回答不得视为已经联网验证。
+- SearXNG 的可用性仍受本机网络和上游搜索引擎限制。
+
 ## Core 3.2 — 服务端 Prompt Envelope 与安全导出
 
 **Commit**: `same delivery commit`

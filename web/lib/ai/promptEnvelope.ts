@@ -5,7 +5,7 @@ import {
 } from "@/lib/ai/messages";
 
 export const PROMPT_ENVELOPE_SCHEMA_VERSION = 1 as const;
-export const PROMPT_COMPOSER_VERSION = "core-3.2/v1" as const;
+export const PROMPT_COMPOSER_VERSION = "core-3.3/v1" as const;
 
 export type PromptTrigger = "send" | "retry";
 
@@ -61,8 +61,10 @@ export type PromptEnvelope = {
 const LAYER_VERSIONS: Record<PromptMessage["source"], string> = {
   policy: "core-policy/v1",
   mode: "mode-registry/v1",
+  citation: "citation-policy/v1",
   persona: "persona/v1",
   memory: "memory-context/v1",
+  "web-search": "web-search-context/v1",
   conversation: "conversation-tree/v2",
 };
 

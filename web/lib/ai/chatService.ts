@@ -3,6 +3,8 @@ import {
   type Session,
 } from "@/lib/config";
 import type { PromptMessage } from "@/lib/ai/messages";
+import type { MessageCitation } from "@/lib/ai/messages";
+import type { SearchMode } from "@/lib/search/webSearch";
 import {
   isPromptEnvelope,
   type PromptEnvelope,
@@ -23,10 +25,12 @@ export async function sendChatMessage(
   context: {
     trigger: PromptTrigger;
     conversation: PromptEnvelope["conversation"];
+    searchMode?: SearchMode;
   },
   signal?: AbortSignal,
   onDelta?: (text: string, accumulated: string) => void,
   onEnvelope?: (envelope: PromptEnvelope) => void,
+  onCitations?: (citations: MessageCitation[]) => void,
 ): Promise<string> {
   const response = await apiFetch("/api/v1/model/stream", {
     method: "POST",
@@ -37,6 +41,7 @@ export async function sendChatMessage(
       trigger: context.trigger,
       conversation: context.conversation,
       prompt: messages,
+      searchMode: context.searchMode ?? "auto",
     }),
     signal,
   });
@@ -88,6 +93,8 @@ export async function sendChatMessage(
         throw new Error(
           typeof data.message === "string" ? data.message : "模型生成失败",
         );
+      } else if (event === "done" && Array.isArray(data.citations)) {
+        onCitations?.(data.citations as MessageCitation[]);
       }
     }
 

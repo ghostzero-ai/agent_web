@@ -50,7 +50,7 @@ describe("sendChatMessage", () => {
           `event: meta\ndata: ${JSON.stringify({ envelope })}\n\n`,
           'event: delta\ndata: {"text":"回"}\n\n',
           'event: delta\ndata: {"text":"答"}\n\n',
-          "event: done\ndata: {}\n\n",
+          'event: done\ndata: {"citations":[{"id":"S1","title":"来源","url":"https://example.com/"}]}\n\n',
         ].join(""),
         { status: 200, headers: { "content-type": "text/event-stream" } },
       ),
@@ -58,6 +58,7 @@ describe("sendChatMessage", () => {
     vi.stubGlobal("fetch", fetchMock);
     const onDelta = vi.fn();
     const onEnvelope = vi.fn();
+    const onCitations = vi.fn();
 
     const prompt: PromptMessage[] = [
       {
@@ -87,6 +88,7 @@ describe("sendChatMessage", () => {
         undefined,
         onDelta,
         onEnvelope,
+        onCitations,
       ),
     ).resolves.toBe("回答");
 
@@ -99,6 +101,7 @@ describe("sendChatMessage", () => {
       trigger: "send",
       conversation: requestContext.conversation,
       prompt,
+      searchMode: "auto",
     });
     expect(init.headers).not.toHaveProperty("authorization");
     expect(onDelta.mock.calls).toEqual([
@@ -106,6 +109,9 @@ describe("sendChatMessage", () => {
       ["答", "回答"],
     ]);
     expect(onEnvelope).toHaveBeenCalledWith(envelope);
+    expect(onCitations).toHaveBeenCalledWith([
+      { id: "S1", title: "来源", url: "https://example.com/" },
+    ]);
   });
 
   it("maps a non-successful server response to its safe message", async () => {

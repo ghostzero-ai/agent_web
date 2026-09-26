@@ -94,7 +94,7 @@ describe("Model API", () => {
     expect(body).toContain('"baseUrl":"https://provider.example/v1"');
     expect(body).toContain('"model":"test-model"');
     expect(body).toContain('"format":"ai-study-companion.prompt-envelope"');
-    expect(body).toContain('"composer":{"version":"core-3.2/v1"');
+    expect(body).toContain('"composer":{"version":"core-3.3/v1"');
     expect(body).toContain('event: delta\ndata: {"text":"专业"}');
     expect(body).toContain('event: delta\ndata: {"text":"回答"}');
     expect(body).toContain("event: done");
@@ -140,6 +140,53 @@ describe("Model API", () => {
       retryable: false,
       details: { missing: ["AI_API_KEY"] },
     });
+  });
+
+  it("adds server-owned search evidence and returns only cited sources", async () => {
+    let receivedRequest: ModelStreamRequest | undefined;
+    const provider: ModelProvider = {
+      async *stream(modelRequest): AsyncIterable<ModelStreamEvent> {
+        receivedRequest = modelRequest;
+        yield { type: "delta", text: "最新结论 [S1]" };
+        yield { type: "done" };
+      },
+    };
+    const search = {
+      search: vi.fn().mockResolvedValue([
+        {
+          id: "S1",
+          title: "来源",
+          url: "https://example.com/news",
+          snippet: "证据",
+          source: "example.com",
+          publishedAt: null,
+          fetchedAt: "2026-09-26T00:00:00.000Z",
+        },
+      ]),
+    };
+    const api = createModelApi({
+      getConfig: () => config,
+      getStatus: () => ({
+        configured: true,
+        baseUrl: config.baseUrl,
+        model: config.model,
+        missing: [],
+      }),
+      createProvider: () => provider,
+      runs: createRunRecorder().repository,
+      search,
+    });
+
+    const response = await api.stream(
+      request({ ...validBody, searchMode: "on" }),
+    );
+    const body = await response.text();
+
+    expect(search.search).toHaveBeenCalledWith("问题", expect.any(AbortSignal));
+    expect(receivedRequest?.messages.map((message) => message.content).join("\n"))
+      .toContain("Web Search Evidence");
+    expect(body).toContain('"status":"completed"');
+    expect(body).toContain('"citations":[{"id":"S1"');
   });
 
   it("returns a safe error when model status storage is unavailable", async () => {
