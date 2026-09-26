@@ -1782,7 +1782,7 @@ toolName, errorCode
 | M0.4 | 循环时间滚轮 + APK 本地提醒 | 任务 CRUD、10 秒发送/取消诊断通过；系统清理后送达仍待解决 |
 | M1.1 ✅ | 本地可打包 React Client | 正式 APK 不使用 `server.url`，共享 API Client |
 | M1.2 ✅ | Prompt 文件导出 + Share | JSON/Markdown 可保存和分享，记忆默认脱敏 |
-| M1.3 | APK Local Notification 发布加固 | 本地 Bundle 下完成断网、重启、时区和省电回归 |
+| M1.3 🧪 | APK Local Notification 发布加固 | 设备快照、离线回退、精确闹钟入口和系统恢复广播已实现，等待华为真机回归 |
 | M1.4 | Speech Output Adapter | 播放、停止、锁屏和耳机行为通过真机验证 |
 | M2.1 | HMS Push Capacitor Plugin Spike | 卓易通下 Token、后台 Push 与点击深链有实测结论 |
 | M2.2 | 服务端 Huawei Provider | 主动聊天、新闻与书籍复用 Inbox + Huawei Push |
@@ -1970,7 +1970,7 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 
 1. 完成 M0.4 真机验收：通知授权、准时弹窗、点击跳转、暂停/删除撤销与重启恢复。
 2. 在新版 APK 上完成 M1.1 本地客户端与 M1.2 Prompt 系统分享的真机回归。
-3. 继续 M1.3：在本地 Bundle 下完成断网、重启、时区和系统省电通知回归。
+3. 完成 M1.3 华为真机验收：断网、重启、时区、划掉应用和系统省电通知回归。
 4. 完成 Core 3.2：建立 Prompt Envelope、版本与安全导出，再开始大规模修改 Prompt。
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。

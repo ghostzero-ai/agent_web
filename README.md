@@ -93,6 +93,8 @@ Mobile M1.1 已加入本地可打包 React Client、Hash Router、共享跨端 A
 
 Mobile M1.2 已支持导出最近一次真实模型请求：JSON 用于复现和调试，Markdown 用于阅读；Web 使用文件下载，APK 使用 Capacitor Filesystem + Share 调起系统分享面板。个人记忆默认脱敏，API Key 等凭据永不进入导出文件。
 
+Mobile M1.3 已进入真机验收：Android 会缓存最小提醒快照供服务端离线时恢复，并在开机、校时、时区变化和覆盖安装后重新注册提醒；通知页提供精确闹钟设置入口并明确华为强行停止的系统限制。
+
 ---
 
 ## 项目原则

@@ -1,20 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listTasks } from "@/lib/api/taskClient";
-import { reconcileLocalTaskNotifications } from "@/lib/notifications/localTaskNotifications";
+import { reconcileLocalTaskNotificationsWithFallback } from "@/lib/notifications/localNotificationReliability";
 import type { LocalNotificationAdapter } from "@/lib/platform/capabilities";
 import {
   cancelDiagnosticNotification,
   getCapacitorLocalNotificationAdapter,
   getLocalNotificationDiagnostics,
+  openExactAlarmSettings,
   scheduleDiagnosticNotification,
   type LocalNotificationDiagnostics,
 } from "@/lib/platform/capacitorLocalNotifications";
 
 type NativeState =
   | { kind: "unsupported" | "checking" | "prompt" | "denied" }
-  | { kind: "granted"; pending: number; warning?: string }
+  | {
+      kind: "granted";
+      pending: number;
+      warning?: string;
+      source: "server" | "device-cache";
+      cacheSavedAt: string;
+    }
   | { kind: "error"; message: string };
 
 async function readNativeState(
@@ -25,12 +31,13 @@ async function readNativeState(
     ? await adapter.requestPermission()
     : await adapter.checkPermission();
   if (permission !== "granted") return { kind: permission };
-  const tasks = await listTasks();
-  const result = await reconcileLocalTaskNotifications(adapter, tasks);
+  const result = await reconcileLocalTaskNotificationsWithFallback(adapter);
   return {
     kind: "granted",
     pending: result.pending,
     warning: result.warning,
+    source: result.source,
+    cacheSavedAt: result.cacheSavedAt,
   };
 }
 
@@ -134,6 +141,28 @@ export function NativeTaskNotificationSettings() {
     }
   };
 
+  const changeExactAlarmSetting = async () => {
+    setDiagnosticBusy(true);
+    setDiagnosticMessage("正在打开系统的精确闹钟设置；返回应用后会自动重新同步提醒。");
+    try {
+      const permission = await openExactAlarmSettings();
+      await refreshDiagnostics();
+      setDiagnosticMessage(
+        permission === "granted"
+          ? "精确闹钟已允许，应用已重新检查提醒。"
+          : "精确闹钟尚未允许；提醒会由系统降级为非精确发送。",
+      );
+    } catch (error) {
+      setDiagnosticMessage(
+        error instanceof Error
+          ? `无法打开精确闹钟设置：${error.message}`
+          : "无法打开精确闹钟设置",
+      );
+    } finally {
+      setDiagnosticBusy(false);
+    }
+  };
+
   return (
     <section className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm sm:p-6 dark:border-blue-900 dark:bg-blue-950/30">
       <p className="text-xs font-medium uppercase tracking-wider text-blue-600 dark:text-blue-400">
@@ -161,6 +190,14 @@ export function NativeTaskNotificationSettings() {
           {state.kind === "granted" && state.warning && (
             <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
               {state.warning}
+            </p>
+          )}
+          {state.kind === "granted" && (
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              同步来源：
+              {state.source === "server" ? "服务端最新任务" : "设备离线缓存"}
+              ；设备快照：
+              {new Date(state.cacheSavedAt).toLocaleString("zh-CN")}
             </p>
           )}
         </div>
@@ -247,6 +284,16 @@ export function NativeTaskNotificationSettings() {
             >
               刷新状态
             </button>
+            {diagnostics?.exactAlarmPermission !== "granted" && (
+              <button
+                type="button"
+                disabled={diagnosticBusy}
+                onClick={() => void changeExactAlarmSetting()}
+                className="rounded-xl border border-blue-300 px-3.5 py-2 text-sm font-medium text-blue-700 disabled:opacity-50 dark:border-blue-800 dark:text-blue-300"
+              >
+                打开精确闹钟设置
+              </button>
+            )}
           </div>
           {diagnosticMessage && (
             <p className="mt-3 text-xs leading-5 text-zinc-600 dark:text-zinc-300">
@@ -256,6 +303,9 @@ export function NativeTaskNotificationSettings() {
           <p className="mt-3 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
             建议依次测试：保持前台、切到后台、从最近任务划掉、华为系统清理。每次重新打开本页后点击“刷新状态”。
             “已送达”只统计仍留在通知栏中的通知，点击或清除后会显示“无记录”。
+          </p>
+          <p className="mt-2 text-xs leading-5 text-amber-700 dark:text-amber-300">
+            从最近任务划掉不会取消 Android 闹钟；但系统“强行停止”会冻结应用、闹钟和广播，任何普通 APK 都无法绕过，必须手动再次打开应用。华为设备还应把本应用设为允许自启动、后台活动并关闭电池优化。
           </p>
         </details>
       )}

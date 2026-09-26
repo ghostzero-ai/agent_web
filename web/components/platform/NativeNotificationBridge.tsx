@@ -3,8 +3,7 @@
 import { useEffect } from "react";
 import { App } from "@capacitor/app";
 import { LocalNotifications } from "@capacitor/local-notifications";
-import { listTasks } from "@/lib/api/taskClient";
-import { reconcileLocalTaskNotifications } from "@/lib/notifications/localTaskNotifications";
+import { reconcileLocalTaskNotificationsWithFallback } from "@/lib/notifications/localNotificationReliability";
 import {
   getCapacitorLocalNotificationAdapter,
   isCapacitorAndroid,
@@ -15,7 +14,7 @@ import { navigateToAppPath } from "@/lib/platform/appNavigation";
 async function reconcileOnResume(): Promise<void> {
   const adapter = getCapacitorLocalNotificationAdapter();
   if (!adapter || (await adapter.checkPermission()) !== "granted") return;
-  await reconcileLocalTaskNotifications(adapter, await listTasks());
+  await reconcileLocalTaskNotificationsWithFallback(adapter);
 }
 
 export function NativeNotificationBridge() {

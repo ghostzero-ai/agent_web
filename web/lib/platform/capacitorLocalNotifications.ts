@@ -35,6 +35,7 @@ type CapacitorLocalNotificationsPort = {
     notifications: DeliveredNotificationSchema[];
   }>;
   checkExactNotificationSetting(): Promise<SettingsPermissionStatus>;
+  changeExactNotificationSetting(): Promise<SettingsPermissionStatus>;
   removeDeliveredNotificationsById(options: { ids: number[] }): Promise<void>;
   cancel(options: { notifications: { id: number }[] }): Promise<void>;
   schedule(options: {
@@ -344,6 +345,17 @@ export async function getLocalNotificationDiagnostics(
       (notification) => notification.id === DIAGNOSTIC_NOTIFICATION_ID,
     ),
   };
+}
+
+export async function openExactAlarmSettings(
+  plugin: CapacitorLocalNotificationsPort = LocalNotifications,
+): Promise<"granted" | "denied" | "prompt"> {
+  const status = await plugin.changeExactNotificationSetting();
+  return status.exact_alarm === "granted"
+    ? "granted"
+    : status.exact_alarm === "denied"
+      ? "denied"
+      : "prompt";
 }
 
 export function getCapacitorLocalNotificationAdapter(): LocalNotificationAdapter | null {

@@ -12,7 +12,7 @@ import {
   type TaskInput,
   type TaskRecord,
 } from "@/lib/api/taskClient";
-import { reconcileLocalTaskNotifications } from "@/lib/notifications/localTaskNotifications";
+import { reconcileAndCacheLocalTaskNotifications } from "@/lib/notifications/localNotificationReliability";
 import { getCapacitorLocalNotificationAdapter } from "@/lib/platform/capacitorLocalNotifications";
 import { currentAppSearchParams } from "@/lib/platform/appNavigation";
 import type { TaskSchedule } from "@/lib/tasks/schedule";
@@ -171,7 +171,7 @@ export function TaskManager() {
         return;
       }
       setNativeNotifications({ kind: "syncing" });
-      const result = await reconcileLocalTaskNotifications(adapter, loaded);
+      const result = await reconcileAndCacheLocalTaskNotifications(adapter, loaded);
       setNativeNotifications({
         kind: "granted",
         pending: result.pending,
@@ -239,7 +239,7 @@ export function TaskManager() {
         setNativeNotifications({ kind: "denied" });
         return;
       }
-      const result = await reconcileLocalTaskNotifications(adapter, tasks);
+      const result = await reconcileAndCacheLocalTaskNotifications(adapter, tasks);
       setNativeNotifications({
         kind: "granted",
         pending: result.pending,

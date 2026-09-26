@@ -31,6 +31,10 @@ describe("Capacitor Android project artifacts", () => {
     expect(variables).toContain("compileSdkVersion = 36");
     expect(variables).toContain("targetSdkVersion = 36");
     expect(manifest).toContain("android.permission.INTERNET");
+    expect(manifest).toContain("LocalNotificationRestoreReceiver");
+    expect(manifest).toContain("android.intent.action.TIME_SET");
+    expect(manifest).toContain("android.intent.action.TIMEZONE_CHANGED");
+    expect(manifest).toContain("android.intent.action.MY_PACKAGE_REPLACED");
   });
 
   it("tracks all required Capacitor packages and repeatable build commands", async () => {

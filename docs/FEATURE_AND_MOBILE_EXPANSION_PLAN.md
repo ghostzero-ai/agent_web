@@ -203,7 +203,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 | M0.4 | 循环时间滚轮 + 本地提醒 | 任务 CRUD 与 10 秒发送/取消诊断已完成，系统清理后的送达待继续验证 |
 | M1.1 ✅ | 本地可打包 React Client 边界 | 不使用生产 `server.url`，共享 API Client，无业务双写 |
 | M1.2 ✅ | 文件导出与 Share Adapter | Prompt JSON/Markdown 能保存/分享，记忆默认脱敏 |
-| M1.3 | Local Notification 发布加固 | 本地 Web Bundle 下完成断网、重启、时区和系统省电回归 |
+| M1.3 🧪 | Local Notification 发布加固 | 设备快照、离线回退、精确闹钟入口和系统恢复广播已实现，等待华为真机回归 |
 | M1.4 | Speech Output Adapter | 试听、播放、停止、锁屏/耳机行为通过真机验证 |
 | M2.1 | HMS Push Capacitor Plugin Spike | 卓易通中 Token、后台 Push 和深链得到实测结论 |
 | M2.2 | Huawei 服务端投递 | 主动聊天、新闻、书籍复用 Durable Inbox 和 Huawei Provider |

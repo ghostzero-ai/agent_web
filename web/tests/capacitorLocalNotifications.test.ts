@@ -8,6 +8,7 @@ import {
   localNotificationDeepLink,
   nativeNotificationFromReminder,
   notificationIdForTask,
+  openExactAlarmSettings,
   scheduleDiagnosticNotification,
   TASK_NOTIFICATION_SOURCE,
 } from "@/lib/platform/capacitorLocalNotifications";
@@ -33,6 +34,7 @@ function plugin(overrides: Record<string, unknown> = {}) {
     getPending: vi.fn().mockResolvedValue({ notifications: [] }),
     getDeliveredNotifications: vi.fn().mockResolvedValue({ notifications: [] }),
     checkExactNotificationSetting: vi.fn().mockResolvedValue({ exact_alarm: "granted" }),
+    changeExactNotificationSetting: vi.fn().mockResolvedValue({ exact_alarm: "granted" }),
     removeDeliveredNotificationsById: vi.fn().mockResolvedValue(undefined),
     cancel: vi.fn().mockResolvedValue(undefined),
     schedule: vi.fn().mockResolvedValue({ notifications: [] }),
@@ -177,6 +179,17 @@ describe("Capacitor local notification adapter", () => {
     expect(fake.cancel).toHaveBeenCalledWith({
       notifications: [{ id: DIAGNOSTIC_NOTIFICATION_ID }],
     });
+  });
+
+  it("opens Android exact-alarm settings and reports the resulting state", async () => {
+    const fake = plugin({
+      changeExactNotificationSetting: vi
+        .fn()
+        .mockResolvedValue({ exact_alarm: "denied" }),
+    });
+
+    await expect(openExactAlarmSettings(fake)).resolves.toBe("denied");
+    expect(fake.changeExactNotificationSetting).toHaveBeenCalledOnce();
   });
 
   it("accepts only app-owned relative notification deep links", () => {

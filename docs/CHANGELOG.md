@@ -4,6 +4,28 @@
 
 ---
 
+## Mobile M1.3 — Android 本地通知发布加固
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增经过结构校验的设备端最小提醒快照；只保存通知调度所需字段，不缓存任务 Prompt 或服务端凭据。
+- APK 启动和恢复时优先同步服务端，网络不可用时自动使用最近一次设备快照进行原生 reconcile，并在通知页显示同步来源与缓存时间。
+- 通知设置页新增精确闹钟设置入口；未授权时明确提示系统可能降级为非精确发送。
+- Android Restore Receiver 新增手动校时、时区变化和应用覆盖安装广播，并保留 Capacitor 已提供的开机恢复。
+- 明确“划掉最近任务”与系统“强行停止”的差异；后者会冻结普通 APK 的闹钟和广播，必须由用户重新打开应用。
+- 补充 M1.2 请求时序说明：当前 AI 回复不会进入生成它的 Prompt 快照，下一轮请求才会把该回复作为历史上下文。
+
+### 验证与边界
+
+- 自动化覆盖在线缓存更新、离线回退、损坏缓存拒绝、精确闹钟设置入口和 Android Manifest 恢复广播。
+- Vitest 全量 56 个文件、218 项测试通过；Microsoft Edge 9 项 E2E、ESLint、TypeScript、Next.js/Vite 生产构建、Drizzle Schema 检查与 Android `assembleDebug` 通过。
+- 最终合并 Manifest 已确认包含开机、校时、时区变化、应用覆盖安装恢复广播，以及 `RECEIVE_BOOT_COMPLETED` 与 `SCHEDULE_EXACT_ALARM` 权限。
+- Debug APK 为 5,488,191 字节，SHA-256 为 `10A71B90EE9EA5B1A60404370D5283B7191808A9060447282161ACB9A483BE66`。
+- 断网、重启、系统清理、时区和华为省电策略需要新版 APK 真机验收后才能将 M1.3 标记为完成。
+- AI 主动聊天、新闻和书籍推送仍需要 Huawei Push Kit，不属于本地闹钟能力。
+
 ## Mobile M1.2 — Prompt 文件导出与系统分享
 
 **Commit**: `same delivery commit`
