@@ -38,6 +38,7 @@ export type FinishRunInput = {
   now: Date;
   outcome:
     | { status: "succeeded"; resultSummary?: string | null }
+    | { status: "skipped"; resultSummary: string }
     | { status: "failed"; errorCode: string; errorMessage: string };
 };
 
@@ -276,16 +277,16 @@ export class SchedulerRepository<
 
   async finishRun(input: FinishRunInput): Promise<TaskRunRecord> {
     const terminalFields =
-      input.outcome.status === "succeeded"
+      input.outcome.status === "failed"
         ? {
-            resultSummary: input.outcome.resultSummary ?? null,
-            errorCode: null,
-            errorMessage: null,
-          }
-        : {
             resultSummary: null,
             errorCode: input.outcome.errorCode,
             errorMessage: input.outcome.errorMessage,
+          }
+        : {
+            resultSummary: input.outcome.resultSummary ?? null,
+            errorCode: null,
+            errorMessage: null,
           };
     const [run] = await this.database
       .update(taskRuns)

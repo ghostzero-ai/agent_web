@@ -3,6 +3,7 @@ import {
   deleteInboxItem,
   InboxClientError,
   listInboxItems,
+  updateBriefingFeedback,
   updateInboxStatus,
 } from "@/lib/api/inboxClient";
 
@@ -14,11 +15,13 @@ describe("inbox client", () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ data: [] }))
       .mockResolvedValueOnce(Response.json({ data: { id: "item-1" } }))
+      .mockResolvedValueOnce(Response.json({ data: { id: "item-1" } }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
 
     await listInboxItems("unread");
     await updateInboxStatus("item-1", "read");
+    await updateBriefingFeedback("item-1", "helpful");
     await deleteInboxItem("item-1");
 
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -33,6 +36,14 @@ describe("inbox client", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
+      "/api/v1/inbox/item-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: '{"feedback":"helpful"}',
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
       "/api/v1/inbox/item-1",
       expect.objectContaining({ method: "DELETE" }),
     );

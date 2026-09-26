@@ -60,7 +60,7 @@ Database
 * Phase 3：模式、Prompt、专业回答、搜索、引用与轻量质量评测（已完成）
 * Mobile Track：Capacitor Android 与 HarmonyOS 演进
 
-当前开发主线位于 Phase 4。Phase 4.1 已完成“有来源的个人简报 + 一个思考问题”垂直切片：用户可创建定时简报，Worker 搜索主题并生成固定结构，代码校验来源编号并附加真实链接、日期和订阅理由，结果进入 Inbox 并复用 Push。下一步进入 Phase 4.2 内容聚类、跨期去重与反馈。Mobile M1.3 保留现有 APK 与真机验收清单，只修阻断使用的问题，暂不继续扩张厂商适配。
+当前开发主线位于 Phase 4。Phase 4.1–4.2 已完成有来源的个人简报、跨期事件去重与轻量反馈：Worker 会在模型调用前过滤同一任务最近 30 天已经展示的 URL 或近似标题，全部重复时跳过本次推送；用户可在 Inbox 标记有帮助、不相关或重复，并直达任务页调整主题与频率。下一步进入 Phase 4.3 书籍来源与阅读画像。Mobile M1.3 保留现有 APK 与真机验收清单，只修阻断使用的问题，暂不继续扩张厂商适配。
 
 当前优先级、修订后的交付顺序与防偏移规则见 `docs/PRODUCT_MAINLINE_GUIDE.md`。运行 `npm run eval:core` 可查看模式边界、专业回答与总回归分数；该分数只表示确定性契约没有回归，不代表模型事实正确率。
 
@@ -79,7 +79,7 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 
 服务端会话 API 使用 `/api/v1/conversations` 前缀，具体端点、请求格式和并发规则见 `docs/SERVER_DATA_API.md`。当前 API 没有登录鉴权，只能在本机或可信私有网络使用，不得直接暴露到公网。
 
-任务页面位于 `/tasks`，支持单次、每日和每周的普通提醒、AI 定时任务与个人简报。独立 Worker 在网页关闭后仍会通过事务 Claim、唯一 Run、周期续租和并发 fencing 执行到期任务；个人简报复用服务端模型和内部 SearXNG，结果带来源进入 `/inbox`，并向已授权设备尝试发送系统级 Push。访问 `/notifications` 可管理总开关、安静时段与设备；模型、时区和运行边界见 `docs/TASKS.md`，启用与排障见 `docs/WEB_PUSH.md`。
+任务页面位于 `/tasks`，支持单次、每日和每周的普通提醒、AI 定时任务与个人简报。独立 Worker 在网页关闭后仍会通过事务 Claim、唯一 Run、周期续租和并发 fencing 执行到期任务；个人简报复用服务端模型和内部 SearXNG，并在生成前按历史来源聚类去重，结果带来源进入 `/inbox`，并向已授权设备尝试发送系统级 Push。访问 `/notifications` 可管理总开关、安静时段与设备；模型、时区和运行边界见 `docs/TASKS.md`，启用与排障见 `docs/WEB_PUSH.md`。
 
 旧版 `agent_chat_sessions` 的预检、确认、树形迁移、去重和失败恢复规则见 `docs/LEGACY_DATA_IMPORT.md`。
 

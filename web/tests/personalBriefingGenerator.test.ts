@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { WebSearchProvider } from "@/lib/search/webSearch";
 import type { AgentPromptGeneratorPort } from "@/lib/tasks/agentPromptGenerator";
 import {
+  briefingSourceSignal,
   createPersonalBriefingGenerator,
+  novelBriefingCitations,
   PersonalBriefingGenerationError,
 } from "@/lib/tasks/personalBriefingGenerator";
 
@@ -58,6 +60,7 @@ describe("personal briefing generator", () => {
     const result = await generator.generate(
       "国际人工智能政策",
       new Date("2026-09-26T01:00:00.000Z"),
+      "task-1",
       new AbortController().signal,
     );
 
@@ -69,6 +72,7 @@ describe("personal briefing generator", () => {
       "不可信外部数据",
     );
     expect(result).toMatchObject({ model: "briefing-model", sourceCount: 1 });
+    expect(result.sources).toEqual([briefingSourceSignal(sources[0])]);
     expect(result.content).toContain("2026年9月26日");
     expect(result.content).toContain("## 来源");
     expect(result.content).toContain("AI policy \\[weekly\\] update");
@@ -82,6 +86,7 @@ describe("personal briefing generator", () => {
       createPersonalBriefingGenerator({ agent: agent(validContent) }).generate(
         "主题",
         new Date(),
+        "task-1",
       ),
     ).rejects.toMatchObject({
       code: "BRIEFING_SEARCH_UNAVAILABLE",
@@ -92,7 +97,7 @@ describe("personal briefing generator", () => {
       createPersonalBriefingGenerator({
         search: search([]),
         agent: agent(validContent),
-      }).generate("主题", new Date()),
+      }).generate("主题", new Date(), "task-1"),
     ).rejects.toMatchObject({
       code: "BRIEFING_NO_SOURCES",
       retryable: false,
@@ -105,14 +110,14 @@ describe("personal briefing generator", () => {
       createPersonalBriefingGenerator({
         search: search(),
         agent: agent(unknownCitation),
-      }).generate("主题", new Date()),
+      }).generate("主题", new Date(), "task-1"),
     ).rejects.toMatchObject({ code: "BRIEFING_OUTPUT_INVALID" });
 
     await expect(
       createPersonalBriefingGenerator({
         search: search(),
         agent: agent(validContent.replace("？", "。")),
-      }).generate("主题", new Date()),
+      }).generate("主题", new Date(), "task-1"),
     ).rejects.toMatchObject({ code: "BRIEFING_OUTPUT_INVALID" });
 
     await expect(
@@ -121,7 +126,63 @@ describe("personal briefing generator", () => {
         agent: agent(
           [validContent, "## 延伸阅读", "额外章节"].join("\n\n"),
         ),
-      }).generate("主题", new Date()),
+      }).generate("主题", new Date(), "task-1"),
     ).rejects.toMatchObject({ code: "BRIEFING_OUTPUT_INVALID" });
+  });
+
+  it("clusters repeated events across runs and skips a fully repeated search", async () => {
+    const previous = briefingSourceSignal(sources[0]);
+    const history = {
+      listRecentBriefingSignals: vi.fn().mockResolvedValue([
+        { ...previous, feedback: null },
+      ]),
+    };
+    const generator = createPersonalBriefingGenerator({
+      search: search(),
+      agent: agent(validContent),
+      history,
+    });
+
+    const result = await generator.generate(
+      "主题",
+      new Date("2026-09-26T01:00:00.000Z"),
+      "task-1",
+    );
+
+    expect(history.listRecentBriefingSignals).toHaveBeenCalledWith(
+      "task-1",
+      new Date("2026-08-27T01:00:00.000Z"),
+    );
+    expect(result.sources).toEqual([briefingSourceSignal(sources[1])]);
+    expect(result.content).not.toContain(sources[0].url);
+
+    await expect(
+      createPersonalBriefingGenerator({
+        search: search([sources[0]]),
+        agent: agent(validContent),
+        history,
+      }).generate("主题", new Date(), "task-1"),
+    ).rejects.toMatchObject({
+      code: "BRIEFING_NO_NOVEL_SOURCES",
+      retryable: false,
+    } satisfies Partial<PersonalBriefingGenerationError>);
+  });
+
+  it("uses stronger suppression after negative feedback", () => {
+    const candidate = {
+      ...sources[0],
+      title: "OpenAI 正式发布 GPT-6 新模型",
+      url: "https://another.example/new-model",
+    };
+    const previous = briefingSourceSignal({
+      ...sources[0],
+      title: "OpenAI 发布 GPT-6 模型",
+    });
+
+    expect(
+      novelBriefingCitations([candidate], [
+        { ...previous, feedback: "duplicate" },
+      ]),
+    ).toEqual([]);
   });
 });

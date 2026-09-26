@@ -1,19 +1,39 @@
 import type { WebCitation, WebSearchProvider } from "@/lib/search/webSearch";
 import type {
+  BriefingFeedback,
+  BriefingSourceSignal,
+} from "@/lib/db/schema";
+import type {
   AgentPromptGeneratorPort,
   AgentPromptResult,
 } from "@/lib/tasks/agentPromptGenerator";
 
 const MAX_TOPIC_LENGTH = 10_000;
+const HISTORY_WINDOW_MS = 30 * 24 * 60 * 60 * 1_000;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.72;
+const NEGATIVE_FEEDBACK_THRESHOLD = 0.58;
 
 export type PersonalBriefingResult = AgentPromptResult & {
   sourceCount: number;
+  sources: BriefingSourceSignal[];
 };
+
+export type BriefingHistorySignal = BriefingSourceSignal & {
+  feedback: BriefingFeedback | null;
+};
+
+export interface PersonalBriefingHistoryPort {
+  listRecentBriefingSignals(
+    taskId: string,
+    since: Date,
+  ): Promise<BriefingHistorySignal[]>;
+}
 
 export interface PersonalBriefingGeneratorPort {
   generate(
     topic: string,
     scheduledFor: Date,
+    taskId: string,
     signal?: AbortSignal,
   ): Promise<PersonalBriefingResult>;
 }
@@ -23,7 +43,9 @@ export class PersonalBriefingGenerationError extends Error {
     readonly code:
       | "BRIEFING_TOPIC_MISSING"
       | "BRIEFING_SEARCH_UNAVAILABLE"
+      | "BRIEFING_HISTORY_UNAVAILABLE"
       | "BRIEFING_NO_SOURCES"
+      | "BRIEFING_NO_NOVEL_SOURCES"
       | "BRIEFING_OUTPUT_INVALID",
     message: string,
     readonly retryable: boolean,
@@ -54,6 +76,98 @@ function escapeMarkdown(value: string): string {
 
 function safeMarkdownUrl(value: string): string {
   return value.replace(/\(/gu, "%28").replace(/\)/gu, "%29");
+}
+
+function canonicalUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    for (const name of [...url.searchParams.keys()]) {
+      if (/^(?:utm_.+|fbclid|gclid|ref|source)$/iu.test(name)) {
+        url.searchParams.delete(name);
+      }
+    }
+    url.searchParams.sort();
+    url.pathname = url.pathname.replace(/\/+$/u, "") || "/";
+    return url.toString();
+  } catch {
+    return value.trim();
+  }
+}
+
+function normalizedTitle(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("zh-CN")
+    .replace(/[^\p{Letter}\p{Number}]+/gu, "");
+}
+
+export function briefingSourceSignal(
+  citation: WebCitation,
+): BriefingSourceSignal {
+  return {
+    title: citation.title,
+    url: citation.url,
+    source: citation.source,
+    publishedAt: citation.publishedAt,
+    urlKey: canonicalUrl(citation.url),
+    titleKey: normalizedTitle(citation.title),
+  };
+}
+
+function bigrams(value: string): Set<string> {
+  const result = new Set<string>();
+  for (let index = 0; index < value.length - 1; index += 1) {
+    result.add(value.slice(index, index + 2));
+  }
+  return result;
+}
+
+function titleSimilarity(left: string, right: string): number {
+  if (left === right) return 1;
+  if (Math.min(left.length, right.length) < 8) return 0;
+  const leftPairs = bigrams(left);
+  const rightPairs = bigrams(right);
+  let overlap = 0;
+  for (const pair of leftPairs) {
+    if (rightPairs.has(pair)) overlap += 1;
+  }
+  return (2 * overlap) / (leftPairs.size + rightPairs.size);
+}
+
+function isSameEvent(
+  candidate: BriefingSourceSignal,
+  previous: BriefingHistorySignal,
+): boolean {
+  if (candidate.urlKey === previous.urlKey || candidate.titleKey === previous.titleKey) {
+    return true;
+  }
+  const threshold =
+    previous.feedback === "duplicate" || previous.feedback === "not_relevant"
+      ? NEGATIVE_FEEDBACK_THRESHOLD
+      : DEFAULT_SIMILARITY_THRESHOLD;
+  return titleSimilarity(candidate.titleKey, previous.titleKey) >= threshold;
+}
+
+export function novelBriefingCitations(
+  citations: readonly WebCitation[],
+  history: readonly BriefingHistorySignal[],
+): WebCitation[] {
+  const accepted: Array<{ citation: WebCitation; signal: BriefingHistorySignal }> = [];
+  for (const citation of citations) {
+    const signal = { ...briefingSourceSignal(citation), feedback: null };
+    if (
+      history.some((previous) => isSameEvent(signal, previous)) ||
+      accepted.some(({ signal: previous }) => isSameEvent(signal, previous))
+    ) {
+      continue;
+    }
+    accepted.push({ citation, signal });
+  }
+  return accepted.map(({ citation }, index) => ({
+    ...citation,
+    id: `S${index + 1}`,
+  }));
 }
 
 function evidencePrompt(
@@ -149,9 +263,10 @@ function sourceAppendix(
 export function createPersonalBriefingGenerator(dependencies: {
   search?: WebSearchProvider;
   agent: AgentPromptGeneratorPort;
+  history?: PersonalBriefingHistoryPort;
 }): PersonalBriefingGeneratorPort {
   return {
-    async generate(rawTopic, scheduledFor, signal) {
+    async generate(rawTopic, scheduledFor, taskId, signal) {
       const topic = rawTopic.trim().slice(0, MAX_TOPIC_LENGTH);
       if (!topic) {
         throw new PersonalBriefingGenerationError(
@@ -190,6 +305,31 @@ export function createPersonalBriefingGenerator(dependencies: {
         );
       }
 
+      let history: BriefingHistorySignal[] = [];
+      if (dependencies.history) {
+        try {
+          history = await dependencies.history.listRecentBriefingSignals(
+            taskId,
+            new Date(scheduledFor.getTime() - HISTORY_WINDOW_MS),
+          );
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          throw new PersonalBriefingGenerationError(
+            "BRIEFING_HISTORY_UNAVAILABLE",
+            "Recent briefing history could not be loaded.",
+            true,
+          );
+        }
+      }
+      citations = novelBriefingCitations(citations, history);
+      if (citations.length === 0) {
+        throw new PersonalBriefingGenerationError(
+          "BRIEFING_NO_NOVEL_SOURCES",
+          "All search results match events already shown in a recent briefing.",
+          false,
+        );
+      }
+
       const dateLabel = shanghaiDate(scheduledFor);
       const generated = await dependencies.agent.generate(
         evidencePrompt(topic, dateLabel, citations),
@@ -197,10 +337,12 @@ export function createPersonalBriefingGenerator(dependencies: {
       );
       const citedIds = validateGeneratedContent(generated.content, citations);
       const citedSources = citations.filter((citation) => citedIds.has(citation.id));
+      const sources = citedSources.map(briefingSourceSignal);
       return {
         content: `${generated.content.trim()}\n\n${sourceAppendix(dateLabel, topic, citedSources)}`,
         model: generated.model,
-        sourceCount: citedSources.length,
+        sourceCount: sources.length,
+        sources,
       };
     },
   };

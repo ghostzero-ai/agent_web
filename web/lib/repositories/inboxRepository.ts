@@ -1,4 +1,4 @@
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, gte } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
   inboxItems,
@@ -6,7 +6,10 @@ import {
   taskRuns,
   type InboxItemRecord,
   type TaskRunRecord,
+  type BriefingFeedback,
+  type BriefingSourceSignal,
 } from "@/lib/db/schema";
+import type { BriefingHistorySignal } from "@/lib/tasks/personalBriefingGenerator";
 import * as schema from "@/lib/db/schema";
 import { LOCAL_USER_ID } from "@/lib/repositories/conversationRepository";
 
@@ -25,7 +28,7 @@ export type CompleteAgentPromptRunInput = CompleteReminderRunInput & {
 };
 
 export type CompletePersonalBriefingRunInput = CompleteAgentPromptRunInput & {
-  sourceCount: number;
+  sources: BriefingSourceSignal[];
 };
 
 export type CompletedReminderRun = {
@@ -39,6 +42,7 @@ export class InboxRepositoryError extends Error {
       | "INBOX_ITEM_NOT_FOUND"
       | "RUN_LEASE_LOST"
       | "RUN_KIND_MISMATCH"
+      | "INBOX_FEEDBACK_UNSUPPORTED"
       | "INBOX_WRITE_FAILED",
     message: string,
   ) {
@@ -54,6 +58,15 @@ export interface InboxRepositoryPort {
     status: "unread" | "read",
     now: Date,
   ): Promise<InboxItemRecord>;
+  markFeedback(
+    id: string,
+    feedback: BriefingFeedback | null,
+    now: Date,
+  ): Promise<InboxItemRecord>;
+  listRecentBriefingSignals(
+    taskId: string,
+    since: Date,
+  ): Promise<BriefingHistorySignal[]>;
   delete(id: string): Promise<boolean>;
   completeReminderRun(
     input: CompleteReminderRunInput,
@@ -116,6 +129,72 @@ export class InboxRepository<
     return item;
   }
 
+  async markFeedback(
+    id: string,
+    feedback: BriefingFeedback | null,
+    now: Date,
+  ): Promise<InboxItemRecord> {
+    return this.database.transaction(async (transaction) => {
+      const [existing] = await transaction
+        .select({ source: inboxItems.source })
+        .from(inboxItems)
+        .where(
+          and(eq(inboxItems.id, id), eq(inboxItems.userId, LOCAL_USER_ID)),
+        )
+        .limit(1);
+      if (!existing) {
+        throw new InboxRepositoryError(
+          "INBOX_ITEM_NOT_FOUND",
+          "Inbox item was not found.",
+        );
+      }
+      if (existing.source !== "personal_briefing") {
+        throw new InboxRepositoryError(
+          "INBOX_FEEDBACK_UNSUPPORTED",
+          "Feedback is only supported for personal briefings.",
+        );
+      }
+      const [updated] = await transaction
+        .update(inboxItems)
+        .set({ feedback, updatedAt: now })
+        .where(
+          and(eq(inboxItems.id, id), eq(inboxItems.userId, LOCAL_USER_ID)),
+        )
+        .returning();
+      if (!updated) {
+        throw new InboxRepositoryError(
+          "INBOX_ITEM_NOT_FOUND",
+          "Inbox item was not found.",
+        );
+      }
+      return updated;
+    });
+  }
+
+  async listRecentBriefingSignals(
+    taskId: string,
+    since: Date,
+  ): Promise<BriefingHistorySignal[]> {
+    const rows = await this.database
+      .select({
+        sources: inboxItems.briefingSources,
+        feedback: inboxItems.feedback,
+      })
+      .from(inboxItems)
+      .where(
+        and(
+          eq(inboxItems.userId, LOCAL_USER_ID),
+          eq(inboxItems.taskId, taskId),
+          eq(inboxItems.source, "personal_briefing"),
+          gte(inboxItems.occurredAt, since),
+        ),
+      )
+      .orderBy(desc(inboxItems.occurredAt));
+    return rows.flatMap(({ sources, feedback }) =>
+      (sources ?? []).map((source) => ({ ...source, feedback })),
+    );
+  }
+
   async delete(id: string): Promise<boolean> {
     const deleted = await this.database
       .delete(inboxItems)
@@ -155,7 +234,8 @@ export class InboxRepository<
     return this.completeRun(input, {
       kind: "personal_briefing",
       body: () => input.content,
-      resultSummary: `Personal briefing stored in durable inbox (${input.model}, ${input.sourceCount} sources).`,
+      briefingSources: input.sources,
+      resultSummary: `Personal briefing stored in durable inbox (${input.model}, ${input.sources.length} sources).`,
     });
   }
 
@@ -164,6 +244,7 @@ export class InboxRepository<
     completion: {
       kind: "reminder" | "agent_prompt" | "personal_briefing";
       body: (prompt: string | null) => string | null;
+      briefingSources?: BriefingSourceSignal[];
       resultSummary: string;
     },
   ): Promise<CompletedReminderRun> {
@@ -214,6 +295,7 @@ export class InboxRepository<
           source: completion.kind,
           title: owned.task.title,
           body: completion.body(owned.task.prompt),
+          briefingSources: completion.briefingSources ?? null,
           occurredAt: owned.run.scheduledFor,
         })
         .onConflictDoNothing({ target: inboxItems.taskRunId })

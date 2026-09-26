@@ -30,6 +30,7 @@ export type ReminderWorkerOptions = {
 export type ReminderBatchResult = {
   claimed: number;
   completed: number;
+  skipped: number;
   failed: number;
   deferred: number;
 };
@@ -75,7 +76,7 @@ export type ReminderWorkerDependencies = {
   onRunFailed?: (runId: string, errorCode: string) => void;
 };
 
-type RunOutcome = "completed" | "failed" | "deferred";
+type RunOutcome = "completed" | "skipped" | "failed" | "deferred";
 
 async function generateWithLeaseHeartbeat<T>(
   dependencies: ReminderWorkerDependencies,
@@ -153,6 +154,29 @@ async function failTerminalGeneratedRun(
   }
 }
 
+async function skipRepeatedBriefingRun(
+  dependencies: ReminderWorkerDependencies,
+  options: ReminderWorkerOptions,
+  running: TaskRunRecord,
+): Promise<RunOutcome> {
+  try {
+    await dependencies.scheduler.finishRun({
+      runId: running.id,
+      workerId: options.workerId,
+      expectedAttempt: running.attempt,
+      now: (dependencies.now ?? (() => new Date()))(),
+      outcome: {
+        status: "skipped",
+        resultSummary: "Personal briefing skipped because no novel sources remained.",
+      },
+    });
+    return "skipped";
+  } catch (error) {
+    dependencies.onRunDeferred?.(running.id, error);
+    return "deferred";
+  }
+}
+
 async function executeClaim(
   dependencies: ReminderWorkerDependencies,
   options: ReminderWorkerOptions & { signal?: AbortSignal },
@@ -219,6 +243,7 @@ async function executeClaim(
           ? dependencies.briefing.generate(
               prompt,
               claim.run.scheduledFor,
+              claim.task.id,
               signal,
             )
           : dependencies.agent.generate(prompt, signal),
@@ -234,13 +259,19 @@ async function executeClaim(
     if (claim.task.kind === "personal_briefing") {
       await dependencies.inbox.completePersonalBriefingRun({
         ...completion,
-        sourceCount: (generated as PersonalBriefingResult).sourceCount,
+        sources: (generated as PersonalBriefingResult).sources,
       });
     } else {
       await dependencies.inbox.completeAgentPromptRun(completion);
     }
     return "completed";
   } catch (error) {
+    if (
+      error instanceof PersonalBriefingGenerationError &&
+      error.code === "BRIEFING_NO_NOVEL_SOURCES"
+    ) {
+      return skipRepeatedBriefingRun(dependencies, options, running);
+    }
     if (
       (error instanceof AgentPromptGenerationError ||
         error instanceof PersonalBriefingGenerationError) &&
@@ -271,6 +302,7 @@ export async function runReminderBatch(
   return {
     claimed: claimed.length,
     completed: outcomes.filter((outcome) => outcome === "completed").length,
+    skipped: outcomes.filter((outcome) => outcome === "skipped").length,
     failed: outcomes.filter((outcome) => outcome === "failed").length,
     deferred: outcomes.filter((outcome) => outcome === "deferred").length,
   };

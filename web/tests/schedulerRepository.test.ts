@@ -322,4 +322,50 @@ describe("SchedulerRepository", () => {
       errorMessage: "Expected test failure.",
     });
   });
+  it("stores a skipped run as a successful non-error terminal state", async () => {
+    const taskRepository = createTaskRepository(database);
+    const scheduler = createSchedulerRepository(database);
+    await taskRepository.create({
+      title: "Repeated briefing",
+      prompt: "Artificial intelligence policy",
+      kind: "personal_briefing",
+      scheduleType: "once",
+      scheduleValue: { runAt: "2026-09-10T01:00:00.000Z" },
+      timezone: "Asia/Shanghai",
+      nextRunAt: new Date("2026-09-10T01:00:00.000Z"),
+    });
+    const now = new Date("2026-09-10T01:00:01.000Z");
+    const [claim] = await scheduler.claimAvailableRuns({
+      workerId: "worker-a",
+      now,
+      leaseDurationMs: 60_000,
+      limit: 1,
+    });
+    await scheduler.markRunRunning(
+      claim.run.id,
+      "worker-a",
+      claim.run.attempt,
+      now,
+      60_000,
+    );
+
+    await expect(
+      scheduler.finishRun({
+        runId: claim.run.id,
+        workerId: "worker-a",
+        expectedAttempt: claim.run.attempt,
+        now: new Date("2026-09-10T01:00:02.000Z"),
+        outcome: {
+          status: "skipped",
+          resultSummary: "No novel briefing sources remained.",
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "skipped",
+      resultSummary: "No novel briefing sources remained.",
+      errorCode: null,
+      errorMessage: null,
+    });
+  });
+
 });

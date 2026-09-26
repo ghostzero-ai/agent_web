@@ -4,16 +4,28 @@ import { useCallback, useEffect, useState } from "react";
 import {
   deleteInboxItem,
   listInboxItems,
+  updateBriefingFeedback,
   updateInboxStatus,
+  type BriefingFeedback,
   type InboxFilter,
   type InboxItem,
 } from "@/lib/api/inboxClient";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
+import { appHref } from "@/lib/platform/appNavigation";
 
 const FILTERS: Array<{ value: InboxFilter; label: string }> = [
   { value: "all", label: "全部" },
   { value: "unread", label: "未读" },
   { value: "read", label: "已读" },
+];
+
+const BRIEFING_FEEDBACK: Array<{
+  value: BriefingFeedback;
+  label: string;
+}> = [
+  { value: "helpful", label: "有帮助" },
+  { value: "not_relevant", label: "不相关" },
+  { value: "duplicate", label: "内容重复" },
 ];
 
 export function inboxTimeLabel(value: string): string {
@@ -97,6 +109,25 @@ export function InboxManager() {
       await reload(filter);
     } catch (deleteError) {
       setError(friendlyError(deleteError));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const changeFeedback = async (
+    item: InboxItem,
+    feedback: BriefingFeedback,
+  ) => {
+    setBusyId(item.id);
+    setError(null);
+    try {
+      await updateBriefingFeedback(
+        item.id,
+        item.feedback === feedback ? null : feedback,
+      );
+      await reload(filter);
+    } catch (updateError) {
+      setError(friendlyError(updateError));
     } finally {
       setBusyId(null);
     }
@@ -191,6 +222,43 @@ export function InboxManager() {
                   {item.body && (
                     <div className="mt-2 break-words text-sm leading-6 text-zinc-600 dark:text-zinc-400">
                       <MarkdownMessage content={item.body} />
+                    </div>
+                  )}
+                  {item.source === "personal_briefing" && (
+                    <div className="mt-4 rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900/70">
+                      <p className="text-xs text-zinc-500">
+                        这份简报对你有帮助吗？反馈会用于减少相似或不相关内容。
+                      </p>
+                      <div
+                        className="mt-2 flex flex-wrap gap-2"
+                        role="group"
+                        aria-label={`${item.title}反馈`}
+                      >
+                        {BRIEFING_FEEDBACK.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            aria-pressed={item.feedback === option.value}
+                            disabled={busyId === item.id}
+                            onClick={() => void changeFeedback(item, option.value)}
+                            className={`rounded-full border px-3 py-1 text-xs disabled:opacity-50 ${
+                              item.feedback === option.value
+                                ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200"
+                                : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                        {item.taskId && (
+                          <a
+                            href={appHref(`/tasks?task=${item.taskId}&edit=1`)}
+                            className="rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300"
+                          >
+                            调整主题与频率
+                          </a>
+                        )}
+                      </div>
                     </div>
                   )}
                   <div className="mt-4 flex flex-wrap gap-2">

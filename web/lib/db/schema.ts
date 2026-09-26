@@ -81,6 +81,16 @@ export type TaskScheduleValue =
 
 export type TaskKind = "reminder" | "agent_prompt" | "personal_briefing";
 export type InboxSource = TaskKind;
+export type BriefingFeedback = "helpful" | "not_relevant" | "duplicate";
+
+export type BriefingSourceSignal = {
+  title: string;
+  url: string;
+  source: string;
+  publishedAt: string | null;
+  urlKey: string;
+  titleKey: string;
+};
 
 export type MessageCitation = {
   id?: string;
@@ -381,6 +391,8 @@ export const inboxItems = pgTable(
     source: text("source").$type<InboxSource>().notNull().default("reminder"),
     title: text("title").notNull(),
     body: text("body"),
+    briefingSources: jsonb("briefing_sources").$type<BriefingSourceSignal[]>(),
+    feedback: text("feedback").$type<BriefingFeedback>(),
     occurredAt: timestamp("occurred_at", {
       withTimezone: true,
       mode: "date",
@@ -408,6 +420,14 @@ export const inboxItems = pgTable(
     check(
       "inbox_items_source_supported",
       sql`${table.source} IN ('reminder', 'agent_prompt', 'personal_briefing')`,
+    ),
+    check(
+      "inbox_items_feedback_supported",
+      sql`${table.feedback} IS NULL OR (${table.source} = 'personal_briefing' AND ${table.feedback} IN ('helpful', 'not_relevant', 'duplicate'))`,
+    ),
+    check(
+      "inbox_items_briefing_sources_supported",
+      sql`${table.briefingSources} IS NULL OR ${table.source} = 'personal_briefing'`,
     ),
     check(
       "inbox_items_read_state",

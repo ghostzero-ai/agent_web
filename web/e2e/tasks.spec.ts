@@ -137,4 +137,11 @@ test("manages an Agent task and creates a personal briefing on mobile", async ({
   await expect(
     page.getByLabel("任务列表").getByText("个人简报", { exact: true }),
   ).toBeVisible();
+
+  await page.goto("/tasks?task=task-1&edit=1");
+  await expect(page.getByRole("heading", { name: "修改任务" })).toBeVisible();
+  await expect(page.getByLabel("关注主题或简报要求")).toHaveValue(
+    "国际人工智能政策与教育技术",
+  );
+  await expect(page.getByRole("button", { name: "保存修改" })).toBeVisible();
 });

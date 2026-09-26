@@ -73,15 +73,17 @@ async function main(): Promise<void> {
       createWebPushProvider(pushConfiguration.getOrCreateConfiguration),
     ]);
     const agentGenerator = createAgentPromptGenerator();
+    const inboxRepository = createInboxRepository(database);
     await Promise.all([
       runReminderWorker(
         {
           scheduler: createSchedulerRepository(database),
-          inbox: createInboxRepository(database),
+          inbox: inboxRepository,
           agent: agentGenerator,
           briefing: createPersonalBriefingGenerator({
             search: createConfiguredWebSearchProvider(),
             agent: agentGenerator,
+            history: inboxRepository,
           }),
           onRunDeferred(runId, error) {
             console.error(

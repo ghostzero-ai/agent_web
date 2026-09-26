@@ -2,6 +2,16 @@ import { apiFetch } from "@/lib/api/clientRuntime";
 
 export type InboxStatus = "unread" | "read";
 export type InboxFilter = "all" | InboxStatus;
+export type BriefingFeedback = "helpful" | "not_relevant" | "duplicate";
+
+export type BriefingSourceSignal = {
+  title: string;
+  url: string;
+  source: string;
+  publishedAt: string | null;
+  urlKey: string;
+  titleKey: string;
+};
 
 export type InboxItem = {
   id: string;
@@ -10,6 +20,8 @@ export type InboxItem = {
   source: "reminder" | "agent_prompt" | "personal_briefing";
   title: string;
   body: string | null;
+  briefingSources: BriefingSourceSignal[] | null;
+  feedback: BriefingFeedback | null;
   occurredAt: string;
   status: InboxStatus;
   readAt: string | null;
@@ -62,6 +74,16 @@ export function updateInboxStatus(
   return inboxRequest(`/api/v1/inbox/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
+  });
+}
+
+export function updateBriefingFeedback(
+  id: string,
+  feedback: BriefingFeedback | null,
+): Promise<InboxItem> {
+  return inboxRequest(`/api/v1/inbox/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ feedback }),
   });
 }
 

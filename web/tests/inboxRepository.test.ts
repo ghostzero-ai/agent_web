@@ -16,6 +16,17 @@ import {
 import { createSchedulerRepository } from "@/lib/repositories/schedulerRepository";
 import { createTaskRepository } from "@/lib/repositories/taskRepository";
 
+const briefingSources = [
+  {
+    title: "AI policy update",
+    url: "https://example.com/policy",
+    source: "example.com",
+    publishedAt: "2026-09-09T00:00:00.000Z",
+    urlKey: "https://example.com/policy",
+    titleKey: "aipolicyupdate",
+  },
+];
+
 function migrationSession(database: Pick<PGlite, "query">): MigrationSession {
   return {
     async execute(query, parameters = []) {
@@ -151,6 +162,13 @@ describe("InboxRepository", () => {
       new Date("2026-09-10T01:02:00.000Z"),
     );
     expect(unread).toMatchObject({ status: "unread", readAt: null });
+    await expect(
+      inbox.markFeedback(
+        inboxItem.id,
+        "helpful",
+        new Date("2026-09-10T01:03:00.000Z"),
+      ),
+    ).rejects.toMatchObject({ code: "INBOX_FEEDBACK_UNSUPPORTED" });
     await expect(inbox.delete(inboxItem.id)).resolves.toBe(true);
     await expect(inbox.delete(inboxItem.id)).resolves.toBe(false);
   });
@@ -188,19 +206,34 @@ describe("InboxRepository", () => {
       now: new Date("2026-09-10T01:00:02.000Z"),
       content: "## 今日重点\n\n政策发布。[S1]\n\n## 来源\n\n- [来源](https://example.com)",
       model: "deepseek-test",
-      sourceCount: 1,
+      sources: briefingSources,
     });
 
     expect(completed.inboxItem).toMatchObject({
       source: "personal_briefing",
       title: "每日科技简报",
       body: expect.stringContaining("## 来源"),
+      briefingSources,
+      feedback: null,
     });
     expect(completed.run).toMatchObject({
       status: "succeeded",
       resultSummary:
         "Personal briefing stored in durable inbox (deepseek-test, 1 sources).",
     });
+
+    const feedbackAt = new Date("2026-09-10T01:03:00.000Z");
+    await expect(
+      inbox.markFeedback(completed.inboxItem.id, "duplicate", feedbackAt),
+    ).resolves.toMatchObject({ feedback: "duplicate", updatedAt: feedbackAt });
+    await expect(
+      inbox.listRecentBriefingSignals(
+        completed.inboxItem.taskId!,
+        new Date("2026-09-01T00:00:00.000Z"),
+      ),
+    ).resolves.toEqual([
+      { ...briefingSources[0], feedback: "duplicate" },
+    ]);
   });
 
   it("keeps the inbox snapshot after its source task is deleted", async () => {

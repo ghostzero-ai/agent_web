@@ -1,6 +1,6 @@
 # Task/TaskRun 任务系统
 
-Sprint 2.1–2.5 建立任务、调度、Durable Inbox、Push 与 Agent Prompt Task；Phase 4.1 增加有来源的个人简报。当前版本在网页关闭后仍能执行普通提醒、调用服务端模型或搜索生成简报，把结果保存到应用内收件箱，并向已授权设备尝试发送通知。
+Sprint 2.1–2.5 建立任务、调度、Durable Inbox、Push 与 Agent Prompt Task；Phase 4.1–4.2 增加有来源、可跨期去重和反馈的个人简报。当前版本在网页关闭后仍能执行普通提醒、调用服务端模型或搜索生成简报，把结果保存到应用内收件箱，并向已授权设备尝试发送通知。
 
 ## 1. 使用方式
 
@@ -32,7 +32,7 @@ Sprint 2.1–2.5 建立任务、调度、Durable Inbox、Push 与 Agent Prompt T
 
 ### `inbox_items`
 
-保存已发生提醒或 AI 结果的来源、标题、正文快照、计划发生时间和已读状态。每个 TaskRun 最多生成一条 InboxItem。删除源 Task/TaskRun 后外键设为 null，但快照继续保留，避免历史结果随任务清理而消失。
+保存已发生提醒或 AI 结果的来源、标题、正文快照、计划发生时间和已读状态。个人简报额外保存本次实际引用来源的规范 URL、标题签名与可选反馈；不保存未引用的搜索结果。每个 TaskRun 最多生成一条 InboxItem。删除源 Task/TaskRun 后外键设为 null，但快照继续保留，避免历史结果随任务清理而消失。
 
 ## 3. HTTP API
 
@@ -46,7 +46,7 @@ Sprint 2.1–2.5 建立任务、调度、Durable Inbox、Push 与 Agent Prompt T
 | `PATCH` | `/api/v1/tasks/:id` | 完整更新、暂停或恢复任务 |
 | `DELETE` | `/api/v1/tasks/:id` | 删除任务 |
 | `GET` | `/api/v1/inbox?filter=all|unread|read` | 按状态列出提醒 |
-| `PATCH` | `/api/v1/inbox/:id` | 标为 `read` 或 `unread` |
+| `PATCH` | `/api/v1/inbox/:id` | 标为 `read`/`unread`，或为个人简报设置 `helpful`/`not_relevant`/`duplicate` 反馈 |
 | `DELETE` | `/api/v1/inbox/:id` | 删除提醒 |
 | `GET` | `/api/v1/push/config` | 读取 Push 公钥、偏好与脱敏设备列表 |
 | `POST` | `/api/v1/push/subscriptions` | 保存或更新浏览器订阅 |
@@ -110,6 +110,7 @@ Sprint 2.1–2.5 建立任务、调度、Durable Inbox、Push 与 Agent Prompt T
 - Worker 日志不输出任务标题、正文、数据库连接串或 API Key；收件箱使用安全 Markdown/KaTeX 渲染，不启用原始 HTML。
 - 页面关闭不影响 Worker；但笔记本关机或休眠时无法执行。恢复后重复任务只补偿一次，避免提醒风暴。
 - Inbox 是提醒事实来源，Web Push 只是可失败的提示渠道；页面打开时 `/inbox` 每 15 秒自动刷新。
+- 反馈只允许写入个人简报，严格拒绝未知值；反馈和来源签名不含 API Key、用户聊天或模型 Prompt。
 - 锁屏 Push 使用通用文案，不包含任务标题、正文或 prompt；完整订阅与 VAPID 私钥使用主密钥加密存库。
 - 新设备不会补推订阅前的历史 InboxItem；临时错误会重试，404/410 会自动隔离失效订阅。
 
@@ -137,9 +138,9 @@ Run 的 `workerId + attempt + 未过期 lease` 构成 fencing token。旧 Worker
 
 ## 6. Reminder Worker 与 Durable Inbox
 
-Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler Claim 领取最多 20 个 Run。普通提醒无需调用模型；Agent Prompt Task 直接复用服务端 Credential Vault 与 OpenAI-compatible Provider。个人简报先调用内部 SearXNG，再把证据作为不可信数据交给同一生成器；代码校验固定章节与引用，并附加来源、日期和订阅理由。用户 prompt 作为 `user` 消息发送，固定执行规则才是 `system` 消息。
+Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler Claim 领取最多 20 个 Run。普通提醒无需调用模型；Agent Prompt Task 直接复用服务端 Credential Vault 与 OpenAI-compatible Provider。个人简报先调用内部 SearXNG，再读取同一任务最近 30 天实际展示的来源签名：规范 URL 相同或标题二元组相似度超过阈值的结果视为同一事件，先在本次结果内部聚类，再做跨期过滤。用户标为“不相关”或“内容重复”的历史简报使用更严格阈值。剩余证据作为不可信数据交给生成器；代码校验固定章节与引用，并附加来源、日期和订阅理由。用户 prompt 作为 `user` 消息发送，固定执行规则才是 `system` 消息。
 
-同批 Run 并发进入执行，避免长模型调用耗尽其他 Run 的租约。AI 生成期间约每个租约三分之一周期续租，并在写结果前再次续租。临时 Provider 错误保留非终态并在租约过期后接管；配置缺失、空输出或超长输出等永久错误写为 `failed`。成功结果与 Run 终态在同一事务保存，最多 100,000 字符。
+同批 Run 并发进入执行，避免长模型调用耗尽其他 Run 的租约。AI 生成期间约每个租约三分之一周期续租，并在写结果前再次续租。临时 Provider 错误保留非终态并在租约过期后接管；配置缺失、空输出或超长输出等永久错误写为 `failed`。如果搜索结果全部属于近期已展示事件，Run 写为 `skipped`，不调用模型、不创建 InboxItem、也不规划 Push。成功结果、实际引用来源签名与 Run 终态在同一事务保存，正文最多 100,000 字符。
 
 可选环境变量：
 
@@ -172,4 +173,4 @@ Capacitor Android 使用 Local Notifications 作为独立的设备投递层。�
 
 ## 8. 生成任务当前边界
 
-普通 Agent Prompt Task 是独立上下文，不自动读取聊天、长期记忆、搜索结果或插件。个人简报只读取用户显式填写的主题和本次搜索摘要，不读取聊天或长期记忆；当前不抓取网页全文，也不跨期去重。通知层仍只消费 Inbox，不直接承担生成。详细决策见 `adr/ADR-035-AGENT-PROMPT-TASK-EXECUTION.md` 与 `adr/ADR-045-SOURCED-PERSONAL-BRIEFING.md`。
+普通 Agent Prompt Task 是独立上下文，不自动读取聊天、长期记忆、搜索结果或插件。个人简报只读取用户显式填写的主题、本次搜索摘要，以及同一任务最近 30 天的公开来源签名与反馈；不读取聊天或长期记忆，当前也不抓取网页全文。聚类是确定性的 URL/标题近似规则，不声称理解所有事件关系；反馈只调整相似内容抑制，不自动改写用户主题。通知层仍只消费 Inbox，不直接承担生成。详细决策见 `adr/ADR-035-AGENT-PROMPT-TASK-EXECUTION.md`、`adr/ADR-045-SOURCED-PERSONAL-BRIEFING.md` 与 `adr/ADR-046-BRIEFING-DEDUPLICATION-FEEDBACK.md`。

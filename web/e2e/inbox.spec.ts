@@ -8,6 +8,8 @@ test("renders and manages Agent task results on mobile", async ({ page }) => {
     source: "reminder" | "agent_prompt" | "personal_briefing";
     title: string;
     body: string;
+    briefingSources: unknown[] | null;
+    feedback: "helpful" | "not_relevant" | "duplicate" | null;
     occurredAt: string;
     status: "unread" | "read";
     readAt: string | null;
@@ -22,6 +24,8 @@ test("renders and manages Agent task results on mobile", async ({ page }) => {
       source: "agent_prompt",
       title: "复习今日错题",
       body: "## AI 复习建议\n\n先回顾三道典型题",
+      briefingSources: null,
+      feedback: null,
       occurredAt: "2026-09-10T12:30:00.000Z",
       status: "unread",
       readAt: null,
@@ -43,14 +47,19 @@ test("renders and manages Agent task results on mobile", async ({ page }) => {
       });
 
     if (request.method() === "PATCH") {
-      const input = request.postDataJSON() as { status: "unread" | "read" };
+      const input = request.postDataJSON() as
+        | { status: "unread" | "read" }
+        | { feedback: MockInboxItem["feedback"] };
       items = items.map((item) =>
         item.id === id
-          ? {
-              ...item,
-              status: input.status,
-              readAt: input.status === "read" ? new Date().toISOString() : null,
-            }
+          ? "status" in input
+            ? {
+                ...item,
+                status: input.status,
+                readAt:
+                  input.status === "read" ? new Date().toISOString() : null,
+              }
+            : { ...item, feedback: input.feedback }
           : item,
       );
       return respond(items.find((item) => item.id === id));
@@ -86,4 +95,33 @@ test("renders and manages Agent task results on mobile", async ({ page }) => {
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "删除" }).click();
   await expect(page.getByText("这里暂时没有提醒")).toBeVisible();
+
+  items = [
+    {
+      id: "item-2",
+      taskId: "task-2",
+      taskRunId: "run-2",
+      source: "personal_briefing",
+      title: "每日科技简报",
+      body: "## 今日重点\n\n新政策已经发布。[S1]",
+      briefingSources: [],
+      feedback: null,
+      occurredAt: "2026-09-11T00:00:00.000Z",
+      status: "read",
+      readAt: "2026-09-11T00:00:00.000Z",
+      createdAt: "2026-09-11T00:00:00.000Z",
+      updatedAt: "2026-09-11T00:00:00.000Z",
+    },
+  ];
+  await page.getByRole("button", { name: "刷新" }).click();
+  await expect(page.getByRole("heading", { name: "每日科技简报" })).toBeVisible();
+  await page.getByRole("button", { name: "内容重复" }).click();
+  await expect(page.getByRole("button", { name: "内容重复" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByRole("link", { name: "调整主题与频率" })).toHaveAttribute(
+    "href",
+    "/tasks?task=task-2&edit=1",
+  );
 });

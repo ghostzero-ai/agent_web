@@ -10,7 +10,21 @@ import {
   AgentPromptGenerationError,
   type AgentPromptGeneratorPort,
 } from "@/lib/tasks/agentPromptGenerator";
-import type { PersonalBriefingGeneratorPort } from "@/lib/tasks/personalBriefingGenerator";
+import {
+  PersonalBriefingGenerationError,
+  type PersonalBriefingGeneratorPort,
+} from "@/lib/tasks/personalBriefingGenerator";
+
+const briefingSources = [
+  {
+    title: "Source",
+    url: "https://example.com/source",
+    source: "example.com",
+    publishedAt: "2026-09-09T00:00:00.000Z",
+    urlKey: "https://example.com/source",
+    titleKey: "source",
+  },
+];
 
 function run(id: string, attempt = 1): TaskRunRecord {
   const at = new Date("2026-09-10T01:00:00.000Z");
@@ -70,7 +84,8 @@ function briefing(
     .mockResolvedValue({
       content: "# Personal briefing",
       model: "test-model",
-      sourceCount: 2,
+      sourceCount: briefingSources.length,
+      sources: briefingSources,
     }),
 ): PersonalBriefingGeneratorPort {
   return {
@@ -111,7 +126,13 @@ describe("reminder worker", () => {
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
     );
 
-    expect(result).toEqual({ claimed: 2, completed: 2, failed: 0, deferred: 0 });
+    expect(result).toEqual({
+      claimed: 2,
+      completed: 2,
+      skipped: 0,
+      failed: 0,
+      deferred: 0,
+    });
     expect(scheduler.markRunRunning).toHaveBeenCalledTimes(2);
     expect(inbox.completeReminderRun).toHaveBeenCalledTimes(2);
   });
@@ -146,7 +167,13 @@ describe("reminder worker", () => {
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
     );
 
-    expect(result).toEqual({ claimed: 2, completed: 1, failed: 0, deferred: 1 });
+    expect(result).toEqual({
+      claimed: 2,
+      completed: 1,
+      skipped: 0,
+      failed: 0,
+      deferred: 1,
+    });
     expect(deferred).toHaveBeenCalledWith("one", expect.any(Error));
     expect(inbox.completeReminderRun).toHaveBeenCalledTimes(1);
   });
@@ -213,6 +240,7 @@ describe("reminder worker", () => {
     await expect(pending).resolves.toEqual({
       claimed: 1,
       completed: 1,
+      skipped: 0,
       failed: 0,
       deferred: 0,
     });
@@ -225,7 +253,7 @@ describe("reminder worker", () => {
     );
   });
 
-  it("generates a sourced personal briefing and stores its source count", async () => {
+  it("generates a sourced personal briefing and stores its source signals", async () => {
     const claimedRun = run("briefing");
     const scheduledTask = task("briefing", "personal_briefing");
     const scheduler: ReminderSchedulerPort = {
@@ -247,7 +275,8 @@ describe("reminder worker", () => {
     const generate = vi.fn().mockResolvedValue({
       content: "## 今日重点\n有来源的内容。[S1]",
       model: "briefing-model",
-      sourceCount: 3,
+      sourceCount: briefingSources.length,
+      sources: briefingSources,
     });
 
     await expect(
@@ -263,22 +292,80 @@ describe("reminder worker", () => {
     ).resolves.toEqual({
       claimed: 1,
       completed: 1,
+      skipped: 0,
       failed: 0,
       deferred: 0,
     });
     expect(generate).toHaveBeenCalledWith(
       scheduledTask.prompt,
       claimedRun.scheduledFor,
+      scheduledTask.id,
       expect.any(AbortSignal),
     );
     expect(inbox.completePersonalBriefingRun).toHaveBeenCalledWith(
       expect.objectContaining({
         content: "## 今日重点\n有来源的内容。[S1]",
         model: "briefing-model",
-        sourceCount: 3,
+        sources: briefingSources,
       }),
     );
     expect(inbox.completeAgentPromptRun).not.toHaveBeenCalled();
+  });
+
+  it("skips a personal briefing when every event was recently shown", async () => {
+    const claimedRun = run("repeated-briefing");
+    const scheduledTask = task("repeated-briefing", "personal_briefing");
+    const finishRun = vi.fn().mockResolvedValue({
+      ...claimedRun,
+      status: "skipped",
+    });
+    const scheduler: ReminderSchedulerPort = {
+      claimAvailableRuns: vi.fn().mockResolvedValue([
+        { source: "new", run: claimedRun, task: scheduledTask },
+      ]),
+      markRunRunning: vi.fn().mockResolvedValue({
+        ...claimedRun,
+        status: "running",
+      }),
+      renewRunLease: vi.fn().mockResolvedValue(claimedRun),
+      finishRun,
+    };
+    const failure = new PersonalBriefingGenerationError(
+      "BRIEFING_NO_NOVEL_SOURCES",
+      "No novel sources.",
+      false,
+    );
+    const inbox = {
+      completePersonalBriefingRun: vi.fn(),
+    } as unknown as ReminderInboxPort;
+
+    await expect(
+      runReminderBatch(
+        {
+          scheduler,
+          inbox,
+          agent: agent(),
+          briefing: briefing(vi.fn().mockRejectedValue(failure)),
+        },
+        { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
+      ),
+    ).resolves.toEqual({
+      claimed: 1,
+      completed: 0,
+      skipped: 1,
+      failed: 0,
+      deferred: 0,
+    });
+    expect(finishRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: {
+          status: "skipped",
+          resultSummary:
+            "Personal briefing skipped because no novel sources remained.",
+        },
+      }),
+    );
+    expect(inbox.completePersonalBriefingRun).not.toHaveBeenCalled();
   });
 
   it("records a non-retryable Agent failure on the TaskRun", async () => {
@@ -311,7 +398,13 @@ describe("reminder worker", () => {
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
     );
 
-    expect(result).toEqual({ claimed: 1, completed: 0, failed: 1, deferred: 0 });
+    expect(result).toEqual({
+      claimed: 1,
+      completed: 0,
+      skipped: 0,
+      failed: 1,
+      deferred: 0,
+    });
     expect(finishRun).toHaveBeenCalledWith(
       expect.objectContaining({
         outcome: expect.objectContaining({
@@ -354,7 +447,13 @@ describe("reminder worker", () => {
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
     );
 
-    expect(result).toEqual({ claimed: 1, completed: 0, failed: 0, deferred: 1 });
+    expect(result).toEqual({
+      claimed: 1,
+      completed: 0,
+      skipped: 0,
+      failed: 0,
+      deferred: 1,
+    });
     expect(finishRun).not.toHaveBeenCalled();
     expect(deferred).toHaveBeenCalledWith("retry-agent", failure);
   });

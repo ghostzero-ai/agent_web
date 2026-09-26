@@ -1,5 +1,6 @@
 import { z, ZodError } from "zod";
 import { getDatabase } from "@/lib/db/client";
+import type { BriefingFeedback } from "@/lib/db/schema";
 import {
   createInboxRepository,
   InboxRepositoryError,
@@ -11,6 +12,7 @@ type InboxApiErrorCode =
   | "INVALID_JSON"
   | "INVALID_REQUEST"
   | "INBOX_ITEM_NOT_FOUND"
+  | "INBOX_FEEDBACK_UNSUPPORTED"
   | "INTERNAL_ERROR";
 
 class InboxApiInputError extends Error {
@@ -25,8 +27,19 @@ class InboxApiInputError extends Error {
 }
 
 const itemIdSchema = z.uuid();
-const statusSchema = z.object({ status: z.enum(["unread", "read"]) }).strict();
+const updateSchema = z.union([
+  z.object({ status: z.enum(["unread", "read"]) }).strict(),
+  z
+    .object({
+      feedback: z.enum(["helpful", "not_relevant", "duplicate"]).nullable(),
+    })
+    .strict(),
+]);
 const filterSchema = z.enum(["all", "unread", "read"]);
+
+type InboxUpdate =
+  | { status: "unread" | "read" }
+  | { feedback: BriefingFeedback | null };
 
 function responseHeaders(requestId: string): HeadersInit {
   return { "cache-control": "no-store", "x-request-id": requestId };
@@ -67,7 +80,7 @@ function parseItemId(id: string): string {
   return result.data;
 }
 
-async function parseStatus(request: Request): Promise<"unread" | "read"> {
+async function parseUpdate(request: Request): Promise<InboxUpdate> {
   let input: unknown;
   try {
     input = await request.json();
@@ -75,7 +88,7 @@ async function parseStatus(request: Request): Promise<"unread" | "read"> {
     throw new InboxApiInputError("INVALID_JSON", "Request body must be valid JSON.");
   }
   try {
-    return statusSchema.parse(input).status;
+    return updateSchema.parse(input) as InboxUpdate;
   } catch (error) {
     if (error instanceof ZodError) {
       throw new InboxApiInputError(
@@ -108,6 +121,9 @@ async function handleRequest(
     if (error instanceof InboxRepositoryError) {
       if (error.code === "INBOX_ITEM_NOT_FOUND") {
         return errorResponse(requestId, 404, error.code, error.message, false);
+      }
+      if (error.code === "INBOX_FEEDBACK_UNSUPPORTED") {
+        return errorResponse(requestId, 409, error.code, error.message, false);
       }
     }
     const safeError =
@@ -152,18 +168,15 @@ export function createInboxApi(
     },
 
     update(id: string, request: Request): Promise<Response> {
-      return handleRequest(async (requestId) =>
-        jsonResponse(
-          requestId,
-          {
-            data: await repository().markStatus(
-              parseItemId(id),
-              await parseStatus(request),
-              now(),
-            ),
-          },
-        ),
-      );
+      return handleRequest(async (requestId) => {
+        const itemId = parseItemId(id);
+        const update = await parseUpdate(request);
+        const data =
+          "status" in update
+            ? await repository().markStatus(itemId, update.status, now())
+            : await repository().markFeedback(itemId, update.feedback, now());
+        return jsonResponse(requestId, { data });
+      });
     },
 
     delete(id: string): Promise<Response> {

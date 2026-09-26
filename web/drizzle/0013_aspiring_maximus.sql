@@ -1,0 +1,4 @@
+ALTER TABLE "inbox_items" ADD COLUMN "briefing_sources" jsonb;--> statement-breakpoint
+ALTER TABLE "inbox_items" ADD COLUMN "feedback" text;--> statement-breakpoint
+ALTER TABLE "inbox_items" ADD CONSTRAINT "inbox_items_feedback_supported" CHECK ("inbox_items"."feedback" IS NULL OR ("inbox_items"."source" = 'personal_briefing' AND "inbox_items"."feedback" IN ('helpful', 'not_relevant', 'duplicate')));--> statement-breakpoint
+ALTER TABLE "inbox_items" ADD CONSTRAINT "inbox_items_briefing_sources_supported" CHECK ("inbox_items"."briefing_sources" IS NULL OR "inbox_items"."source" = 'personal_briefing');

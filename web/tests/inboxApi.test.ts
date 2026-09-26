@@ -11,6 +11,8 @@ function repository(overrides: Partial<InboxRepositoryPort> = {}): InboxReposito
   return {
     list: vi.fn().mockResolvedValue([]),
     markStatus: vi.fn(),
+    markFeedback: vi.fn(),
+    listRecentBriefingSignals: vi.fn().mockResolvedValue([]),
     delete: vi.fn().mockResolvedValue(false),
     completeReminderRun: vi.fn(),
     completeAgentPromptRun: vi.fn(),
@@ -57,6 +59,24 @@ describe("Inbox API", () => {
     });
   });
 
+  it("records validated personal briefing feedback", async () => {
+    const now = new Date("2026-09-10T02:00:00.000Z");
+    const markFeedback = vi
+      .fn()
+      .mockResolvedValue({ id: itemId, feedback: "duplicate" });
+    const api = createInboxApi(repository({ markFeedback }), () => now);
+    const updated = await api.update(
+      itemId,
+      patchRequest({ feedback: "duplicate" }),
+    );
+
+    expect(updated.status).toBe(200);
+    expect(markFeedback).toHaveBeenCalledWith(itemId, "duplicate", now);
+    expect(
+      (await api.update(itemId, patchRequest({ feedback: "unknown" }))).status,
+    ).toBe(400);
+  });
+
   it("maps repository errors and hides internal details", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const missingApi = createInboxApi(repository({
@@ -65,6 +85,23 @@ describe("Inbox API", () => {
       ),
     }));
     expect((await missingApi.update(itemId, patchRequest({ status: "read" }))).status).toBe(404);
+
+    const unsupportedApi = createInboxApi(repository({
+      markFeedback: vi.fn().mockRejectedValue(
+        new InboxRepositoryError(
+          "INBOX_FEEDBACK_UNSUPPORTED",
+          "Feedback is only supported for personal briefings.",
+        ),
+      ),
+    }));
+    expect(
+      (
+        await unsupportedApi.update(
+          itemId,
+          patchRequest({ feedback: "helpful" }),
+        )
+      ).status,
+    ).toBe(409);
 
     const unavailable = createInboxApi(() => {
       throw new Error("secret database detail");

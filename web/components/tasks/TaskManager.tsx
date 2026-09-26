@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { TimeWheelPicker } from "@/components/tasks/TimeWheelPicker";
 import {
   createTask,
@@ -168,6 +168,7 @@ export function TaskManager() {
   const [error, setError] = useState<string | null>(null);
   const [nativeNotifications, setNativeNotifications] =
     useState<NativeNotificationState>({ kind: "unsupported" });
+  const handledTaskLink = useRef<string | null>(null);
 
   const syncNativeNotifications = useCallback(async (loaded: TaskRecord[]) => {
     const adapter = getCapacitorLocalNotificationAdapter();
@@ -231,9 +232,19 @@ export function TaskManager() {
   }, [syncNativeNotifications]);
 
   useEffect(() => {
-    const taskId = currentAppSearchParams().get("task");
+    const searchParams = currentAppSearchParams();
+    const taskId = searchParams.get("task");
     if (!taskId || tasks.length === 0) return;
+    const linkKey = `${taskId}:${searchParams.get("edit") ?? "0"}`;
+    if (handledTaskLink.current === linkKey) return;
+    const task = tasks.find((candidate) => candidate.id === taskId);
+    if (!task) return;
+    handledTaskLink.current = linkKey;
     const frame = window.requestAnimationFrame(() => {
+      if (searchParams.get("edit") === "1" && task.status !== "completed") {
+        setEditingId(task.id);
+        setForm(formFromTask(task));
+      }
       document
         .getElementById(`task-${taskId}`)
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
