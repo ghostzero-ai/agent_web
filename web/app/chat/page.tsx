@@ -5,9 +5,11 @@ import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatErrorBanner } from "@/components/chat/ChatErrorBanner";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { MessageList } from "@/components/chat/MessageList";
+import { ModeSelector } from "@/components/chat/ModeSelector";
 import { PromptExportControl } from "@/components/chat/PromptExportControl";
 import { SessionSidebar } from "@/components/chat/SessionSidebar";
 import { getMemory } from "@/lib/agent/memory";
+import type { CoreModeId } from "@/lib/agent/modeRegistry";
 import { buildAgentPrompt } from "@/lib/agent/promptBuilder";
 import { applyRetryReply, applySendReply, sendChatMessage } from "@/lib/ai/chatService";
 import type { PromptRequestSnapshot } from "@/lib/ai/promptExport";
@@ -21,6 +23,7 @@ import {
   serverRecordToMessage,
   setServerActiveLeaf,
   type ServerSession,
+  updateServerSession,
 } from "@/lib/api/conversationClient";
 import {
   clearLegacySessionsAfterImport,
@@ -58,6 +61,9 @@ export default function ChatPage() {
   );
   const [importing, setImporting] = useState(false);
   const [input, setInput] = useState("");
+  const [updatingModeSessionId, setUpdatingModeSessionId] = useState<
+    string | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [promptSnapshots, setPromptSnapshots] = useState<
@@ -391,6 +397,47 @@ export default function ChatPage() {
     }
   };
 
+  const handleModeChange = async (mode: CoreModeId) => {
+    if (
+      !activeSession ||
+      !resolvedActiveSessionId ||
+      loading ||
+      updatingModeSessionId ||
+      (activeSession.mode ?? "auto") === mode
+    ) {
+      return;
+    }
+
+    const sessionId = resolvedActiveSessionId;
+    setUpdatingModeSessionId(sessionId);
+    setError(null);
+    try {
+      const updated = await updateServerSession(sessionId, {
+        mode,
+        expectedVersion: activeSession.serverVersion,
+      });
+      replaceSession({
+        ...activeSession,
+        mode,
+        updatedAt: new Date(updated.updatedAt).getTime(),
+        serverVersion: updated.version,
+      });
+    } catch (modeError) {
+      setError(
+        modeError instanceof Error ? modeError.message : "无法更新对话模式",
+      );
+      try {
+        replaceSession(await getServerSession(sessionId));
+      } catch {
+        // 保留模式更新的原始错误，避免恢复请求覆盖诊断信息。
+      }
+    } finally {
+      setUpdatingModeSessionId((current) =>
+        current === sessionId ? null : current,
+      );
+    }
+  };
+
   const handleImport = async () => {
     if (legacySessions.length === 0 || importing) return;
     setImporting(true);
@@ -416,13 +463,24 @@ export default function ChatPage() {
         onOpenSidebar={() => setSidebarOpen(true)}
         sidebarOpen={sidebarOpen}
         actions={
-          <PromptExportControl
-            snapshot={
-              resolvedActiveSessionId
-                ? promptSnapshots[resolvedActiveSessionId] ?? null
-                : null
-            }
-          />
+          <div className="flex items-center gap-2">
+            <ModeSelector
+              mode={activeSession?.mode ?? "auto"}
+              disabled={
+                !activeSession ||
+                loading ||
+                updatingModeSessionId === resolvedActiveSessionId
+              }
+              onChange={handleModeChange}
+            />
+            <PromptExportControl
+              snapshot={
+                resolvedActiveSessionId
+                  ? promptSnapshots[resolvedActiveSessionId] ?? null
+                  : null
+              }
+            />
+          </div>
         }
       />
 

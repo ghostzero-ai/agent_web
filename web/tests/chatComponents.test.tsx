@@ -4,6 +4,7 @@ import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatErrorBanner } from "@/components/chat/ChatErrorBanner";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { MessageList } from "@/components/chat/MessageList";
+import { ModeSelector } from "@/components/chat/ModeSelector";
 import {
   MarkdownMessage,
   normalizeMathDelimiters,
@@ -25,6 +26,18 @@ describe("chat presentation components", () => {
     expect(html).toContain("打开对话列表");
     expect(html).toContain("mobile-session-drawer");
     expect(html).toContain('aria-expanded="true"');
+  });
+
+  it("renders every registered conversation mode", () => {
+    const html = renderToStaticMarkup(
+      <ModeSelector mode="companion" disabled onChange={noop} />,
+    );
+
+    expect(html).toContain('aria-label="对话模式"');
+    expect(html).toContain('value="companion" selected=""');
+    expect(html).toContain('value="entertainment"');
+    expect(html).toContain("娱乐");
+    expect(html).toContain("disabled");
   });
 
   it("renders a dismissible configuration error", () => {

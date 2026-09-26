@@ -185,7 +185,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 
 | Sprint | 内容 | 验收 |
 |---|---|---|
-| 3.1 🧱 | Mode Registry + Policy Layer | 3.1.1 注册表、核心策略与 Prompt 顺序已完成；会话持久化与选择 UI 待 3.1.2 |
+| 3.1 ✅ | Mode Registry + Policy Layer | 注册表、核心策略、可回滚枚举迁移、乐观锁更新 API 与模式选择 UI 已完成 |
 | 3.2 | Prompt Envelope + Export | 模型实际输入可导出 JSON/Markdown，敏感字段测试通过 |
 | 3.3 | Web Search + Citation | 时效问题包含可点击来源 |
 | 3.4 | Response Verifier + Evals | 引用、时效、模式边界有回归分数 |

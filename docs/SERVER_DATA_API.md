@@ -30,7 +30,7 @@ X-Request-Id: <uuid>
 | `POST` | `/api/v1/conversations` | 创建会话 |
 | `GET` | `/api/v1/conversations/:id` | 获取会话及完整消息树 |
 | `DELETE` | `/api/v1/conversations/:id` | 删除会话并级联删除消息 |
-| `PATCH` | `/api/v1/conversations/:id` | 用乐观版本锁更新标题 |
+| `PATCH` | `/api/v1/conversations/:id` | 用乐观版本锁局部更新标题或模式 |
 | `POST` | `/api/v1/conversations/:id/messages` | 追加一个消息节点并将其设为活动叶节点 |
 | `PATCH` | `/api/v1/conversations/:id/active-leaf` | 切换当前活动分支 |
 | `POST` | `/api/v1/imports/local-storage` | 预检或确认导入浏览器旧会话 |
@@ -44,7 +44,7 @@ X-Request-Id: <uuid>
 }
 ```
 
-`title` 可省略，默认“新对话”；`mode` 可选 `auto`、`professional`、`companion`、`reflection`，默认 `auto`。成功返回 `201` 和 `Location`。
+`title` 可省略，默认“新对话”；`mode` 可选 `auto`、`professional`、`companion`、`reflection`、`entertainment`，默认 `auto`。成功返回 `201` 和 `Location`。
 
 ### 追加消息
 
@@ -63,16 +63,17 @@ X-Request-Id: <uuid>
 
 Repository 会锁定目标会话，确认父消息存在且属于同一会话，然后在同一事务中写入 Message、推进 `activeLeafMessageId`、更新时间并递增版本。任何一步失败都不会留下半条消息。
 
-### 更新标题
+### 更新会话设置
 
 ```json
 {
   "title": "新的会话标题",
+  "mode": "professional",
   "expectedVersion": 3
 }
 ```
 
-标题更新与活动分支切换使用相同的乐观版本规则。Chat 在首条用户消息持久化后更新自动标题，因此刷新页面或更换设备后标题仍一致。
+`title` 和 `mode` 至少提供一个，可以单独或同时更新。设置更新与活动分支切换使用相同的乐观版本规则；成功后版本递增，但消息树与 `activeLeafMessageId` 不变。Chat 在首条用户消息持久化后更新自动标题，用户选择的模式也会在刷新页面或更换设备后恢复。模式变更只影响之后构造的模型请求，不重写历史回答。
 
 ### 切换活动分支
 

@@ -28,5 +28,5 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await context.params;
-  return getConversationApi().rename(id, request);
+  return getConversationApi().update(id, request);
 }

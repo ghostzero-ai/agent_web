@@ -64,6 +64,13 @@
       "when": 1789238297764,
       "tag": "0008_oval_kang",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790410723823,
+      "tag": "0009_crazy_jack_power",
+      "breakpoints": true
     }
   ]
 }

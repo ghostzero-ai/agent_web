@@ -1,5 +1,5 @@
 import type { ChatMessage } from "@/lib/ai/messages";
-import { isCoreModeId } from "@/lib/agent/modeRegistry";
+import { isCoreModeId, type CoreModeId } from "@/lib/agent/modeRegistry";
 import type { Session } from "@/lib/config";
 import { CONVERSATION_SCHEMA_VERSION } from "@/lib/conversation/tree";
 import { apiFetch } from "@/lib/api/clientRuntime";
@@ -122,6 +122,7 @@ export async function createServerSession(): Promise<ServerSession> {
     updatedAt: toTimestamp(conversation.updatedAt),
     schemaVersion: CONVERSATION_SCHEMA_VERSION,
     activeLeafId: null,
+    mode: isCoreModeId(conversation.mode) ? conversation.mode : "auto",
     serverVersion: conversation.version,
   };
 }
@@ -130,15 +131,26 @@ export async function deleteServerSession(id: string): Promise<void> {
   await apiRequest<void>(`/api/v1/conversations/${id}`, { method: "DELETE" });
 }
 
-export async function renameServerSession(
+export async function updateServerSession(
+  id: string,
+  input: {
+    title?: string;
+    mode?: CoreModeId;
+    expectedVersion: number;
+  },
+): Promise<ConversationRecord> {
+  return apiRequest(`/api/v1/conversations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function renameServerSession(
   id: string,
   title: string,
   expectedVersion: number,
 ): Promise<ConversationRecord> {
-  return apiRequest(`/api/v1/conversations/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ title, expectedVersion }),
-  });
+  return updateServerSession(id, { title, expectedVersion });
 }
 
 export async function appendServerMessage(

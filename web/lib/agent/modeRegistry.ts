@@ -1,9 +1,12 @@
-export type CoreModeId =
-  | "auto"
-  | "professional"
-  | "companion"
-  | "reflection"
-  | "entertainment";
+export const CORE_MODE_IDS = [
+  "auto",
+  "professional",
+  "companion",
+  "reflection",
+  "entertainment",
+] as const;
+
+export type CoreModeId = (typeof CORE_MODE_IDS)[number];
 
 export type ModeDefinition<Id extends string = string> = {
   id: Id;

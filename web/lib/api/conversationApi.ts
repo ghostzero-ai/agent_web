@@ -1,4 +1,5 @@
 import { z, ZodError, type ZodType } from "zod";
+import { CORE_MODE_IDS } from "@/lib/agent/modeRegistry";
 import { getDatabase } from "@/lib/db/client";
 import {
   createConversationRepository,
@@ -28,12 +29,11 @@ class ApiInputError extends Error {
 }
 
 const conversationIdSchema = z.uuid();
+const conversationModeSchema = z.enum(CORE_MODE_IDS);
 const createConversationSchema = z
   .object({
     title: z.string().trim().min(1).max(200).default("新对话"),
-    mode: z
-      .enum(["auto", "professional", "companion", "reflection"])
-      .default("auto"),
+    mode: conversationModeSchema.default("auto"),
   })
   .strict();
 
@@ -67,12 +67,16 @@ const setActiveLeafSchema = z
   })
   .strict();
 
-const renameConversationSchema = z
+const updateConversationSchema = z
   .object({
-    title: z.string().trim().min(1).max(200),
+    title: z.string().trim().min(1).max(200).optional(),
+    mode: conversationModeSchema.optional(),
     expectedVersion: z.number().int().positive(),
   })
-  .strict();
+  .strict()
+  .refine((input) => input.title !== undefined || input.mode !== undefined, {
+    message: "At least one conversation field must be provided.",
+  });
 
 function responseHeaders(requestId: string): HeadersInit {
   return {
@@ -269,11 +273,11 @@ export function createConversationApi(
       });
     },
 
-    rename(id: string, request: Request): Promise<Response> {
+    update(id: string, request: Request): Promise<Response> {
       return handleRequest(async (requestId) => {
         const conversationId = parseConversationId(id);
-        const input = await parseBody(request, renameConversationSchema);
-        const conversation = await repository().renameConversation(
+        const input = await parseBody(request, updateConversationSchema);
+        const conversation = await repository().updateConversation(
           conversationId,
           input,
         );

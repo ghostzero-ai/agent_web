@@ -3,6 +3,7 @@ import {
   appendServerMessage,
   listServerSessions,
   renameServerSession,
+  updateServerSession,
 } from "@/lib/api/conversationClient";
 
 afterEach(() => {
@@ -65,7 +66,7 @@ describe("conversation browser client", () => {
     });
   });
 
-  it("sends only the explicit message and optimistic title contracts", async () => {
+  it("sends explicit message and optimistic conversation update contracts", async () => {
     const fetchMock = vi.fn().mockImplementation(async () =>
       Response.json({
         data: {
@@ -82,9 +83,14 @@ describe("conversation browser client", () => {
       content: "问题",
     });
     await renameServerSession("conversation-id", "问题", 2);
+    await updateServerSession("conversation-id", {
+      mode: "entertainment",
+      expectedVersion: 3,
+    });
 
     const messageBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     const titleBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
+    const modeBody = JSON.parse(fetchMock.mock.calls[2][1].body as string);
     expect(messageBody).toEqual({
       parentMessageId: null,
       role: "user",
@@ -94,6 +100,7 @@ describe("conversation browser client", () => {
       citations: [],
     });
     expect(titleBody).toEqual({ title: "问题", expectedVersion: 2 });
+    expect(modeBody).toEqual({ mode: "entertainment", expectedVersion: 3 });
   });
 
   it("surfaces the stable server message on errors", async () => {

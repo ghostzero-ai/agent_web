@@ -60,7 +60,7 @@ Database
 * Phase 3：模式、Prompt、专业回答、搜索与引用
 * Mobile Track：Capacitor Android 与 HarmonyOS 演进
 
-当前开发主线已回到 Phase 3。Core 3.1.1 已建立可注册的专业、陪伴、反思与娱乐模式，以及先于所有可变上下文的核心事实/安全 Policy Layer；模式选择与持久化 UI 将在 Core 3.1.2 完成。Mobile M1.3 保留现有 APK 与真机验收清单，暂不继续扩张。
+当前开发主线已回到 Phase 3。Core 3.1 已完成：Chat 可在自动、专业、陪伴、反思与娱乐模式间切换，选择以乐观版本锁持久化到 PostgreSQL，并进入 `Policy → Mode → Persona → Memory → Conversation` 的真实模型 Prompt。下一步是 Core 3.2 服务端 Prompt Envelope 与安全导出。Mobile M1.3 保留现有 APK 与真机验收清单，暂不继续扩张。
 
 Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Streaming、显式旧数据导入和 Docker Compose 单用户自托管基线均已建立。Chat 现在以 PostgreSQL 为事实来源；浏览器旧会话只有在用户确认后才会导入，重复请求由导入收据去重。随后完成的 Credential Vault 支持从网页测试和保存自有 Key，服务端使用 AES-256-GCM 加密后写入 PostgreSQL。
 

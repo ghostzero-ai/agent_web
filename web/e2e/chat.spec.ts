@@ -16,7 +16,7 @@ type MockConversation = {
   id: string;
   userId: string;
   title: string;
-  mode: "auto";
+  mode: "auto" | "professional" | "companion" | "reflection" | "entertainment";
   summary: null;
   activeLeafMessageId: string | null;
   version: number;
@@ -149,8 +149,16 @@ async function installServerDataMock(page: Page) {
       return route.fulfill({ status: 204, body: "" });
     }
     if (!child && request.method() === "PATCH") {
-      const body = request.postDataJSON() as { title: string };
-      conversation.title = body.title;
+      const body = request.postDataJSON() as {
+        title?: string;
+        mode?: MockConversation["mode"];
+        expectedVersion: number;
+      };
+      if (body.expectedVersion !== conversation.version) {
+        return route.fulfill({ status: 409, body: "{}" });
+      }
+      if (body.title !== undefined) conversation.title = body.title;
+      if (body.mode !== undefined) conversation.mode = body.mode;
       conversation.version += 1;
       conversation.updatedAt = new Date().toISOString();
       return respond(route, conversation);
@@ -279,6 +287,22 @@ test("mobile chat uses a collapsible conversation drawer", async ({ page }) => {
     .getByRole("button", { name: "关闭对话列表", exact: true })
     .click();
   await expect(page.getByRole("dialog", { name: "对话列表" })).toHaveCount(0);
+});
+
+test("persists the selected conversation mode across reloads", async ({ page }) => {
+  await installServerDataMock(page);
+  await page.goto("/chat");
+  await page.getByRole("button", { name: "+ 新建对话" }).click();
+
+  const selector = page.getByRole("combobox", { name: "对话模式" });
+  await expect(selector).toHaveValue("auto");
+  await selector.selectOption("entertainment");
+  await expect(selector).toHaveValue("entertainment");
+
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "对话模式" })).toHaveValue(
+    "entertainment",
+  );
 });
 
 test("exports the exact latest model Prompt as JSON", async ({ page }) => {

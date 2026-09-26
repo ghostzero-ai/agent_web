@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(9);
+      expect(migrations).toHaveLength(10);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -100,6 +100,14 @@ describe("database migrations", () => {
         citations: [],
         status: "complete",
       });
+      const entertainmentMode = await pglite.query<{ mode: string }>(
+        `UPDATE conversations
+         SET mode = 'entertainment'
+         WHERE id = $1
+         RETURNING mode`,
+        [conversationResult.rows[0].id],
+      );
+      expect(entertainmentMode.rows[0].mode).toBe("entertainment");
 
       const taskResult = await pglite.query<{ id: string }>(
         `INSERT INTO scheduled_tasks (
@@ -238,6 +246,15 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[9].id,
+      );
+      const modeAfterRollback = await pglite.query<{ mode: string }>(
+        `SELECT mode FROM conversations WHERE id = $1`,
+        [conversationResult.rows[0].id],
+      );
+      expect(modeAfterRollback.rows[0].mode).toBe("auto");
+
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[8].id,
       );
       await expect(
@@ -310,6 +327,7 @@ describe("database migrations", () => {
         migrations[6].id,
         migrations[7].id,
         migrations[8].id,
+        migrations[9].id,
       ]);
     },
     15_000,
@@ -345,6 +363,7 @@ describe("database migrations", () => {
       migrations[6].id,
       migrations[7].id,
       migrations[8].id,
+      migrations[9].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

@@ -93,24 +93,29 @@ describe("Conversation API", () => {
     });
     expect(getBody.data.createdAt).toMatch(/Z$/);
 
-    const renameResponse = await api.rename(
+    const updateResponse = await api.update(
       id,
       jsonRequest(`/api/v1/conversations/${id}`, "PATCH", {
         title: "持久化标题",
+        mode: "entertainment",
         expectedVersion: createBody.data.version,
       }),
     );
-    const renamed = (await renameResponse.json()).data;
-    expect(renamed).toMatchObject({ title: "持久化标题", version: 2 });
+    const updated = (await updateResponse.json()).data;
+    expect(updated).toMatchObject({
+      title: "持久化标题",
+      mode: "entertainment",
+      version: 2,
+    });
 
-    const staleRename = await api.rename(
+    const staleUpdate = await api.update(
       id,
       jsonRequest(`/api/v1/conversations/${id}`, "PATCH", {
-        title: "过期覆盖",
+        mode: "professional",
         expectedVersion: createBody.data.version,
       }),
     );
-    expect(staleRename.status).toBe(409);
+    expect(staleUpdate.status).toBe(409);
 
     const deleteResponse = await api.delete(id);
     expect(deleteResponse.status).toBe(204);
@@ -169,6 +174,19 @@ describe("Conversation API", () => {
       }),
     );
     const invalidId = await api.get("not-a-uuid");
+    const emptyUpdate = await api.update(
+      crypto.randomUUID(),
+      jsonRequest("/api/v1/conversations/unused", "PATCH", {
+        expectedVersion: 1,
+      }),
+    );
+    const invalidMode = await api.update(
+      crypto.randomUUID(),
+      jsonRequest("/api/v1/conversations/unused", "PATCH", {
+        mode: "unregistered-mode",
+        expectedVersion: 1,
+      }),
+    );
     const invalidBodyJson = await invalidBody.json();
     const invalidIdJson = await invalidId.json();
 
@@ -180,6 +198,8 @@ describe("Conversation API", () => {
     expect(invalidBodyJson.error.details).toBeInstanceOf(Array);
     expect(invalidId.status).toBe(400);
     expect(invalidIdJson.error.code).toBe("INVALID_REQUEST");
+    expect(emptyUpdate.status).toBe(400);
+    expect(invalidMode.status).toBe(400);
   });
 
   it("keeps the API error contract when database initialization fails", async () => {

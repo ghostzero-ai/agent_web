@@ -4,6 +4,23 @@
 
 ---
 
+## Core 3.1.2 — 会话模式持久化与选择
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- Chat Header 新增由 Mode Registry 驱动的自动、专业、陪伴、反思与娱乐模式选择器。
+- Conversation PATCH 从单一重命名升级为标题/模式局部更新，并保留事务锁与 `expectedVersion` 乐观并发控制。
+- PostgreSQL `conversation_mode` 增加 `entertainment`；升级和回滚均可执行，回滚会把无法由旧枚举表达的娱乐模式降级为 `auto`。
+- 模式切换不修改消息树或活动叶节点；刷新和跨设备读取服务端模式，失败或版本冲突时重新同步会话。
+- 模式只影响之后的模型请求；历史回答与已经捕获的 Prompt 快照保持原样。
+
+### 当前边界
+
+- 娱乐模式当前是普通 Conversation 上的交互协议，不包含人物卡、骰子、场景状态或独立 GameSession。
+- M1.2 Prompt 快照仍是客户端运行期快照；服务端 Prompt Envelope、版本化与审计属于 Core 3.2。
+
 ## Core 3.1.1 — Mode Registry 与核心 Policy Layer
 
 **Commit**: `same delivery commit`

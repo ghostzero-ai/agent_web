@@ -26,8 +26,9 @@ export type CreateConversationInput = {
   mode: ConversationMode;
 };
 
-export type RenameConversationInput = {
-  title: string;
+export type UpdateConversationInput = {
+  title?: string;
+  mode?: ConversationMode;
   expectedVersion: number;
 };
 
@@ -60,9 +61,9 @@ export interface ConversationRepositoryPort {
   createConversation(input: CreateConversationInput): Promise<ConversationSummary>;
   getConversation(id: string): Promise<ConversationDetail | null>;
   deleteConversation(id: string): Promise<boolean>;
-  renameConversation(
+  updateConversation(
     id: string,
-    input: RenameConversationInput,
+    input: UpdateConversationInput,
   ): Promise<ConversationSummary>;
   appendMessage(
     conversationId: string,
@@ -154,9 +155,9 @@ export class ConversationRepository<
     return deleted.length > 0;
   }
 
-  async renameConversation(
+  async updateConversation(
     id: string,
-    input: RenameConversationInput,
+    input: UpdateConversationInput,
   ): Promise<ConversationSummary> {
     return this.database.transaction(async (transaction) => {
       const [conversation] = await transaction
@@ -183,7 +184,8 @@ export class ConversationRepository<
       const [updated] = await transaction
         .update(conversations)
         .set({
-          title: input.title,
+          ...(input.title === undefined ? {} : { title: input.title }),
+          ...(input.mode === undefined ? {} : { mode: input.mode }),
           updatedAt: new Date(),
           version: sql`${conversations.version} + 1`,
         })
@@ -198,7 +200,7 @@ export class ConversationRepository<
       if (!updated) {
         throw new RepositoryError(
           "VERSION_CONFLICT",
-          "Conversation changed while its title was being updated.",
+          "Conversation changed while its settings were being updated.",
         );
       }
       return updated;

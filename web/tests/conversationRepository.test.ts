@@ -83,6 +83,11 @@ describe("ConversationRepository", () => {
       model: "test-model",
       citations: [],
     });
+    const updated = await repository.updateConversation(conversation.id, {
+      title: "保留树的娱乐会话",
+      mode: "entertainment",
+      expectedVersion: secondAnswer.conversation.version,
+    });
 
     const refreshedRepository = createConversationRepository(
       drizzle(pglite, { schema }),
@@ -91,6 +96,11 @@ describe("ConversationRepository", () => {
     const list = await refreshedRepository.listConversations();
 
     expect(detail?.userId).toBe(LOCAL_USER_ID);
+    expect(detail).toMatchObject({
+      title: "保留树的娱乐会话",
+      mode: "entertainment",
+      version: updated.version,
+    });
     expect(detail?.activeLeafMessageId).toBe(secondAnswer.message.id);
     expect(detail?.messages).toHaveLength(3);
     expect(
@@ -99,6 +109,13 @@ describe("ConversationRepository", () => {
         .map((message) => message.id),
     ).toEqual([firstAnswer.message.id, secondAnswer.message.id]);
     expect(list.map((item) => item.id)).toEqual([conversation.id]);
+
+    await expect(
+      refreshedRepository.updateConversation(conversation.id, {
+        mode: "companion",
+        expectedVersion: secondAnswer.conversation.version,
+      }),
+    ).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
 
     const users = await pglite.query<{ count: number }>(
       "SELECT count(*)::int AS count FROM users",

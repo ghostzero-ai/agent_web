@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { CORE_MODE_IDS } from "@/lib/agent/modeRegistry";
 import {
   type AnyPgColumn,
   boolean,
@@ -14,12 +15,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const conversationMode = pgEnum("conversation_mode", [
-  "auto",
-  "professional",
-  "companion",
-  "reflection",
-]);
+export const conversationMode = pgEnum("conversation_mode", CORE_MODE_IDS);
 
 export const messageRole = pgEnum("message_role", [
   "system",
