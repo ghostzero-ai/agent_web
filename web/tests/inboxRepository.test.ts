@@ -62,7 +62,11 @@ describe("InboxRepository", () => {
   });
 
   async function runningReminder(
-    kind: "reminder" | "agent_prompt" | "personal_briefing" = "reminder",
+    kind:
+      | "reminder"
+      | "agent_prompt"
+      | "personal_briefing"
+      | "book_recommendation" = "reminder",
   ) {
     const tasks = createTaskRepository(database);
     const scheduler = createSchedulerRepository(database);
@@ -72,12 +76,16 @@ describe("InboxRepository", () => {
           ? "每日总结"
           : kind === "personal_briefing"
             ? "每日科技简报"
+            : kind === "book_recommendation"
+              ? "每周选书"
             : "喝水提醒",
       prompt:
         kind === "agent_prompt"
           ? "总结今天的学习"
           : kind === "personal_briefing"
             ? "国际人工智能政策"
+            : kind === "book_recommendation"
+              ? "批判性思维"
             : "起来活动并喝一杯水",
       kind,
       scheduleType: "once",
@@ -234,6 +242,29 @@ describe("InboxRepository", () => {
     ).resolves.toEqual([
       { ...briefingSources[0], feedback: "duplicate" },
     ]);
+  });
+
+  it("stores book recommendations in the same durable inbox", async () => {
+    const inbox = createInboxRepository(database);
+    const { run } = await runningReminder("book_recommendation");
+    const completed = await inbox.completeBookRecommendationRun({
+      runId: run.id,
+      workerId: "worker-a",
+      expectedAttempt: run.attempt,
+      now: new Date("2026-09-10T01:00:02.000Z"),
+      content: "## 本次推荐\n\n带来源的书籍推荐。[S1]",
+      model: "deepseek-test",
+    });
+
+    expect(completed.inboxItem).toMatchObject({
+      source: "book_recommendation",
+      title: "每周选书",
+      body: expect.stringContaining("## 本次推荐"),
+      feedback: null,
+    });
+    expect(completed.run.resultSummary).toBe(
+      "Book recommendations stored in durable inbox (deepseek-test).",
+    );
   });
 
   it("keeps the inbox snapshot after its source task is deleted", async () => {

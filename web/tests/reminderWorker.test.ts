@@ -14,6 +14,7 @@ import {
   PersonalBriefingGenerationError,
   type PersonalBriefingGeneratorPort,
 } from "@/lib/tasks/personalBriefingGenerator";
+import type { BookRecommendationGeneratorPort } from "@/lib/tasks/bookRecommendationGenerator";
 
 const briefingSources = [
   {
@@ -49,7 +50,11 @@ function run(id: string, attempt = 1): TaskRunRecord {
 
 function task(
   id: string,
-  kind: "reminder" | "agent_prompt" | "personal_briefing" = "reminder",
+  kind:
+    | "reminder"
+    | "agent_prompt"
+    | "personal_briefing"
+    | "book_recommendation" = "reminder",
 ) {
   const at = new Date("2026-09-10T01:00:00.000Z");
   return {
@@ -93,6 +98,18 @@ function briefing(
   };
 }
 
+function books(
+  implementation: BookRecommendationGeneratorPort["generate"] = vi
+    .fn()
+    .mockResolvedValue({
+      content: "# Book recommendations",
+      model: "test-model",
+      sourceCount: 2,
+    }),
+): BookRecommendationGeneratorPort {
+  return { generate: implementation };
+}
+
 describe("reminder worker", () => {
   afterEach(() => vi.useRealTimers());
 
@@ -121,6 +138,7 @@ describe("reminder worker", () => {
         inbox,
         agent: agent(),
         briefing: briefing(),
+        books: books(),
         now: () => new Date("2026-09-10T01:00:01.000Z"),
       },
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
@@ -162,6 +180,7 @@ describe("reminder worker", () => {
         inbox,
         agent: agent(),
         briefing: briefing(),
+        books: books(),
         onRunDeferred: deferred,
       },
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
@@ -196,6 +215,7 @@ describe("reminder worker", () => {
         inbox: {} as ReminderInboxPort,
         agent: agent(),
         briefing: briefing(),
+        books: books(),
       },
       {
         workerId: "worker-a",
@@ -233,7 +253,13 @@ describe("reminder worker", () => {
     });
 
     const pending = runReminderBatch(
-      { scheduler, inbox, agent: agent(generate), briefing: briefing() },
+      {
+        scheduler,
+        inbox,
+        agent: agent(generate),
+        briefing: briefing(),
+        books: books(),
+      },
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 3_000 },
     );
     await vi.advanceTimersByTimeAsync(2_000);
@@ -286,6 +312,7 @@ describe("reminder worker", () => {
           inbox,
           agent: agent(),
           briefing: briefing(generate),
+          books: books(),
         },
         { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
       ),
@@ -346,6 +373,7 @@ describe("reminder worker", () => {
           inbox,
           agent: agent(),
           briefing: briefing(vi.fn().mockRejectedValue(failure)),
+          books: books(),
         },
         { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
       ),
@@ -366,6 +394,51 @@ describe("reminder worker", () => {
       }),
     );
     expect(inbox.completePersonalBriefingRun).not.toHaveBeenCalled();
+  });
+
+  it("generates book recommendations and stores them in Inbox", async () => {
+    const claimedRun = run("books");
+    const scheduledTask = task("books", "book_recommendation");
+    const scheduler: ReminderSchedulerPort = {
+      claimAvailableRuns: vi.fn().mockResolvedValue([
+        { source: "new", run: claimedRun, task: scheduledTask },
+      ]),
+      markRunRunning: vi.fn().mockResolvedValue({
+        ...claimedRun,
+        status: "running",
+      }),
+      renewRunLease: vi.fn().mockResolvedValue(claimedRun),
+      finishRun: vi.fn(),
+    };
+    const inbox = {
+      completeBookRecommendationRun: vi.fn().mockResolvedValue({}),
+    } as unknown as ReminderInboxPort;
+    const generate = vi.fn().mockResolvedValue({
+      content: "## 本次推荐\n书籍结果。[S1]",
+      model: "book-model",
+      sourceCount: 1,
+    });
+
+    await expect(
+      runReminderBatch(
+        {
+          scheduler,
+          inbox,
+          agent: agent(),
+          briefing: briefing(),
+          books: books(generate),
+        },
+        { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
+      ),
+    ).resolves.toMatchObject({ completed: 1, failed: 0, deferred: 0 });
+    expect(generate).toHaveBeenCalledWith(
+      scheduledTask.prompt,
+      claimedRun.scheduledFor,
+      expect.any(AbortSignal),
+    );
+    expect(inbox.completeBookRecommendationRun).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "book-model" }),
+    );
   });
 
   it("records a non-retryable Agent failure on the TaskRun", async () => {
@@ -394,6 +467,7 @@ describe("reminder worker", () => {
         inbox: {} as ReminderInboxPort,
         agent: agent(vi.fn().mockRejectedValue(failure)),
         briefing: briefing(),
+        books: books(),
       },
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
     );
@@ -442,6 +516,7 @@ describe("reminder worker", () => {
         inbox: {} as ReminderInboxPort,
         agent: agent(vi.fn().mockRejectedValue(failure)),
         briefing: briefing(),
+        books: books(),
         onRunDeferred: deferred,
       },
       { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },

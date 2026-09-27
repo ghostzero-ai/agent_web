@@ -2,7 +2,11 @@ import type { TaskSchedule } from "@/lib/tasks/schedule";
 import { apiFetch } from "@/lib/api/clientRuntime";
 
 export type TaskStatus = "active" | "paused" | "completed";
-export type TaskKind = "reminder" | "agent_prompt" | "personal_briefing";
+export type TaskKind =
+  | "reminder"
+  | "agent_prompt"
+  | "personal_briefing"
+  | "book_recommendation";
 
 export type TaskRecord = {
   id: string;

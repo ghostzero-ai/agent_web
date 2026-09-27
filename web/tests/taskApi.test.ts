@@ -200,6 +200,32 @@ describe("Task API", () => {
     expect(missingTopic.status).toBe(400);
   });
 
+  it("creates a book recommendation task and requires a topic", async () => {
+    const response = await api.create(
+      jsonRequest("POST", {
+        title: "每周选书",
+        kind: "book_recommendation",
+        prompt: "批判性思维与认知科学",
+        schedule: { type: "weekly", weekday: 7, time: "09:00" },
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect((await response.json()).data).toMatchObject({
+      kind: "book_recommendation",
+      prompt: "批判性思维与认知科学",
+    });
+
+    const missingTopic = await api.create(
+      jsonRequest("POST", {
+        title: "无主题选书",
+        kind: "book_recommendation",
+        prompt: null,
+        schedule: { type: "weekly", weekday: 7, time: "09:00" },
+      }),
+    );
+    expect(missingTopic.status).toBe(400);
+  });
+
   it("does not expose an internal database error", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const unavailable = createTaskApi(() => {

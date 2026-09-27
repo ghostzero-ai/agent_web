@@ -17,7 +17,11 @@ export type InboxItem = {
   id: string;
   taskId: string | null;
   taskRunId: string | null;
-  source: "reminder" | "agent_prompt" | "personal_briefing";
+  source:
+    | "reminder"
+    | "agent_prompt"
+    | "personal_briefing"
+    | "book_recommendation";
   title: string;
   body: string | null;
   briefingSources: BriefingSourceSignal[] | null;

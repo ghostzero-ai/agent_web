@@ -45,6 +45,7 @@ function friendlyError(error: unknown): string {
 function inboxSourceLabel(source: InboxItem["source"]): string {
   if (source === "agent_prompt") return "AI 定时任务";
   if (source === "personal_briefing") return "个人简报";
+  if (source === "book_recommendation") return "书籍推荐";
   return "普通提醒";
 }
 
@@ -259,6 +260,18 @@ export function InboxManager() {
                           </a>
                         )}
                       </div>
+                    </div>
+                  )}
+                  {item.source === "book_recommendation" && (
+                    <div className="mt-4 flex flex-wrap gap-2 rounded-xl bg-amber-50 p-3 dark:bg-amber-950/30">
+                      <a href={appHref("/reading")} className="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                        调整阅读画像
+                      </a>
+                      {item.taskId && (
+                        <a href={appHref(`/tasks?task=${item.taskId}&edit=1`)} className="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                          调整主题与频率
+                        </a>
+                      )}
                     </div>
                   )}
                   <div className="mt-4 flex flex-wrap gap-2">

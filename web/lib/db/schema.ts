@@ -79,9 +79,15 @@ export type TaskScheduleValue =
   | { time: string }
   | { weekday: number; time: string };
 
-export type TaskKind = "reminder" | "agent_prompt" | "personal_briefing";
+export type TaskKind =
+  | "reminder"
+  | "agent_prompt"
+  | "personal_briefing"
+  | "book_recommendation";
 export type InboxSource = TaskKind;
 export type BriefingFeedback = "helpful" | "not_relevant" | "duplicate";
+export type ReadingDifficulty = "introductory" | "intermediate" | "advanced";
+export type ReadingGoal = "beginner" | "systematic" | "broaden" | "literary";
 
 export type BriefingSourceSignal = {
   title: string;
@@ -117,6 +123,53 @@ export const users = pgTable(
   },
   (table) => [
     check("users_version_positive", sql`${table.version} > 0`),
+  ],
+);
+
+export const readingProfiles = pgTable(
+  "reading_profiles",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    topics: jsonb("topics").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    readBooks: jsonb("read_books").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    wantToReadBooks: jsonb("want_to_read_books")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    dislikedBooks: jsonb("disliked_books")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    difficulty: text("difficulty")
+      .$type<ReadingDifficulty>()
+      .notNull()
+      .default("intermediate"),
+    weeklyMinutes: integer("weekly_minutes").notNull().default(120),
+    goal: text("goal").$type<ReadingGoal>().notNull().default("systematic"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "reading_profiles_difficulty_supported",
+      sql`${table.difficulty} IN ('introductory', 'intermediate', 'advanced')`,
+    ),
+    check(
+      "reading_profiles_goal_supported",
+      sql`${table.goal} IN ('beginner', 'systematic', 'broaden', 'literary')`,
+    ),
+    check(
+      "reading_profiles_weekly_minutes_range",
+      sql`${table.weeklyMinutes} BETWEEN 15 AND 10080`,
+    ),
+    check("reading_profiles_version_positive", sql`${table.version} > 0`),
   ],
 );
 
@@ -318,7 +371,7 @@ export const scheduledTasks = pgTable(
     check("scheduled_tasks_version_positive", sql`${table.version} > 0`),
     check(
       "scheduled_tasks_kind_supported",
-      sql`${table.kind} IN ('reminder', 'agent_prompt', 'personal_briefing')`,
+      sql`${table.kind} IN ('reminder', 'agent_prompt', 'personal_briefing', 'book_recommendation')`,
     ),
     check(
       "scheduled_tasks_generated_prompt_required",
@@ -419,7 +472,7 @@ export const inboxItems = pgTable(
     ),
     check(
       "inbox_items_source_supported",
-      sql`${table.source} IN ('reminder', 'agent_prompt', 'personal_briefing')`,
+      sql`${table.source} IN ('reminder', 'agent_prompt', 'personal_briefing', 'book_recommendation')`,
     ),
     check(
       "inbox_items_feedback_supported",
@@ -558,6 +611,7 @@ export const notificationDeliveries = pgTable("notification_deliveries", {
 ]);
 
 export type UserRecord = typeof users.$inferSelect;
+export type ReadingProfileRecord = typeof readingProfiles.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type PromptRunRecord = typeof promptRuns.$inferSelect;

@@ -84,4 +84,4 @@ npm run eval:core
 
 ## 6. 当前主线
 
-Phase 4.1–4.2 已复用 Scheduler、Worker、Web Search、Citation、Inbox 和 Push，完成有来源的个人简报、30 天跨期事件去重、无新事件静默跳过和轻量反馈。实现仍限定在个人简报垂直切片，没有建设通用推荐平台。下一步进入 Phase 4.3：加入有来源、有难度和推荐目的说明的书籍资料与最小阅读画像。
+Phase 4.1–4.3 已复用 Scheduler、Worker、Web Search、Citation、Inbox 和 Push，完成有来源的个人简报、30 天跨期事件去重、轻量反馈，以及有来源、有难度和推荐目的说明的书籍推荐。最小阅读画像只保存用户显式填写的主题、书单、难度、目标和时间预算，不推断永久人格，也没有建设通用推荐平台。下一步进入 Phase 4.4：提升 Reflection Question 的相关性、节制性与用户控制。

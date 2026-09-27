@@ -38,7 +38,11 @@ describe("Capacitor Android project artifacts", () => {
   });
 
   it("tracks all required Capacitor packages and repeatable build commands", async () => {
-    const packageJson = JSON.parse(await readWebFile("package.json")) as {
+    const [packageContents, mobileApp] = await Promise.all([
+      readWebFile("package.json"),
+      readWebFile("mobile/MobileApp.tsx"),
+    ]);
+    const packageJson = JSON.parse(packageContents) as {
       dependencies: Record<string, string>;
       devDependencies: Record<string, string>;
       scripts: Record<string, string>;
@@ -62,6 +66,7 @@ describe("Capacitor Android project artifacts", () => {
     expect(packageJson.scripts["mobile:build:debug"]).toContain(
       "gradlew.bat assembleDebug",
     );
+    expect(mobileApp).toContain('"/reading": lazy');
   });
 
   it("does not commit generated APKs, local SDK paths, or injected server URLs", async () => {

@@ -149,12 +149,14 @@ function friendlyError(error: unknown): string {
 function taskKindLabel(kind: TaskKind): string {
   if (kind === "agent_prompt") return "AI 生成";
   if (kind === "personal_briefing") return "个人简报";
+  if (kind === "book_recommendation") return "书籍推荐";
   return "普通提醒";
 }
 
 function promptFieldLabel(kind: TaskKind): string {
   if (kind === "agent_prompt") return "给 AI 的任务要求";
   if (kind === "personal_briefing") return "关注主题或简报要求";
+  if (kind === "book_recommendation") return "本期主题或选书要求";
   return "提醒内容（可选）";
 }
 
@@ -375,6 +377,7 @@ export function TaskManager() {
               <option value="reminder">普通提醒</option>
               <option value="agent_prompt">AI 定时任务</option>
               <option value="personal_briefing">个人简报</option>
+              <option value="book_recommendation">书籍推荐</option>
             </select>
           </label>
 
@@ -404,6 +407,8 @@ export function TaskManager() {
                   ? "例如：总结今天值得复习的三个知识点"
                   : form.kind === "personal_briefing"
                     ? "例如：国际人工智能政策、教育技术与值得阅读的研究"
+                    : form.kind === "book_recommendation"
+                      ? "例如：帮助我系统理解认知偏差，并兼顾一本文学作品"
                     : "提醒时希望看到的具体内容"
               }
             />
@@ -412,6 +417,12 @@ export function TaskManager() {
           {form.kind === "personal_briefing" && (
             <p className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs leading-5 text-violet-800 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-200">
               到期后由服务端搜索并生成带日期、来源、关注理由和一个思考问题的简报。结果进入收件箱，需要电脑服务端、搜索服务和模型配置保持可用。
+            </p>
+          )}
+
+          {form.kind === "book_recommendation" && (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+              到期后会结合你的阅读画像和网页书目信息，生成 2–3 本带推荐目的、阅读门槛、时间投入与试读方法的书籍建议。请先在阅读画像页填写偏好。
             </p>
           )}
 

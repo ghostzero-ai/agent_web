@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(14);
+      expect(migrations).toHaveLength(15);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -74,6 +74,7 @@ describe("database migrations", () => {
         "prompt_runs",
         "push_subscriptions",
         "push_vapid_configurations",
+        "reading_profiles",
         "scheduled_tasks",
         "task_runs",
         "users",
@@ -132,6 +133,44 @@ describe("database migrations", () => {
           [taskResult.rows[0].id],
         ),
       ).rejects.toThrow();
+
+      const readingProfile = await pglite.query<{
+        difficulty: string;
+        weekly_minutes: number;
+        goal: string;
+      }>(
+        `INSERT INTO reading_profiles (user_id, topics)
+         VALUES ($1, '["认知科学"]')
+         RETURNING difficulty, weekly_minutes, goal`,
+        [userResult.rows[0].id],
+      );
+      expect(readingProfile.rows[0]).toEqual({
+        difficulty: "intermediate",
+        weekly_minutes: 120,
+        goal: "systematic",
+      });
+      await expect(
+        pglite.query(
+          `UPDATE reading_profiles SET weekly_minutes = 0 WHERE user_id = $1`,
+          [userResult.rows[0].id],
+        ),
+      ).rejects.toThrow();
+
+      const bookTask = await pglite.query<{ id: string }>(
+        `INSERT INTO scheduled_tasks (
+           user_id, title, kind, prompt, schedule_type, schedule_value, next_run_at
+         ) VALUES (
+           $1, 'Weekly books', 'book_recommendation', '认知科学', 'weekly',
+           '{"weekday":7,"time":"09:00"}', '2030-02-03T01:00:00Z'
+         ) RETURNING id`,
+        [userResult.rows[0].id],
+      );
+      const bookInbox = await pglite.query<{ id: string }>(
+        `INSERT INTO inbox_items (user_id, source, title, occurred_at)
+         VALUES ($1, 'book_recommendation', 'Book result', '2030-02-03T01:00:00Z')
+         RETURNING id`,
+        [userResult.rows[0].id],
+      );
 
       const agentTask = await pglite.query<{ id: string }>(
         `INSERT INTO scheduled_tasks (
@@ -288,6 +327,31 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[14].id,
+      );
+      const downgradedBookTask = await pglite.query<{ kind: string }>(
+        `SELECT kind FROM scheduled_tasks WHERE id = $1`,
+        [bookTask.rows[0].id],
+      );
+      const downgradedBookInbox = await pglite.query<{ source: string }>(
+        `SELECT source FROM inbox_items WHERE id = $1`,
+        [bookInbox.rows[0].id],
+      );
+      expect(downgradedBookTask.rows[0].kind).toBe("agent_prompt");
+      expect(downgradedBookInbox.rows[0].source).toBe("agent_prompt");
+      const profilesAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public' AND tablename = 'reading_profiles'
+      `);
+      expect(profilesAfterRollback.rows).toEqual([]);
+      await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [
+        bookInbox.rows[0].id,
+      ]);
+      await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [
+        bookTask.rows[0].id,
+      ]);
+
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[13].id,
       );
       const briefingColumnsAfterRollback = await pglite.query<{
@@ -430,6 +494,7 @@ describe("database migrations", () => {
         migrations[11].id,
         migrations[12].id,
         migrations[13].id,
+        migrations[14].id,
       ]);
     },
     15_000,
@@ -470,6 +535,7 @@ describe("database migrations", () => {
       migrations[11].id,
       migrations[12].id,
       migrations[13].id,
+      migrations[14].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

@@ -17,6 +17,7 @@ function repository(overrides: Partial<InboxRepositoryPort> = {}): InboxReposito
     completeReminderRun: vi.fn(),
     completeAgentPromptRun: vi.fn(),
     completePersonalBriefingRun: vi.fn(),
+    completeBookRecommendationRun: vi.fn(),
     ...overrides,
   };
 }

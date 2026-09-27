@@ -10,12 +10,19 @@ import { AppLink } from "@/components/platform/AppLink";
 import { NativeNotificationBridge } from "@/components/platform/NativeNotificationBridge";
 import { apiFetch, getApiBaseUrl } from "@/lib/api/clientRuntime";
 
-type MobileRoute = "/chat" | "/tasks" | "/inbox" | "/notifications" | "/api-key";
+type MobileRoute =
+  | "/chat"
+  | "/tasks"
+  | "/inbox"
+  | "/reading"
+  | "/notifications"
+  | "/api-key";
 
 const ROUTES: Record<MobileRoute, LazyExoticComponent<ComponentType>> = {
   "/chat": lazy(() => import("@/app/chat/page")),
   "/tasks": lazy(() => import("@/app/tasks/page")),
   "/inbox": lazy(() => import("@/app/inbox/page")),
+  "/reading": lazy(() => import("@/app/reading/page")),
   "/notifications": lazy(() => import("@/app/notifications/page")),
   "/api-key": lazy(() => import("@/app/api-key/page")),
 };

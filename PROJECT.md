@@ -34,13 +34,13 @@ Phase 4 — Proactive Content Vertical Slice
 
 CURRENT_TASK:
 
-Phase 4.3 — Book Sources and Reading Profile
+Phase 4.4 — Reflection Question Quality and Controls
 
 ==================================================
 
 NEXT_TASK:
 
-Phase 4.4 — Reflection Question Quality and Controls
+Phase 5.1 — Memory Candidate Pipeline
 
 ==================================================
 

@@ -5,6 +5,7 @@ import type {
 } from "@/lib/repositories/schedulerRepository";
 import type {
   CompleteAgentPromptRunInput,
+  CompleteBookRecommendationRunInput,
   CompletePersonalBriefingRunInput,
   CompleteReminderRunInput,
   CompletedReminderRun,
@@ -20,6 +21,11 @@ import {
   type PersonalBriefingGeneratorPort,
   type PersonalBriefingResult,
 } from "@/lib/tasks/personalBriefingGenerator";
+import {
+  BookRecommendationGenerationError,
+  type BookRecommendationGeneratorPort,
+  type BookRecommendationResult,
+} from "@/lib/tasks/bookRecommendationGenerator";
 
 export type ReminderWorkerOptions = {
   workerId: string;
@@ -64,6 +70,9 @@ export interface ReminderInboxPort {
   completePersonalBriefingRun(
     input: CompletePersonalBriefingRunInput,
   ): Promise<CompletedReminderRun>;
+  completeBookRecommendationRun(
+    input: CompleteBookRecommendationRunInput,
+  ): Promise<CompletedReminderRun>;
 }
 
 export type ReminderWorkerDependencies = {
@@ -71,6 +80,7 @@ export type ReminderWorkerDependencies = {
   inbox: ReminderInboxPort;
   agent: AgentPromptGeneratorPort;
   briefing: PersonalBriefingGeneratorPort;
+  books: BookRecommendationGeneratorPort;
   now?: () => Date;
   onRunDeferred?: (runId: string, error: unknown) => void;
   onRunFailed?: (runId: string, errorCode: string) => void;
@@ -223,6 +233,12 @@ async function executeClaim(
             "Personal briefing task has no topic.",
             false,
           )
+        : claim.task.kind === "book_recommendation"
+          ? new BookRecommendationGenerationError(
+              "BOOK_TOPIC_MISSING",
+              "Book recommendation task has no topic.",
+              false,
+            )
         : new AgentPromptGenerationError(
             "AGENT_PROMPT_MISSING",
             "Agent Prompt task has no prompt.",
@@ -233,7 +249,7 @@ async function executeClaim(
 
   try {
     const generated = await generateWithLeaseHeartbeat<
-      AgentPromptResult | PersonalBriefingResult
+      AgentPromptResult | PersonalBriefingResult | BookRecommendationResult
     >(
       dependencies,
       options,
@@ -246,7 +262,9 @@ async function executeClaim(
               claim.task.id,
               signal,
             )
-          : dependencies.agent.generate(prompt, signal),
+          : claim.task.kind === "book_recommendation"
+            ? dependencies.books.generate(prompt, claim.run.scheduledFor, signal)
+            : dependencies.agent.generate(prompt, signal),
     );
     const completion = {
       runId: running.id,
@@ -261,6 +279,8 @@ async function executeClaim(
         ...completion,
         sources: (generated as PersonalBriefingResult).sources,
       });
+    } else if (claim.task.kind === "book_recommendation") {
+      await dependencies.inbox.completeBookRecommendationRun(completion);
     } else {
       await dependencies.inbox.completeAgentPromptRun(completion);
     }
@@ -274,7 +294,8 @@ async function executeClaim(
     }
     if (
       (error instanceof AgentPromptGenerationError ||
-        error instanceof PersonalBriefingGenerationError) &&
+        error instanceof PersonalBriefingGenerationError ||
+        error instanceof BookRecommendationGenerationError) &&
       !error.retryable
     ) {
       return failTerminalGeneratedRun(dependencies, options, running, error);

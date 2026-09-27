@@ -7,7 +7,11 @@ test("manages an Agent task and creates a personal briefing on mobile", async ({
     id: string;
     title: string;
     prompt: string | null;
-    kind: "reminder" | "agent_prompt" | "personal_briefing";
+    kind:
+      | "reminder"
+      | "agent_prompt"
+      | "personal_briefing"
+      | "book_recommendation";
     scheduleType: "once" | "daily" | "weekly";
     scheduleValue: Record<string, string | number>;
     timezone: string;
