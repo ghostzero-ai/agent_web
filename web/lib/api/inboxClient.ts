@@ -13,6 +13,20 @@ export type BriefingSourceSignal = {
   titleKey: string;
 };
 
+export type ReflectionQuestionSignal = {
+  question: string;
+  type: "assumption" | "evidence" | "tradeoff" | "alternative" | "future" | "action";
+  why: string;
+  scores: {
+    relevance: number;
+    novelty: number;
+    actionability: number;
+    emotionalLoad: number;
+    total: number;
+  };
+  candidateCount: number;
+};
+
 export type InboxItem = {
   id: string;
   taskId: string | null;
@@ -21,10 +35,12 @@ export type InboxItem = {
     | "reminder"
     | "agent_prompt"
     | "personal_briefing"
-    | "book_recommendation";
+    | "book_recommendation"
+    | "reflection_question";
   title: string;
   body: string | null;
   briefingSources: BriefingSourceSignal[] | null;
+  reflectionQuestions: ReflectionQuestionSignal[] | null;
   feedback: BriefingFeedback | null;
   occurredAt: string;
   status: InboxStatus;

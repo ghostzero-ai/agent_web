@@ -11,11 +11,13 @@ import { createInboxRepository } from "../lib/repositories/inboxRepository";
 import { createNotificationDeliveryRepository } from "../lib/repositories/notificationDeliveryRepository";
 import { createNotificationRepository } from "../lib/repositories/notificationRepository";
 import { createReadingProfileRepository } from "../lib/repositories/readingProfileRepository";
+import { createReflectionPreferenceRepository } from "../lib/repositories/reflectionPreferenceRepository";
 import { createSchedulerRepository } from "../lib/repositories/schedulerRepository";
 import { createConfiguredWebSearchProvider } from "../lib/search/searxngProvider";
 import { createAgentPromptGenerator } from "../lib/tasks/agentPromptGenerator";
 import { createBookRecommendationGenerator } from "../lib/tasks/bookRecommendationGenerator";
 import { createPersonalBriefingGenerator } from "../lib/tasks/personalBriefingGenerator";
+import { createReflectionQuestionGenerator } from "../lib/tasks/reflectionQuestionGenerator";
 import { runReminderWorker } from "../lib/tasks/reminderWorker";
 
 function integerSetting(
@@ -77,6 +79,11 @@ async function main(): Promise<void> {
     const agentGenerator = createAgentPromptGenerator();
     const inboxRepository = createInboxRepository(database);
     const searchProvider = createConfiguredWebSearchProvider();
+    const reflectionGenerator = createReflectionQuestionGenerator({
+      agent: agentGenerator,
+      preferences: createReflectionPreferenceRepository(database),
+      history: inboxRepository,
+    });
     await Promise.all([
       runReminderWorker(
         {
@@ -87,7 +94,9 @@ async function main(): Promise<void> {
             search: searchProvider,
             agent: agentGenerator,
             history: inboxRepository,
+            reflection: reflectionGenerator,
           }),
+          reflection: reflectionGenerator,
           books: createBookRecommendationGenerator({
             search: searchProvider,
             agent: agentGenerator,

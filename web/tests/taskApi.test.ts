@@ -226,6 +226,34 @@ describe("Task API", () => {
     expect(missingTopic.status).toBe(400);
   });
 
+  it("creates a reflection question task and requires a topic", async () => {
+    const response = await api.create(
+      jsonRequest("POST", {
+        title: "每周复盘",
+        kind: "reflection_question",
+        prompt: "复盘本周英语学习计划",
+        schedule: { type: "weekly", weekday: 7, time: "20:00" },
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect((await response.json()).data).toMatchObject({
+      kind: "reflection_question",
+      prompt: "复盘本周英语学习计划",
+    });
+    expect(
+      (
+        await api.create(
+          jsonRequest("POST", {
+            title: "无主题复盘",
+            kind: "reflection_question",
+            prompt: null,
+            schedule: { type: "weekly", weekday: 7, time: "20:00" },
+          }),
+        )
+      ).status,
+    ).toBe(400);
+  });
+
   it("does not expose an internal database error", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const unavailable = createTaskApi(() => {

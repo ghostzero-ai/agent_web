@@ -66,7 +66,8 @@ describe("InboxRepository", () => {
       | "reminder"
       | "agent_prompt"
       | "personal_briefing"
-      | "book_recommendation" = "reminder",
+      | "book_recommendation"
+      | "reflection_question" = "reminder",
   ) {
     const tasks = createTaskRepository(database);
     const scheduler = createSchedulerRepository(database);
@@ -78,6 +79,8 @@ describe("InboxRepository", () => {
             ? "每日科技简报"
             : kind === "book_recommendation"
               ? "每周选书"
+              : kind === "reflection_question"
+                ? "每周复盘"
             : "喝水提醒",
       prompt:
         kind === "agent_prompt"
@@ -86,6 +89,8 @@ describe("InboxRepository", () => {
             ? "国际人工智能政策"
             : kind === "book_recommendation"
               ? "批判性思维"
+              : kind === "reflection_question"
+                ? "复盘英语学习"
             : "起来活动并喝一杯水",
       kind,
       scheduleType: "once",
@@ -215,6 +220,7 @@ describe("InboxRepository", () => {
       content: "## 今日重点\n\n政策发布。[S1]\n\n## 来源\n\n- [来源](https://example.com)",
       model: "deepseek-test",
       sources: briefingSources,
+      questions: [],
     });
 
     expect(completed.inboxItem).toMatchObject({
@@ -265,6 +271,36 @@ describe("InboxRepository", () => {
     expect(completed.run.resultSummary).toBe(
       "Book recommendations stored in durable inbox (deepseek-test).",
     );
+  });
+
+  it("stores reflection diagnostics and exposes them to history deduplication", async () => {
+    const inbox = createInboxRepository(database);
+    const { run } = await runningReminder("reflection_question");
+    const questions = [
+      {
+        question: "本周先验证哪个英语学习假设？",
+        type: "action" as const,
+        why: "形成最小行动。",
+        scores: { relevance: 5, novelty: 5, actionability: 5, emotionalLoad: 1, total: 5 },
+        candidateCount: 4,
+      },
+    ];
+    const completed = await inbox.completeReflectionQuestionRun({
+      runId: run.id,
+      workerId: "worker-a",
+      expectedAttempt: run.attempt,
+      now: new Date("2026-09-10T01:00:02.000Z"),
+      content: "## 给你的思考问题\n\n**本周先验证哪个英语学习假设？**",
+      model: "deepseek-test",
+      questions,
+    });
+    expect(completed.inboxItem).toMatchObject({
+      source: "reflection_question",
+      reflectionQuestions: questions,
+    });
+    await expect(
+      inbox.listRecentReflectionQuestions(new Date("2026-09-01T00:00:00.000Z")),
+    ).resolves.toEqual(questions);
   });
 
   it("keeps the inbox snapshot after its source task is deleted", async () => {

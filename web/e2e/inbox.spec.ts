@@ -9,10 +9,12 @@ test("renders and manages Agent task results on mobile", async ({ page }) => {
       | "reminder"
       | "agent_prompt"
       | "personal_briefing"
-      | "book_recommendation";
+      | "book_recommendation"
+      | "reflection_question";
     title: string;
     body: string;
     briefingSources: unknown[] | null;
+    reflectionQuestions: unknown[] | null;
     feedback: "helpful" | "not_relevant" | "duplicate" | null;
     occurredAt: string;
     status: "unread" | "read";
@@ -29,6 +31,7 @@ test("renders and manages Agent task results on mobile", async ({ page }) => {
       title: "复习今日错题",
       body: "## AI 复习建议\n\n先回顾三道典型题",
       briefingSources: null,
+      reflectionQuestions: null,
       feedback: null,
       occurredAt: "2026-09-10T12:30:00.000Z",
       status: "unread",
@@ -109,6 +112,15 @@ test("renders and manages Agent task results on mobile", async ({ page }) => {
       title: "每日科技简报",
       body: "## 今日重点\n\n新政策已经发布。[S1]",
       briefingSources: [],
+      reflectionQuestions: [
+        {
+          question: "这项政策会怎样改变你下周验证信息的方式？",
+          type: "action",
+          why: "形成下一步。",
+          scores: { relevance: 5, novelty: 4, actionability: 5, emotionalLoad: 1, total: 4.7 },
+          candidateCount: 4,
+        },
+      ],
       feedback: null,
       occurredAt: "2026-09-11T00:00:00.000Z",
       status: "read",
@@ -128,4 +140,6 @@ test("renders and manages Agent task results on mobile", async ({ page }) => {
     "href",
     "/tasks?task=task-2&edit=1",
   );
+  await expect(page.getByText("问题质量诊断")).toBeVisible();
+  await expect(page.getByText("从 4 个候选中筛选")).toBeVisible();
 });

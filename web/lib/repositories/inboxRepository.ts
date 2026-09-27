@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
   inboxItems,
@@ -8,8 +8,10 @@ import {
   type TaskRunRecord,
   type BriefingFeedback,
   type BriefingSourceSignal,
+  type ReflectionQuestionSignal,
 } from "@/lib/db/schema";
 import type { BriefingHistorySignal } from "@/lib/tasks/personalBriefingGenerator";
+import type { ReflectionHistoryPort } from "@/lib/tasks/reflectionQuestionGenerator";
 import * as schema from "@/lib/db/schema";
 import { LOCAL_USER_ID } from "@/lib/repositories/conversationRepository";
 
@@ -29,9 +31,13 @@ export type CompleteAgentPromptRunInput = CompleteReminderRunInput & {
 
 export type CompletePersonalBriefingRunInput = CompleteAgentPromptRunInput & {
   sources: BriefingSourceSignal[];
+  questions: ReflectionQuestionSignal[];
 };
 
 export type CompleteBookRecommendationRunInput = CompleteAgentPromptRunInput;
+export type CompleteReflectionQuestionRunInput = CompleteAgentPromptRunInput & {
+  questions: ReflectionQuestionSignal[];
+};
 
 export type CompletedReminderRun = {
   inboxItem: InboxItemRecord;
@@ -53,7 +59,7 @@ export class InboxRepositoryError extends Error {
   }
 }
 
-export interface InboxRepositoryPort {
+export interface InboxRepositoryPort extends ReflectionHistoryPort {
   list(filter?: InboxFilter): Promise<InboxItemRecord[]>;
   markStatus(
     id: string,
@@ -81,6 +87,9 @@ export interface InboxRepositoryPort {
   ): Promise<CompletedReminderRun>;
   completeBookRecommendationRun(
     input: CompleteBookRecommendationRunInput,
+  ): Promise<CompletedReminderRun>;
+  completeReflectionQuestionRun(
+    input: CompleteReflectionQuestionRunInput,
   ): Promise<CompletedReminderRun>;
 }
 
@@ -200,6 +209,26 @@ export class InboxRepository<
     );
   }
 
+  async listRecentReflectionQuestions(
+    since: Date,
+  ): Promise<ReflectionQuestionSignal[]> {
+    const rows = await this.database
+      .select({ questions: inboxItems.reflectionQuestions })
+      .from(inboxItems)
+      .where(
+        and(
+          eq(inboxItems.userId, LOCAL_USER_ID),
+          inArray(inboxItems.source, [
+            "personal_briefing",
+            "reflection_question",
+          ]),
+          gte(inboxItems.occurredAt, since),
+        ),
+      )
+      .orderBy(desc(inboxItems.occurredAt));
+    return rows.flatMap(({ questions }) => questions ?? []);
+  }
+
   async delete(id: string): Promise<boolean> {
     const deleted = await this.database
       .delete(inboxItems)
@@ -240,7 +269,19 @@ export class InboxRepository<
       kind: "personal_briefing",
       body: () => input.content,
       briefingSources: input.sources,
+      reflectionQuestions: input.questions,
       resultSummary: `Personal briefing stored in durable inbox (${input.model}, ${input.sources.length} sources).`,
+    });
+  }
+
+  completeReflectionQuestionRun(
+    input: CompleteReflectionQuestionRunInput,
+  ): Promise<CompletedReminderRun> {
+    return this.completeRun(input, {
+      kind: "reflection_question",
+      body: () => input.content,
+      reflectionQuestions: input.questions,
+      resultSummary: `Reflection questions stored in durable inbox (${input.model}, ${input.questions.length} selected).`,
     });
   }
 
@@ -261,9 +302,11 @@ export class InboxRepository<
         | "reminder"
         | "agent_prompt"
         | "personal_briefing"
-        | "book_recommendation";
+        | "book_recommendation"
+        | "reflection_question";
       body: (prompt: string | null) => string | null;
       briefingSources?: BriefingSourceSignal[];
+      reflectionQuestions?: ReflectionQuestionSignal[];
       resultSummary: string;
     },
   ): Promise<CompletedReminderRun> {
@@ -315,6 +358,7 @@ export class InboxRepository<
           title: owned.task.title,
           body: completion.body(owned.task.prompt),
           briefingSources: completion.briefingSources ?? null,
+          reflectionQuestions: completion.reflectionQuestions ?? null,
           occurredAt: owned.run.scheduledFor,
         })
         .onConflictDoNothing({ target: inboxItems.taskRunId })

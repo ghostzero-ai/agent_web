@@ -22,10 +22,12 @@ describe("push secret cipher", () => {
     expect(() => decryptPushSecret(envelope, "subscription", key)).toThrow(
       PushSecretCipherError,
     );
-    const replacement = envelope.endsWith("x") ? "y" : "x";
+    const parts = envelope.split(".");
+    const replacement = parts[3].startsWith("x") ? "y" : "x";
+    parts[3] = `${replacement}${parts[3].slice(1)}`;
     expect(() =>
       decryptPushSecret(
-        `${envelope.slice(0, -1)}${replacement}`,
+        parts.join("."),
         "vapid-private-key",
         key,
       ),

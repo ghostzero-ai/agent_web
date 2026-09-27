@@ -60,9 +60,15 @@ const taskKindSchema = z.enum([
   "agent_prompt",
   "personal_briefing",
   "book_recommendation",
+  "reflection_question",
 ]);
 const taskPromptRule = (input: {
-  kind?: "reminder" | "agent_prompt" | "personal_briefing" | "book_recommendation";
+  kind?:
+    | "reminder"
+    | "agent_prompt"
+    | "personal_briefing"
+    | "book_recommendation"
+    | "reflection_question";
   prompt: string | null;
 }) => input.kind === undefined || input.kind === "reminder" || Boolean(input.prompt?.trim());
 const createTaskSchema = z

@@ -11,7 +11,8 @@ test("manages an Agent task and creates a personal briefing on mobile", async ({
       | "reminder"
       | "agent_prompt"
       | "personal_briefing"
-      | "book_recommendation";
+      | "book_recommendation"
+      | "reflection_question";
     scheduleType: "once" | "daily" | "weekly";
     scheduleValue: Record<string, string | number>;
     timezone: string;

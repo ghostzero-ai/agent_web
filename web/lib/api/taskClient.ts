@@ -6,7 +6,8 @@ export type TaskKind =
   | "reminder"
   | "agent_prompt"
   | "personal_briefing"
-  | "book_recommendation";
+  | "book_recommendation"
+  | "reflection_question";
 
 export type TaskRecord = {
   id: string;

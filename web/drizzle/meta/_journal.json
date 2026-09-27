@@ -106,6 +106,13 @@
       "when": 1790484037469,
       "tag": "0014_hot_bromley",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790497936840,
+      "tag": "0015_parched_pyro",
+      "breakpoints": true
     }
   ]
 }

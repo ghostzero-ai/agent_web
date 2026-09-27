@@ -46,6 +46,7 @@ function inboxSourceLabel(source: InboxItem["source"]): string {
   if (source === "agent_prompt") return "AI 定时任务";
   if (source === "personal_briefing") return "个人简报";
   if (source === "book_recommendation") return "书籍推荐";
+  if (source === "reflection_question") return "思考问题";
   return "普通提醒";
 }
 
@@ -272,6 +273,35 @@ export function InboxManager() {
                           调整主题与频率
                         </a>
                       )}
+                    </div>
+                  )}
+                  {item.reflectionQuestions && item.reflectionQuestions.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 dark:border-sky-900 dark:bg-sky-950/30">
+                      <p className="text-xs font-medium text-sky-900 dark:text-sky-100">
+                        问题质量诊断
+                      </p>
+                      <div className="mt-2 space-y-2 text-xs text-sky-800 dark:text-sky-200">
+                        {item.reflectionQuestions.map((question) => (
+                          <div key={question.question} className="flex flex-wrap gap-x-3 gap-y-1">
+                            <span>相关性 {question.scores.relevance}/5</span>
+                            <span>新颖性 {question.scores.novelty}/5</span>
+                            <span>可行动性 {question.scores.actionability}/5</span>
+                            <span>情绪负担 {question.scores.emotionalLoad}/5</span>
+                            <span>综合 {question.scores.total.toFixed(2)}/5</span>
+                            <span>从 {question.candidateCount} 个候选中筛选</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <a href={appHref("/reflection")} className="rounded-full border border-sky-300 bg-white px-3 py-1 text-xs text-sky-800 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200">
+                          调整提问偏好
+                        </a>
+                        {item.source === "reflection_question" && item.taskId && (
+                          <a href={appHref(`/tasks?task=${item.taskId}&edit=1`)} className="rounded-full border border-sky-300 bg-white px-3 py-1 text-xs text-sky-800 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200">
+                            调整主题与频率
+                          </a>
+                        )}
+                      </div>
                     </div>
                   )}
                   <div className="mt-4 flex flex-wrap gap-2">

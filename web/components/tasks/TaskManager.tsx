@@ -14,7 +14,7 @@ import {
 } from "@/lib/api/taskClient";
 import { reconcileAndCacheLocalTaskNotifications } from "@/lib/notifications/localNotificationReliability";
 import { getCapacitorLocalNotificationAdapter } from "@/lib/platform/capacitorLocalNotifications";
-import { currentAppSearchParams } from "@/lib/platform/appNavigation";
+import { appHref, currentAppSearchParams } from "@/lib/platform/appNavigation";
 import type { TaskSchedule } from "@/lib/tasks/schedule";
 
 type FormState = {
@@ -150,6 +150,7 @@ function taskKindLabel(kind: TaskKind): string {
   if (kind === "agent_prompt") return "AI 生成";
   if (kind === "personal_briefing") return "个人简报";
   if (kind === "book_recommendation") return "书籍推荐";
+  if (kind === "reflection_question") return "思考问题";
   return "普通提醒";
 }
 
@@ -157,6 +158,7 @@ function promptFieldLabel(kind: TaskKind): string {
   if (kind === "agent_prompt") return "给 AI 的任务要求";
   if (kind === "personal_briefing") return "关注主题或简报要求";
   if (kind === "book_recommendation") return "本期主题或选书要求";
+  if (kind === "reflection_question") return "本次反思主题或目标";
   return "提醒内容（可选）";
 }
 
@@ -378,6 +380,7 @@ export function TaskManager() {
               <option value="agent_prompt">AI 定时任务</option>
               <option value="personal_briefing">个人简报</option>
               <option value="book_recommendation">书籍推荐</option>
+              <option value="reflection_question">思考问题</option>
             </select>
           </label>
 
@@ -409,6 +412,8 @@ export function TaskManager() {
                     ? "例如：国际人工智能政策、教育技术与值得阅读的研究"
                     : form.kind === "book_recommendation"
                       ? "例如：帮助我系统理解认知偏差，并兼顾一本文学作品"
+                      : form.kind === "reflection_question"
+                        ? "例如：复盘我本周在英语学习中反复拖延的真正原因与最小改进动作"
                     : "提醒时希望看到的具体内容"
               }
             />
@@ -423,6 +428,14 @@ export function TaskManager() {
           {form.kind === "book_recommendation" && (
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
               到期后会结合你的阅读画像和网页书目信息，生成 2–3 本带推荐目的、阅读门槛、时间投入与试读方法的书籍建议。请先在阅读画像页填写偏好。
+            </p>
+          )}
+
+          {form.kind === "reflection_question" && (
+            <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+              到期后会先生成 3–5 个候选，再按相关性、新颖性、可行动性和情绪负担筛选 1–3 个问题。可在
+              <a href={appHref("/reflection")} className="mx-1 underline">思考问题设置</a>
+              中调整目标、风格、数量或彻底关闭。
             </p>
           )}
 

@@ -13,11 +13,13 @@ function repository(overrides: Partial<InboxRepositoryPort> = {}): InboxReposito
     markStatus: vi.fn(),
     markFeedback: vi.fn(),
     listRecentBriefingSignals: vi.fn().mockResolvedValue([]),
+    listRecentReflectionQuestions: vi.fn().mockResolvedValue([]),
     delete: vi.fn().mockResolvedValue(false),
     completeReminderRun: vi.fn(),
     completeAgentPromptRun: vi.fn(),
     completePersonalBriefingRun: vi.fn(),
     completeBookRecommendationRun: vi.fn(),
+    completeReflectionQuestionRun: vi.fn(),
     ...overrides,
   };
 }

@@ -9,10 +9,11 @@ export default function TasksPage() {
       <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-4 sm:px-6 dark:border-zinc-800 dark:bg-zinc-950">
         <div>
           <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">任务与提醒</h1>
-          <p className="hidden text-xs text-zinc-500 sm:block">安排提醒、AI 任务、个人简报与书籍推荐；结果自动进入收件箱</p>
+          <p className="hidden text-xs text-zinc-500 sm:block">安排提醒、AI 任务、个人简报、书籍推荐与思考问题；结果自动进入收件箱</p>
         </div>
         <nav className="flex shrink-0 gap-3 text-xs font-medium text-zinc-500 sm:gap-4 sm:text-sm">
           <AppLink href="/reading" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">阅读</AppLink>
+          <AppLink href="/reflection" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">反思</AppLink>
           <AppLink href="/inbox" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">收件箱</AppLink>
           <AppLink href="/chat" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">对话</AppLink>
           <AppLink href="/api-key" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">API</AppLink>

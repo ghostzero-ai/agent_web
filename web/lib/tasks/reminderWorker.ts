@@ -7,6 +7,7 @@ import type {
   CompleteAgentPromptRunInput,
   CompleteBookRecommendationRunInput,
   CompletePersonalBriefingRunInput,
+  CompleteReflectionQuestionRunInput,
   CompleteReminderRunInput,
   CompletedReminderRun,
 } from "@/lib/repositories/inboxRepository";
@@ -26,6 +27,11 @@ import {
   type BookRecommendationGeneratorPort,
   type BookRecommendationResult,
 } from "@/lib/tasks/bookRecommendationGenerator";
+import {
+  ReflectionQuestionGenerationError,
+  type ReflectionQuestionGeneratorPort,
+  type ReflectionQuestionResult,
+} from "@/lib/tasks/reflectionQuestionGenerator";
 
 export type ReminderWorkerOptions = {
   workerId: string;
@@ -73,6 +79,9 @@ export interface ReminderInboxPort {
   completeBookRecommendationRun(
     input: CompleteBookRecommendationRunInput,
   ): Promise<CompletedReminderRun>;
+  completeReflectionQuestionRun(
+    input: CompleteReflectionQuestionRunInput,
+  ): Promise<CompletedReminderRun>;
 }
 
 export type ReminderWorkerDependencies = {
@@ -81,6 +90,7 @@ export type ReminderWorkerDependencies = {
   agent: AgentPromptGeneratorPort;
   briefing: PersonalBriefingGeneratorPort;
   books: BookRecommendationGeneratorPort;
+  reflection?: ReflectionQuestionGeneratorPort;
   now?: () => Date;
   onRunDeferred?: (runId: string, error: unknown) => void;
   onRunFailed?: (runId: string, errorCode: string) => void;
@@ -187,6 +197,29 @@ async function skipRepeatedBriefingRun(
   }
 }
 
+async function skipDisabledReflectionRun(
+  dependencies: ReminderWorkerDependencies,
+  options: ReminderWorkerOptions,
+  running: TaskRunRecord,
+): Promise<RunOutcome> {
+  try {
+    await dependencies.scheduler.finishRun({
+      runId: running.id,
+      workerId: options.workerId,
+      expectedAttempt: running.attempt,
+      now: (dependencies.now ?? (() => new Date()))(),
+      outcome: {
+        status: "skipped",
+        resultSummary: "Reflection task skipped because reflection questions are disabled.",
+      },
+    });
+    return "skipped";
+  } catch (error) {
+    dependencies.onRunDeferred?.(running.id, error);
+    return "deferred";
+  }
+}
+
 async function executeClaim(
   dependencies: ReminderWorkerDependencies,
   options: ReminderWorkerOptions & { signal?: AbortSignal },
@@ -239,6 +272,12 @@ async function executeClaim(
               "Book recommendation task has no topic.",
               false,
             )
+          : claim.task.kind === "reflection_question"
+            ? new ReflectionQuestionGenerationError(
+                "REFLECTION_TOPIC_MISSING",
+                "Reflection task has no topic.",
+                false,
+              )
         : new AgentPromptGenerationError(
             "AGENT_PROMPT_MISSING",
             "Agent Prompt task has no prompt.",
@@ -249,7 +288,10 @@ async function executeClaim(
 
   try {
     const generated = await generateWithLeaseHeartbeat<
-      AgentPromptResult | PersonalBriefingResult | BookRecommendationResult
+      | AgentPromptResult
+      | PersonalBriefingResult
+      | BookRecommendationResult
+      | ReflectionQuestionResult
     >(
       dependencies,
       options,
@@ -264,6 +306,21 @@ async function executeClaim(
             )
           : claim.task.kind === "book_recommendation"
             ? dependencies.books.generate(prompt, claim.run.scheduledFor, signal)
+            : claim.task.kind === "reflection_question"
+              ? dependencies.reflection
+                ? dependencies.reflection.generate(
+                  prompt,
+                  "这是用户设定的独立反思任务。不得臆测尚未提供的个人情况。",
+                  claim.run.scheduledFor,
+                  signal,
+                )
+                : Promise.reject(
+                    new ReflectionQuestionGenerationError(
+                      "REFLECTION_PREFERENCES_UNAVAILABLE",
+                      "Reflection generator is not configured.",
+                      true,
+                    ),
+                  )
             : dependencies.agent.generate(prompt, signal),
     );
     const completion = {
@@ -278,9 +335,15 @@ async function executeClaim(
       await dependencies.inbox.completePersonalBriefingRun({
         ...completion,
         sources: (generated as PersonalBriefingResult).sources,
+        questions: (generated as PersonalBriefingResult).questions,
       });
     } else if (claim.task.kind === "book_recommendation") {
       await dependencies.inbox.completeBookRecommendationRun(completion);
+    } else if (claim.task.kind === "reflection_question") {
+      await dependencies.inbox.completeReflectionQuestionRun({
+        ...completion,
+        questions: (generated as ReflectionQuestionResult).questions,
+      });
     } else {
       await dependencies.inbox.completeAgentPromptRun(completion);
     }
@@ -293,9 +356,16 @@ async function executeClaim(
       return skipRepeatedBriefingRun(dependencies, options, running);
     }
     if (
+      error instanceof ReflectionQuestionGenerationError &&
+      error.code === "REFLECTION_DISABLED"
+    ) {
+      return skipDisabledReflectionRun(dependencies, options, running);
+    }
+    if (
       (error instanceof AgentPromptGenerationError ||
         error instanceof PersonalBriefingGenerationError ||
-        error instanceof BookRecommendationGenerationError) &&
+        error instanceof BookRecommendationGenerationError ||
+        error instanceof ReflectionQuestionGenerationError) &&
       !error.retryable
     ) {
       return failTerminalGeneratedRun(dependencies, options, running, error);

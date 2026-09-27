@@ -49,6 +49,7 @@ function claim(
     title: "绝密考试复习",
     body: "不可出现在锁屏上的私人内容",
     briefingSources: null,
+    reflectionQuestions: null,
     feedback: null,
     occurredAt: FIXED_NOW,
     status: "unread",

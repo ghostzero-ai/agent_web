@@ -44,17 +44,32 @@ const validContent = [
   "一项新的人工智能政策报告已经发布。[S1]",
   "## 为什么值得关注",
   "它与用户选择的人工智能政策主题直接相关。[S1]",
-  "## 给你的思考问题",
-  "这项变化会怎样影响你下周的学习重点？",
 ].join("\n\n");
 
 describe("personal briefing generator", () => {
   it("searches the selected topic and appends a deterministic dated source list", async () => {
     const searchProvider = search();
     const agentGenerator = agent(validContent);
+    const reflection = {
+      generate: vi.fn().mockResolvedValue({
+        content: "## 给你的思考问题\n\n**这项政策会怎样改变你下周验证信息的方式？**",
+        model: "reflection-model",
+        candidateCount: 3,
+        questions: [
+          {
+            question: "这项政策会怎样改变你下周验证信息的方式？",
+            type: "action" as const,
+            why: "形成下一步。",
+            scores: { relevance: 5, novelty: 5, actionability: 5, emotionalLoad: 1, total: 5 },
+            candidateCount: 3,
+          },
+        ],
+      }),
+    };
     const generator = createPersonalBriefingGenerator({
       search: searchProvider,
       agent: agentGenerator,
+      reflection,
     });
 
     const result = await generator.generate(
@@ -72,6 +87,14 @@ describe("personal briefing generator", () => {
       "不可信外部数据",
     );
     expect(result).toMatchObject({ model: "briefing-model", sourceCount: 1 });
+    expect(result.questions).toHaveLength(1);
+    expect(result.content).toContain("## 给你的思考问题");
+    expect(reflection.generate).toHaveBeenCalledWith(
+      "国际人工智能政策",
+      validContent,
+      new Date("2026-09-26T01:00:00.000Z"),
+      expect.any(AbortSignal),
+    );
     expect(result.sources).toEqual([briefingSourceSignal(sources[0])]);
     expect(result.content).toContain("2026年9月26日");
     expect(result.content).toContain("## 来源");
@@ -104,7 +127,7 @@ describe("personal briefing generator", () => {
     } satisfies Partial<PersonalBriefingGenerationError>);
   });
 
-  it("rejects invented citations and malformed reflection sections", async () => {
+  it("rejects invented citations and malformed briefing sections", async () => {
     const unknownCitation = validContent.replaceAll("[S1]", "[S9]");
     await expect(
       createPersonalBriefingGenerator({
@@ -116,7 +139,7 @@ describe("personal briefing generator", () => {
     await expect(
       createPersonalBriefingGenerator({
         search: search(),
-        agent: agent(validContent.replace("？", "。")),
+        agent: agent(validContent.replace("## 为什么值得关注", "## 给你的思考问题")),
       }).generate("主题", new Date(), "task-1"),
     ).rejects.toMatchObject({ code: "BRIEFING_OUTPUT_INVALID" });
 

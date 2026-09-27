@@ -15,6 +15,10 @@ import {
   type PersonalBriefingGeneratorPort,
 } from "@/lib/tasks/personalBriefingGenerator";
 import type { BookRecommendationGeneratorPort } from "@/lib/tasks/bookRecommendationGenerator";
+import {
+  ReflectionQuestionGenerationError,
+  type ReflectionQuestionGeneratorPort,
+} from "@/lib/tasks/reflectionQuestionGenerator";
 
 const briefingSources = [
   {
@@ -54,7 +58,8 @@ function task(
     | "reminder"
     | "agent_prompt"
     | "personal_briefing"
-    | "book_recommendation" = "reminder",
+    | "book_recommendation"
+    | "reflection_question" = "reminder",
 ) {
   const at = new Date("2026-09-10T01:00:00.000Z");
   return {
@@ -107,6 +112,27 @@ function books(
       sourceCount: 2,
     }),
 ): BookRecommendationGeneratorPort {
+  return { generate: implementation };
+}
+
+function reflection(
+  implementation: ReflectionQuestionGeneratorPort["generate"] = vi
+    .fn()
+    .mockResolvedValue({
+      content: "## 给你的思考问题\n\n**本周先验证哪个学习假设？**",
+      model: "reflection-model",
+      candidateCount: 3,
+      questions: [
+        {
+          question: "本周先验证哪个学习假设？",
+          type: "action",
+          why: "形成下一步。",
+          scores: { relevance: 5, novelty: 5, actionability: 5, emotionalLoad: 1, total: 5 },
+          candidateCount: 3,
+        },
+      ],
+    }),
+): ReflectionQuestionGeneratorPort {
   return { generate: implementation };
 }
 
@@ -438,6 +464,82 @@ describe("reminder worker", () => {
     );
     expect(inbox.completeBookRecommendationRun).toHaveBeenCalledWith(
       expect.objectContaining({ model: "book-model" }),
+    );
+  });
+
+  it("generates a scored reflection question and stores its diagnostics", async () => {
+    const claimedRun = run("reflection");
+    const scheduledTask = task("reflection", "reflection_question");
+    const scheduler: ReminderSchedulerPort = {
+      claimAvailableRuns: vi.fn().mockResolvedValue([
+        { source: "new", run: claimedRun, task: scheduledTask },
+      ]),
+      markRunRunning: vi.fn().mockResolvedValue({ ...claimedRun, status: "running" }),
+      renewRunLease: vi.fn().mockResolvedValue(claimedRun),
+      finishRun: vi.fn(),
+    };
+    const inbox = {
+      completeReflectionQuestionRun: vi.fn().mockResolvedValue({}),
+    } as unknown as ReminderInboxPort;
+    const generator = reflection();
+    const result = await runReminderBatch(
+      {
+        scheduler,
+        inbox,
+        agent: agent(),
+        briefing: briefing(),
+        books: books(),
+        reflection: generator,
+      },
+      { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
+    );
+    expect(result).toMatchObject({ completed: 1, failed: 0 });
+    expect(generator.generate).toHaveBeenCalledWith(
+      scheduledTask.prompt,
+      expect.stringContaining("独立反思任务"),
+      claimedRun.scheduledFor,
+      expect.any(AbortSignal),
+    );
+    expect(inbox.completeReflectionQuestionRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "reflection-model",
+        questions: expect.arrayContaining([
+          expect.objectContaining({ type: "action" }),
+        ]),
+      }),
+    );
+  });
+
+  it("skips a standalone reflection task when the user turns questions off", async () => {
+    const claimedRun = run("reflection-disabled");
+    const finishRun = vi.fn().mockResolvedValue({ ...claimedRun, status: "skipped" });
+    const scheduler: ReminderSchedulerPort = {
+      claimAvailableRuns: vi.fn().mockResolvedValue([
+        { source: "new", run: claimedRun, task: task("reflection-disabled", "reflection_question") },
+      ]),
+      markRunRunning: vi.fn().mockResolvedValue({ ...claimedRun, status: "running" }),
+      renewRunLease: vi.fn().mockResolvedValue(claimedRun),
+      finishRun,
+    };
+    const disabled = new ReflectionQuestionGenerationError(
+      "REFLECTION_DISABLED",
+      "Disabled.",
+      false,
+    );
+    const result = await runReminderBatch(
+      {
+        scheduler,
+        inbox: {} as ReminderInboxPort,
+        agent: agent(),
+        briefing: briefing(),
+        books: books(),
+        reflection: reflection(vi.fn().mockRejectedValue(disabled)),
+      },
+      { workerId: "worker-a", batchSize: 20, leaseDurationMs: 60_000 },
+    );
+    expect(result).toMatchObject({ completed: 0, skipped: 1, failed: 0 });
+    expect(finishRun).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: expect.objectContaining({ status: "skipped" }) }),
     );
   });
 

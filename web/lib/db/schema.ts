@@ -83,11 +83,34 @@ export type TaskKind =
   | "reminder"
   | "agent_prompt"
   | "personal_briefing"
-  | "book_recommendation";
+  | "book_recommendation"
+  | "reflection_question";
 export type InboxSource = TaskKind;
 export type BriefingFeedback = "helpful" | "not_relevant" | "duplicate";
 export type ReadingDifficulty = "introductory" | "intermediate" | "advanced";
 export type ReadingGoal = "beginner" | "systematic" | "broaden" | "literary";
+export type ReflectionStyle = "gentle" | "balanced" | "challenging";
+export type ReflectionQuestionType =
+  | "assumption"
+  | "evidence"
+  | "tradeoff"
+  | "alternative"
+  | "future"
+  | "action";
+
+export type ReflectionQuestionSignal = {
+  question: string;
+  type: ReflectionQuestionType;
+  why: string;
+  scores: {
+    relevance: number;
+    novelty: number;
+    actionability: number;
+    emotionalLoad: number;
+    total: number;
+  };
+  candidateCount: number;
+};
 
 export type BriefingSourceSignal = {
   title: string;
@@ -170,6 +193,44 @@ export const readingProfiles = pgTable(
       sql`${table.weeklyMinutes} BETWEEN 15 AND 10080`,
     ),
     check("reading_profiles_version_positive", sql`${table.version} > 0`),
+  ],
+);
+
+export const reflectionPreferences = pgTable(
+  "reflection_preferences",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(true),
+    goals: jsonb("goals").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    avoidTopics: jsonb("avoid_topics")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    style: text("style")
+      .$type<ReflectionStyle>()
+      .notNull()
+      .default("balanced"),
+    maxQuestions: integer("max_questions").notNull().default(1),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "reflection_preferences_style_supported",
+      sql`${table.style} IN ('gentle', 'balanced', 'challenging')`,
+    ),
+    check(
+      "reflection_preferences_max_questions_range",
+      sql`${table.maxQuestions} BETWEEN 1 AND 3`,
+    ),
+    check("reflection_preferences_version_positive", sql`${table.version} > 0`),
   ],
 );
 
@@ -371,7 +432,7 @@ export const scheduledTasks = pgTable(
     check("scheduled_tasks_version_positive", sql`${table.version} > 0`),
     check(
       "scheduled_tasks_kind_supported",
-      sql`${table.kind} IN ('reminder', 'agent_prompt', 'personal_briefing', 'book_recommendation')`,
+      sql`${table.kind} IN ('reminder', 'agent_prompt', 'personal_briefing', 'book_recommendation', 'reflection_question')`,
     ),
     check(
       "scheduled_tasks_generated_prompt_required",
@@ -445,6 +506,8 @@ export const inboxItems = pgTable(
     title: text("title").notNull(),
     body: text("body"),
     briefingSources: jsonb("briefing_sources").$type<BriefingSourceSignal[]>(),
+    reflectionQuestions: jsonb("reflection_questions")
+      .$type<ReflectionQuestionSignal[]>(),
     feedback: text("feedback").$type<BriefingFeedback>(),
     occurredAt: timestamp("occurred_at", {
       withTimezone: true,
@@ -472,7 +535,7 @@ export const inboxItems = pgTable(
     ),
     check(
       "inbox_items_source_supported",
-      sql`${table.source} IN ('reminder', 'agent_prompt', 'personal_briefing', 'book_recommendation')`,
+      sql`${table.source} IN ('reminder', 'agent_prompt', 'personal_briefing', 'book_recommendation', 'reflection_question')`,
     ),
     check(
       "inbox_items_feedback_supported",
@@ -481,6 +544,10 @@ export const inboxItems = pgTable(
     check(
       "inbox_items_briefing_sources_supported",
       sql`${table.briefingSources} IS NULL OR ${table.source} = 'personal_briefing'`,
+    ),
+    check(
+      "inbox_items_reflection_questions_supported",
+      sql`${table.reflectionQuestions} IS NULL OR ${table.source} IN ('personal_briefing', 'reflection_question')`,
     ),
     check(
       "inbox_items_read_state",
@@ -612,6 +679,7 @@ export const notificationDeliveries = pgTable("notification_deliveries", {
 
 export type UserRecord = typeof users.$inferSelect;
 export type ReadingProfileRecord = typeof readingProfiles.$inferSelect;
+export type ReflectionPreferenceRecord = typeof reflectionPreferences.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type PromptRunRecord = typeof promptRuns.$inferSelect;
