@@ -28,12 +28,21 @@ import {
 } from "@/lib/search/webSearch";
 import { createConfiguredWebSearchProvider } from "@/lib/search/searxngProvider";
 import { verifyResponse } from "@/lib/ai/responseVerifier";
+import {
+  addMemoryContext,
+  type RetrievedMemory,
+} from "@/lib/memory/memoryRetrieval";
+import {
+  createMemoryRepository,
+  type MemoryRepositoryPort,
+} from "@/lib/repositories/memoryRepository";
 
 type ModelApiDependencies = {
   getConfig: () => ModelProviderConfig | Promise<ModelProviderConfig>;
   getStatus: () => ModelProviderStatus | Promise<ModelProviderStatus>;
   createProvider: (config: ModelProviderConfig) => ModelProvider;
   runs: PromptRunRepositoryPort;
+  memories?: Pick<MemoryRepositoryPort, "retrieveForMessage">;
   search?: WebSearchProvider;
 };
 
@@ -41,14 +50,6 @@ const instructionPromptSchema = z
   .object({
     kind: z.literal("instruction"),
     source: z.enum(["policy", "mode", "persona"]),
-    role: z.literal("system"),
-    content: z.string().min(1).max(1_000_000),
-  })
-  .strict();
-const contextPromptSchema = z
-  .object({
-    kind: z.literal("context"),
-    source: z.literal("memory"),
     role: z.literal("system"),
     content: z.string().min(1).max(1_000_000),
   })
@@ -76,7 +77,6 @@ const modelRequestSchema = z
       .array(
         z.union([
           instructionPromptSchema,
-          contextPromptSchema,
           conversationPromptSchema,
         ]),
       )
@@ -170,12 +170,21 @@ export function createModelApi(dependencies: ModelApiDependencies) {
       let config: ModelProviderConfig;
       let envelope: Awaited<ReturnType<typeof createPromptEnvelope>>;
       let retrieval: Awaited<ReturnType<typeof retrieveWebEvidence>>["retrieval"];
+      let usedMemories: RetrievedMemory[] = [];
 
       try {
         input = await parseRequest(request);
         config = await dependencies.getConfig();
+        if (input.conversation.activeLeafId && dependencies.memories) {
+          usedMemories = await dependencies.memories.retrieveForMessage(
+            input.conversation.id,
+            input.conversation.activeLeafId,
+            new Date(),
+          );
+        }
+        const promptWithMemory = addMemoryContext(input.prompt, usedMemories);
         const prepared = await retrieveWebEvidence({
-          prompt: input.prompt,
+          prompt: promptWithMemory,
           mode: input.searchMode,
           provider: dependencies.search,
           signal: request.signal,
@@ -192,7 +201,7 @@ export function createModelApi(dependencies: ModelApiDependencies) {
             model: config.model,
           },
         });
-        await dependencies.runs.start(envelope);
+        await dependencies.runs.start(envelope, usedMemories);
       } catch (error) {
         if (error instanceof SyntaxError) {
           return apiError(
@@ -258,6 +267,13 @@ export function createModelApi(dependencies: ModelApiDependencies) {
                 model: config.model,
                 envelope,
                 retrieval,
+                memoryRetrieval: {
+                  count: usedMemories.length,
+                  estimatedTokens: usedMemories.reduce(
+                    (total, memory) => total + memory.estimatedTokens,
+                    0,
+                  ),
+                },
               }),
             );
             let sawDone = false;
@@ -353,6 +369,7 @@ export function getModelApi() {
     getStatus: resolveModelProviderStatus,
     createProvider: (config) => new OpenAICompatibleProvider(config),
     runs: createPromptRunRepository(database),
+    memories: createMemoryRepository(database),
     search: createConfiguredWebSearchProvider(),
   });
 }

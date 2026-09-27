@@ -1,13 +1,16 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
   conversations,
+  memoryItems,
+  memoryUsages,
   messages,
   promptRuns,
   type PromptRunRecord,
 } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
 import type { PromptEnvelope } from "@/lib/ai/promptEnvelope";
+import type { RetrievedMemory } from "@/lib/memory/memoryRetrieval";
 import { LOCAL_USER_ID } from "@/lib/repositories/conversationRepository";
 
 export class PromptRunRepositoryError extends Error {
@@ -23,7 +26,10 @@ export class PromptRunRepositoryError extends Error {
 export type FinalPromptRunStatus = "completed" | "failed" | "cancelled";
 
 export interface PromptRunRepositoryPort {
-  start(envelope: PromptEnvelope): Promise<PromptRunRecord>;
+  start(
+    envelope: PromptEnvelope,
+    usedMemories?: readonly RetrievedMemory[],
+  ): Promise<PromptRunRecord>;
   finish(
     id: string,
     status: FinalPromptRunStatus,
@@ -39,7 +45,10 @@ export class PromptRunRepository<
     private readonly database: PgDatabase<TQueryResult, typeof schema>,
   ) {}
 
-  start(envelope: PromptEnvelope): Promise<PromptRunRecord> {
+  start(
+    envelope: PromptEnvelope,
+    usedMemories: readonly RetrievedMemory[] = [],
+  ): Promise<PromptRunRecord> {
     return this.database.transaction(async (transaction) => {
       const [conversation] = await transaction
         .select({ activeLeafMessageId: conversations.activeLeafMessageId })
@@ -109,6 +118,49 @@ export class PromptRunRepository<
           createdAt: new Date(envelope.createdAt),
         })
         .returning();
+
+      const usedAt = new Date(envelope.createdAt);
+      for (const memory of usedMemories) {
+        const [updatedMemory] = await transaction
+          .update(memoryItems)
+          .set({
+            lastUsedAt: usedAt,
+            useCount: sql`${memoryItems.useCount} + 1`,
+          })
+          .where(
+            and(
+              eq(memoryItems.id, memory.id),
+              eq(memoryItems.userId, LOCAL_USER_ID),
+              eq(memoryItems.version, memory.version),
+              or(
+                isNull(memoryItems.validUntil),
+                gt(memoryItems.validUntil, usedAt),
+              ),
+            ),
+          )
+          .returning({ id: memoryItems.id });
+        if (!updatedMemory) {
+          throw new PromptRunRepositoryError(
+            "PROMPT_CONTEXT_CONFLICT",
+            "A selected memory changed before the model run was recorded.",
+          );
+        }
+      }
+      if (usedMemories.length > 0) {
+        await transaction.insert(memoryUsages).values(
+          usedMemories.map((memory) => ({
+            userId: LOCAL_USER_ID,
+            memoryItemId: memory.id,
+            promptRunId: envelope.runId,
+            conversationId: envelope.conversation.id,
+            queryMessageId: envelope.conversation.activeLeafId,
+            rank: memory.rank,
+            score: memory.score,
+            estimatedTokens: memory.estimatedTokens,
+            createdAt: usedAt,
+          })),
+        );
+      }
       return run;
     });
   }

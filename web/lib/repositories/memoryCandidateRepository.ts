@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import {
   conversations,
@@ -133,19 +133,39 @@ export class MemoryCandidateRepository<
       .limit(1);
     if (fromMessage) return { candidate: fromMessage, created: false };
 
-    const [duplicate] = await this.database
+    const [pendingDuplicate] = await this.database
       .select()
       .from(memoryCandidates)
       .where(
         and(
           eq(memoryCandidates.userId, LOCAL_USER_ID),
           eq(memoryCandidates.content, draft.content),
-          inArray(memoryCandidates.status, ["pending", "confirmed"]),
+          eq(memoryCandidates.status, "pending"),
         ),
       )
       .orderBy(desc(memoryCandidates.createdAt))
       .limit(1);
-    if (duplicate) return { candidate: duplicate, created: false };
+    if (pendingDuplicate) {
+      return { candidate: pendingDuplicate, created: false };
+    }
+
+    const [confirmedDuplicate] = await this.database
+      .select({ candidate: memoryCandidates })
+      .from(memoryItems)
+      .innerJoin(
+        memoryCandidates,
+        eq(memoryItems.candidateId, memoryCandidates.id),
+      )
+      .where(
+        and(
+          eq(memoryItems.userId, LOCAL_USER_ID),
+          eq(memoryItems.content, draft.content),
+        ),
+      )
+      .limit(1);
+    if (confirmedDuplicate) {
+      return { candidate: confirmedDuplicate.candidate, created: false };
+    }
 
     const [candidate] = await this.database
       .insert(memoryCandidates)
@@ -212,6 +232,7 @@ export class MemoryCandidateRepository<
         sourceMessageId: candidate.sourceMessageId,
         kind: candidate.kind,
         content,
+        sensitivity: candidate.sensitivity,
         createdAt: now,
         updatedAt: now,
       });

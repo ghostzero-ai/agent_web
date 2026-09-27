@@ -7,6 +7,10 @@ export type PromptExportArtifact = {
   filename: string;
   mediaType: "application/json" | "text/markdown";
   content: string;
+  directory?: string;
+  shareTitle?: string;
+  shareText?: string;
+  dialogTitle?: string;
 };
 
 export type ExportResult = {

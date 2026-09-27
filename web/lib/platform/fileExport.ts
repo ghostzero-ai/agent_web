@@ -91,7 +91,7 @@ export function createCapacitorFileExportAdapter(
   return {
     async export(artifact): Promise<ExportResult> {
       validateArtifact(artifact);
-      const path = `prompt-exports/${artifact.filename}`;
+      const path = `${artifact.directory ?? "prompt-exports"}/${artifact.filename}`;
       await filesystem.writeFile({
         path,
         data: artifact.content,
@@ -104,10 +104,12 @@ export function createCapacitorFileExportAdapter(
         directory: Directory.Cache,
       });
       await share.share({
-        title: "AI 学习伴侣 Prompt 导出",
-        text: "Prompt 文件不包含 API Key；分享前请确认是否包含个人记忆。",
+        title: artifact.shareTitle ?? "AI 学习伴侣 Prompt 导出",
+        text:
+          artifact.shareText ??
+          "Prompt 文件不包含 API Key；分享前请确认是否包含个人记忆。",
         files: [uri],
-        dialogTitle: "分享 Prompt 文件",
+        dialogTitle: artifact.dialogTitle ?? "分享 Prompt 文件",
       });
       return { method: "share", uri };
     },

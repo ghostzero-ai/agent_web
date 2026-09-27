@@ -386,6 +386,14 @@ export const memoryItems = pgTable(
     }),
     kind: text("kind").$type<MemoryCandidateKind>().notNull(),
     content: text("content").notNull(),
+    sensitivity: text("sensitivity")
+      .$type<MemorySensitivity>()
+      .notNull()
+      .default("low"),
+    pinned: boolean("pinned").notNull().default(false),
+    validUntil: timestamp("valid_until", { withTimezone: true, mode: "date" }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "date" }),
+    useCount: integer("use_count").notNull().default(0),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
@@ -397,10 +405,21 @@ export const memoryItems = pgTable(
   (table) => [
     uniqueIndex("memory_items_candidate_unique").on(table.candidateId),
     index("memory_items_user_created_idx").on(table.userId, table.createdAt),
+    index("memory_items_user_pinned_updated_idx").on(
+      table.userId,
+      table.pinned,
+      table.updatedAt,
+    ),
     check(
       "memory_items_kind_supported",
       sql`${table.kind} IN ('preference', 'goal', 'profile', 'fact')`,
     ),
+    check(
+      "memory_items_sensitivity_supported",
+      sql`${table.sensitivity} IN ('low', 'personal', 'sensitive')`,
+    ),
+    check("memory_items_content_nonempty", sql`length(btrim(${table.content})) > 0`),
+    check("memory_items_use_count_nonnegative", sql`${table.useCount} >= 0`),
     check("memory_items_version_positive", sql`${table.version} > 0`),
   ],
 );
@@ -441,6 +460,48 @@ export const promptRuns = pgTable(
     check("prompt_runs_schema_version_positive", sql`${table.envelopeSchemaVersion} > 0`),
     check("prompt_runs_message_count_positive", sql`${table.messageCount} > 0`),
     check("prompt_runs_content_hash_sha256", sql`${table.contentHash} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
+export const memoryUsages = pgTable(
+  "memory_usages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    memoryItemId: uuid("memory_item_id").notNull(),
+    promptRunId: uuid("prompt_run_id")
+      .notNull()
+      .references(() => promptRuns.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id").references(() => conversations.id, {
+      onDelete: "set null",
+    }),
+    queryMessageId: uuid("query_message_id").references(() => messages.id, {
+      onDelete: "set null",
+    }),
+    rank: integer("rank").notNull(),
+    score: integer("score").notNull(),
+    estimatedTokens: integer("estimated_tokens").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("memory_usages_run_item_unique").on(
+      table.promptRunId,
+      table.memoryItemId,
+    ),
+    index("memory_usages_item_created_idx").on(
+      table.memoryItemId,
+      table.createdAt,
+    ),
+    check("memory_usages_rank_positive", sql`${table.rank} > 0`),
+    check("memory_usages_score_positive", sql`${table.score} > 0`),
+    check(
+      "memory_usages_tokens_positive",
+      sql`${table.estimatedTokens} > 0`,
+    ),
   ],
 );
 
@@ -791,6 +852,7 @@ export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type MemoryCandidateRecord = typeof memoryCandidates.$inferSelect;
 export type MemoryItemRecord = typeof memoryItems.$inferSelect;
+export type MemoryUsageRecord = typeof memoryUsages.$inferSelect;
 export type PromptRunRecord = typeof promptRuns.$inferSelect;
 export type ConversationImportRecord = typeof conversationImports.$inferSelect;
 export type ModelCredentialRecord = typeof modelCredentials.$inferSelect;

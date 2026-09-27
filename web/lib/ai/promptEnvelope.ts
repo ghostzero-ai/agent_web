@@ -5,7 +5,7 @@ import {
 } from "@/lib/ai/messages";
 
 export const PROMPT_ENVELOPE_SCHEMA_VERSION = 1 as const;
-export const PROMPT_COMPOSER_VERSION = "core-3.3/v1" as const;
+export const PROMPT_COMPOSER_VERSION = "phase-5.2/v1" as const;
 
 export type PromptTrigger = "send" | "retry";
 

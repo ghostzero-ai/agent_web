@@ -109,6 +109,9 @@ export function MemoryCandidateManager() {
           candidate.id === updated.id ? updated : candidate,
         ),
       );
+      if (action === "confirm") {
+        window.dispatchEvent(new Event("memory-items-changed"));
+      }
     } catch (resolveError) {
       setError(friendlyError(resolveError));
       await load();
@@ -129,7 +132,7 @@ export function MemoryCandidateManager() {
       <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm leading-6 text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
         <h2 className="font-semibold">记忆先确认，再生效</h2>
         <p className="mt-1">系统只从明确、可能长期有效的陈述中提出候选。问题、临时信息和疑似密钥不会进入候选；即使候选置信度很高，也不会自动成为长期记忆。</p>
-        <p className="mt-1 text-xs opacity-75">Phase 5.1 只建立可信写入边界；确认后的记忆将在 Phase 5.2 加入相关性检索、编辑与删除。</p>
+        <p className="mt-1 text-xs opacity-75">确认后进入上方长期记忆；只有与当前问题相关、未过期且在预算内的内容才会发送给模型。</p>
       </section>
 
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{error}</div>}
