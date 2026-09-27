@@ -36,6 +36,16 @@ import {
   createMemoryRepository,
   type MemoryRepositoryPort,
 } from "@/lib/repositories/memoryRepository";
+import {
+  applyPersonaProfile,
+  DEFAULT_PERSONA_PROFILE,
+  type PersonaProfileValues,
+} from "@/lib/persona/personaProfile";
+import {
+  createPersonaProfileRepository,
+  type PersonaProfileRepositoryPort,
+} from "@/lib/repositories/personaProfileRepository";
+import type { PromptMessage } from "@/lib/ai/messages";
 
 type ModelApiDependencies = {
   getConfig: () => ModelProviderConfig | Promise<ModelProviderConfig>;
@@ -43,6 +53,7 @@ type ModelApiDependencies = {
   createProvider: (config: ModelProviderConfig) => ModelProvider;
   runs: PromptRunRepositoryPort;
   memories?: Pick<MemoryRepositoryPort, "retrieveForMessage">;
+  persona?: Pick<PersonaProfileRepositoryPort, "get">;
   search?: WebSearchProvider;
 };
 
@@ -175,6 +186,9 @@ export function createModelApi(dependencies: ModelApiDependencies) {
       try {
         input = await parseRequest(request);
         config = await dependencies.getConfig();
+        const persona: PersonaProfileValues = dependencies.persona
+          ? await dependencies.persona.get()
+          : DEFAULT_PERSONA_PROFILE;
         if (input.conversation.activeLeafId && dependencies.memories) {
           usedMemories = await dependencies.memories.retrieveForMessage(
             input.conversation.id,
@@ -182,7 +196,17 @@ export function createModelApi(dependencies: ModelApiDependencies) {
             new Date(),
           );
         }
-        const promptWithMemory = addMemoryContext(input.prompt, usedMemories);
+        const promptWithPersona = applyPersonaProfile(
+          input.prompt,
+          persona,
+          (content): PromptMessage => ({
+            kind: "instruction",
+            source: "persona",
+            role: "system",
+            content,
+          }),
+        );
+        const promptWithMemory = addMemoryContext(promptWithPersona, usedMemories);
         const prepared = await retrieveWebEvidence({
           prompt: promptWithMemory,
           mode: input.searchMode,
@@ -370,6 +394,7 @@ export function getModelApi() {
     createProvider: (config) => new OpenAICompatibleProvider(config),
     runs: createPromptRunRepository(database),
     memories: createMemoryRepository(database),
+    persona: createPersonaProfileRepository(database),
     search: createConfiguredWebSearchProvider(),
   });
 }

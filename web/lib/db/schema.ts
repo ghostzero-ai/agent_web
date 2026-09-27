@@ -199,6 +199,42 @@ export const readingProfiles = pgTable(
   ],
 );
 
+export const personaProfiles = pgTable(
+  "persona_profiles",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull().default("知伴"),
+    preferredAddress: text("preferred_address"),
+    warmth: integer("warmth").notNull().default(70),
+    humor: integer("humor").notNull().default(20),
+    directness: integer("directness").notNull().default(60),
+    verbosity: integer("verbosity").notNull().default(50),
+    initiative: integer("initiative").notNull().default(40),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check("persona_profiles_name_nonempty", sql`length(btrim(${table.name})) > 0`),
+    check(
+      "persona_profiles_preferred_address_nonempty",
+      sql`${table.preferredAddress} IS NULL OR length(btrim(${table.preferredAddress})) > 0`,
+    ),
+    check("persona_profiles_warmth_range", sql`${table.warmth} BETWEEN 0 AND 100`),
+    check("persona_profiles_humor_range", sql`${table.humor} BETWEEN 0 AND 100`),
+    check("persona_profiles_directness_range", sql`${table.directness} BETWEEN 0 AND 100`),
+    check("persona_profiles_verbosity_range", sql`${table.verbosity} BETWEEN 0 AND 100`),
+    check("persona_profiles_initiative_range", sql`${table.initiative} BETWEEN 0 AND 100`),
+    check("persona_profiles_version_positive", sql`${table.version} > 0`),
+  ],
+);
+
 export const reflectionPreferences = pgTable(
   "reflection_preferences",
   {
@@ -847,6 +883,7 @@ export const notificationDeliveries = pgTable("notification_deliveries", {
 
 export type UserRecord = typeof users.$inferSelect;
 export type ReadingProfileRecord = typeof readingProfiles.$inferSelect;
+export type PersonaProfileRecord = typeof personaProfiles.$inferSelect;
 export type ReflectionPreferenceRecord = typeof reflectionPreferences.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;

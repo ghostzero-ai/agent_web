@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(18);
+      expect(migrations).toHaveLength(19);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -74,6 +74,7 @@ describe("database migrations", () => {
         "model_credentials",
         "notification_deliveries",
         "notification_preferences",
+        "persona_profiles",
         "prompt_runs",
         "push_subscriptions",
         "push_vapid_configurations",
@@ -135,6 +136,28 @@ describe("database migrations", () => {
           `INSERT INTO task_runs (task_id, scheduled_for)
            VALUES ($1, '2030-01-01T01:00:00Z')`,
           [taskResult.rows[0].id],
+        ),
+      ).rejects.toThrow();
+
+      const personaProfile = await pglite.query<{
+        name: string;
+        warmth: number;
+        verbosity: number;
+      }>(
+        `INSERT INTO persona_profiles (user_id)
+         VALUES ($1)
+         RETURNING name, warmth, verbosity`,
+        [userResult.rows[0].id],
+      );
+      expect(personaProfile.rows[0]).toEqual({
+        name: "知伴",
+        warmth: 70,
+        verbosity: 50,
+      });
+      await expect(
+        pglite.query(
+          `UPDATE persona_profiles SET humor = 101 WHERE user_id = $1`,
+          [userResult.rows[0].id],
         ),
       ).rejects.toThrow();
 
@@ -330,6 +353,14 @@ describe("database migrations", () => {
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[18].id,
+      );
+      const personaAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public' AND tablename = 'persona_profiles'
+      `);
+      expect(personaAfterRollback.rows).toEqual([]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[17].id,
       );
@@ -538,6 +569,7 @@ describe("database migrations", () => {
         migrations[15].id,
         migrations[16].id,
         migrations[17].id,
+        migrations[18].id,
       ]);
     },
     15_000,
@@ -582,6 +614,7 @@ describe("database migrations", () => {
       migrations[15].id,
       migrations[16].id,
       migrations[17].id,
+      migrations[18].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

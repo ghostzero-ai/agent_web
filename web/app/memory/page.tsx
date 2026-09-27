@@ -13,6 +13,7 @@ export default function MemoryPage() {
           <p className="hidden text-xs text-zinc-500 sm:block">管理长期记忆，并审核新的记忆候选</p>
         </div>
         <nav className="flex shrink-0 gap-3 text-xs font-medium text-zinc-500 sm:gap-4 sm:text-sm">
+          <AppLink href="/persona" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">人格</AppLink>
           <AppLink href="/chat" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">对话</AppLink>
           <AppLink href="/reflection" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">反思</AppLink>
           <AppLink href="/tasks" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">任务</AppLink>

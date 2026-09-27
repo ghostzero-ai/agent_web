@@ -4,6 +4,30 @@
 
 ---
 
+## Phase 5.3 — Persona Profile
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增服务端 `persona_profiles` 与 `/api/v1/persona-profile`，保存助手称呼、用户称呼及温暖、幽默、直接、篇幅、对话内引导五个 0–100 结构化维度，并使用乐观版本锁处理多端编辑。
+- 新增 `/persona` 响应式设置页与 APK 路由，提供实时规则预览；人格入口同时出现在桌面聊天页和移动端可达的记忆页。
+- 模型请求在服务端读取最新画像，并替换客户端携带的任何 Persona 文本；客户端不能借 Persona 覆盖事实、安全、引用或高风险约束。
+- Persona 编译器固定加入“不自称真人、不制造依赖、不为安慰而编造、严肃场景禁用幽默”等边界；`initiative` 只控制当前对话中的追问，不授权会话外主动联系。
+- Prompt Composer 更新为 `phase-5.3/v1`，Persona 层版本更新为 `persona-profile/v1`；安全 Prompt 导出反映模型真正收到的服务端画像层。
+- 新增可回滚迁移 `0018_persona_profile`，覆盖数据库范围约束、Repository/API、结构化编译、客户端伪造替换、移动端 UI 和迁移回滚测试。
+- Core 3.5 固定评测继续保持 25/25，确认 Persona Profile 没有改变专业策略与模式边界。
+
+### 当前边界
+
+- 不开放任意“自定义人设 Prompt”；称呼仅接受名称类字符，风格只通过结构化维度调整，减少注入和规则膨胀。
+- 当前未调用真实模型评价主观自然度；语气体验需要在日常使用中继续校准默认值。
+- “对话内引导”不是后台主动消息。安静时段、每日预算、触发理由与主动问候属于 Phase 5.5。
+
+### 下一步
+
+- Phase 5.4：实现 Voice Profile 与可失败的 TTS Provider，保证播放失败不影响文字答案。
+
 ## Phase 5.2 — 正式记忆管理与相关性检索
 
 **Commit**: `same delivery commit`

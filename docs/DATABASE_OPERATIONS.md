@@ -59,6 +59,7 @@ npm test -- databaseMigrations.test.ts
 - `conversations.active_leaf_message_id` 不设循环外键；Sprint 1.2 Repository 已在事务中验证节点属于同一会话、确实没有子节点，并用 `version` 防止并发覆盖。
 - `conversation_imports` 保存来源会话收据；`(user_id, source, source_id)` 唯一约束保证旧数据重复提交不会复制会话。
 - JSONB 仅用于结构开放的 `citations`；角色、状态和模式均使用 PostgreSQL Enum。
+- `persona_profiles` 与 `users` 一对一，使用整数范围约束保存五个表达维度；任意 Persona Prompt 不进入数据库，更新使用 `version` 乐观锁。
 
 ## 6. 回滚注意事项
 

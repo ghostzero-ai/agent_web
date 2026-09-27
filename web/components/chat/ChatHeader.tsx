@@ -44,6 +44,12 @@ export function ChatHeader({
       <nav className="flex items-center gap-2 text-xs font-medium text-zinc-500 sm:gap-4 dark:text-zinc-400">
         {actions}
         <AppLink
+          href="/persona"
+          className="hidden transition-colors hover:text-zinc-900 sm:inline dark:hover:text-zinc-200"
+        >
+          人格
+        </AppLink>
+        <AppLink
           href="/memory"
           className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
         >

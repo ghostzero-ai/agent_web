@@ -8,10 +8,12 @@ import { getActiveMessages } from "@/lib/conversation/tree";
 import { coreModeRegistry } from "./modeRegistry";
 import { type MemoryItem } from "./memory";
 import { corePolicyPromptMessage } from "./policyLayer";
+import {
+  buildPersonaInstruction,
+  DEFAULT_PERSONA_PROFILE,
+} from "@/lib/persona/personaProfile";
 
-export const DEFAULT_PERSONA = `你是 AI 学习伴侣，一个智能学习助手。
-你可以帮助用户学习新知识、解答问题、总结对话内容。
-请使用中文回复，保持友好、专业的态度。`;
+export const DEFAULT_PERSONA = buildPersonaInstruction(DEFAULT_PERSONA_PROFILE);
 
 type BuildParams = {
   session: Session;
