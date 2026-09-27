@@ -60,6 +60,7 @@ npm test -- databaseMigrations.test.ts
 - `conversation_imports` 保存来源会话收据；`(user_id, source, source_id)` 唯一约束保证旧数据重复提交不会复制会话。
 - JSONB 仅用于结构开放的 `citations`；角色、状态和模式均使用 PostgreSQL Enum。
 - `persona_profiles` 与 `users` 一对一，使用整数范围约束保存五个表达维度；任意 Persona Prompt 不进入数据库，更新使用 `version` 乐观锁。
+- `voice_profiles` 与 `users` 一对一，只保存非秘密的系统音线偏好和百分比参数；不保存回答正文或音频，更新使用 `version` 乐观锁。
 
 ## 6. 回滚注意事项
 

@@ -84,4 +84,4 @@ npm run eval:core
 
 ## 6. 当前主线
 
-Phase 4.1–4.4 已完成主动内容闭环。Phase 5.1–5.2 已完成可信记忆闭环。Phase 5.3 已完成结构化 Persona Profile：服务端保存称呼与五个表达维度，在模型请求前替换客户端 Persona，固定服从事实、安全、引用与高风险策略；Core 3.5 回归仍为 25/25。下一步进入 Phase 5.4 Voice Profile + TTS Provider；语音只作为可失败表达层，不能阻断或改变文字答案。
+Phase 4.1–4.4 已完成主动内容闭环。Phase 5.1–5.2 已完成可信记忆闭环。Phase 5.3 已完成结构化 Persona Profile。Phase 5.4 已完成 Voice Profile 与设备系统 TTS：用户可试听、停止、切换音线，并从聊天中手动朗读；语音只作为可失败表达层，不能阻断或改变文字答案。下一步进入 Phase 5.5 Proactivity Policy，以触发理由、每日预算、安静时段和无负罪感表达约束主动问候。

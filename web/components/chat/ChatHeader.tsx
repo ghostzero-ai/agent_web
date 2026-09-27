@@ -50,6 +50,12 @@ export function ChatHeader({
           人格
         </AppLink>
         <AppLink
+          href="/voice"
+          className="hidden transition-colors hover:text-zinc-900 sm:inline dark:hover:text-zinc-200"
+        >
+          语音
+        </AppLink>
+        <AppLink
           href="/memory"
           className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
         >

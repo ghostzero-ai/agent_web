@@ -169,6 +169,7 @@ describe("chat presentation components", () => {
     expect(html).toContain("第二版回答");
     expect(html).toContain("2/2");
     expect(html).toContain("重新生成");
+    expect(html).toContain("朗读回答");
   });
 
   it("renders persisted citations as safe clickable source cards", () => {

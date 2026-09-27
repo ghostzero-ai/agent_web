@@ -1,6 +1,7 @@
 import type { ChatMessage } from "@/lib/config";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { ResponseVerificationPanel } from "@/components/chat/ResponseVerificationPanel";
+import { MessageSpeechControl } from "@/components/chat/MessageSpeechControl";
 
 type MessageListProps = {
   hasActiveSession: boolean;
@@ -172,13 +173,19 @@ export function MessageList({
               )}
 
               {message.role === "assistant" && message.id && !loading && (
-                <button
-                  type="button"
-                  onClick={() => onRetry(message.id!)}
-                  className="text-xs text-zinc-400 transition-colors hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-300"
-                >
-                  重新生成
-                </button>
+                <>
+                  <MessageSpeechControl
+                    messageId={message.id}
+                    content={message.content}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onRetry(message.id!)}
+                    className="text-xs text-zinc-400 transition-colors hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-300"
+                  >
+                    重新生成
+                  </button>
+                </>
               )}
             </div>
           </div>

@@ -36,8 +36,12 @@ X-Request-Id: <uuid>
 | `POST` | `/api/v1/imports/local-storage` | 预检或确认导入浏览器旧会话 |
 | `GET` | `/api/v1/persona-profile` | 读取当前用户的结构化人格设置；不存在时创建默认值 |
 | `PATCH` | `/api/v1/persona-profile` | 以乐观版本锁更新人格设置 |
+| `GET` | `/api/v1/voice-profile` | 读取当前用户的 Voice Profile；不存在时创建默认值 |
+| `PATCH` | `/api/v1/voice-profile` | 以乐观版本锁更新系统音线、语言、语速、音高和音量 |
 
 Persona Profile 只接受名称、可选用户称呼，以及 `warmth`、`humor`、`directness`、`verbosity`、`initiative` 五个 0–100 整数。API 不接受自定义 Prompt 或硬边界文本；`initiative` 只表示当前对话中的引导强度，不代表后台主动联系。
+
+Voice Profile 当前只接受 `provider=system`、可空的设备 `voiceId`、BCP 47 风格语言标签，以及 `rate=50..200`、`pitch=0..200`、`volume=0..100` 整数百分比和 `expectedVersion`。音线枚举与播放发生在当前设备，服务端不接收回答正文或音频；设备缺少已保存音线时客户端按语言回退。
 
 ### 创建会话
 

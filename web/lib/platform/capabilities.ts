@@ -25,11 +25,24 @@ export interface FileExportAdapter {
 export type SpeechRequest = {
   text: string;
   voiceProfileId: string;
+  language?: string;
   rate?: number;
   pitch?: number;
+  volume?: number;
+};
+
+export type SpeechVoiceOption = {
+  id: string;
+  name: string;
+  language: string;
+  local: boolean;
+  default: boolean;
 };
 
 export interface SpeechOutputAdapter {
+  readonly provider: "system";
+  isSupported(): boolean;
+  listVoices(): Promise<SpeechVoiceOption[]>;
   speak(request: SpeechRequest): Promise<void>;
   stop(): Promise<void>;
 }

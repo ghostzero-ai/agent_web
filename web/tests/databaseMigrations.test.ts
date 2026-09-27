@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(19);
+      expect(migrations).toHaveLength(20);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -83,6 +83,7 @@ describe("database migrations", () => {
         "scheduled_tasks",
         "task_runs",
         "users",
+        "voice_profiles",
       ]);
 
       const userResult = await pglite.query<{ id: string }>(`
@@ -157,6 +158,32 @@ describe("database migrations", () => {
       await expect(
         pglite.query(
           `UPDATE persona_profiles SET humor = 101 WHERE user_id = $1`,
+          [userResult.rows[0].id],
+        ),
+      ).rejects.toThrow();
+
+      const voiceProfile = await pglite.query<{
+        provider: string;
+        language: string;
+        rate: number;
+        pitch: number;
+        volume: number;
+      }>(
+        `INSERT INTO voice_profiles (user_id)
+         VALUES ($1)
+         RETURNING provider, language, rate, pitch, volume`,
+        [userResult.rows[0].id],
+      );
+      expect(voiceProfile.rows[0]).toEqual({
+        provider: "system",
+        language: "zh-CN",
+        rate: 100,
+        pitch: 100,
+        volume: 100,
+      });
+      await expect(
+        pglite.query(
+          `UPDATE voice_profiles SET rate = 201 WHERE user_id = $1`,
           [userResult.rows[0].id],
         ),
       ).rejects.toThrow();
@@ -353,6 +380,14 @@ describe("database migrations", () => {
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[19].id,
+      );
+      const voiceAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public' AND tablename = 'voice_profiles'
+      `);
+      expect(voiceAfterRollback.rows).toEqual([]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[18].id,
       );
@@ -570,6 +605,7 @@ describe("database migrations", () => {
         migrations[16].id,
         migrations[17].id,
         migrations[18].id,
+        migrations[19].id,
       ]);
     },
     15_000,
@@ -615,6 +651,7 @@ describe("database migrations", () => {
       migrations[16].id,
       migrations[17].id,
       migrations[18].id,
+      migrations[19].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

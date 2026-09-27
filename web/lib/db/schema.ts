@@ -235,6 +235,43 @@ export const personaProfiles = pgTable(
   ],
 );
 
+export const voiceProfiles = pgTable(
+  "voice_profiles",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull().default("system"),
+    voiceId: text("voice_id"),
+    language: text("language").notNull().default("zh-CN"),
+    rate: integer("rate").notNull().default(100),
+    pitch: integer("pitch").notNull().default(100),
+    volume: integer("volume").notNull().default(100),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check("voice_profiles_provider_supported", sql`${table.provider} = 'system'`),
+    check(
+      "voice_profiles_voice_id_nonempty",
+      sql`${table.voiceId} IS NULL OR length(btrim(${table.voiceId})) > 0`,
+    ),
+    check(
+      "voice_profiles_language_nonempty",
+      sql`length(btrim(${table.language})) > 0`,
+    ),
+    check("voice_profiles_rate_range", sql`${table.rate} BETWEEN 50 AND 200`),
+    check("voice_profiles_pitch_range", sql`${table.pitch} BETWEEN 0 AND 200`),
+    check("voice_profiles_volume_range", sql`${table.volume} BETWEEN 0 AND 100`),
+    check("voice_profiles_version_positive", sql`${table.version} > 0`),
+  ],
+);
+
 export const reflectionPreferences = pgTable(
   "reflection_preferences",
   {
@@ -884,6 +921,7 @@ export const notificationDeliveries = pgTable("notification_deliveries", {
 export type UserRecord = typeof users.$inferSelect;
 export type ReadingProfileRecord = typeof readingProfiles.$inferSelect;
 export type PersonaProfileRecord = typeof personaProfiles.$inferSelect;
+export type VoiceProfileRecord = typeof voiceProfiles.$inferSelect;
 export type ReflectionPreferenceRecord = typeof reflectionPreferences.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;

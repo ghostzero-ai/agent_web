@@ -4,6 +4,30 @@
 
 ---
 
+## Phase 5.4 — Voice Profile 与可失败 TTS
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增服务端 `voice_profiles` 与 `/api/v1/voice-profile`，保存系统 Provider、设备音线 ID、语言、语速、音高、音量，并使用乐观版本锁处理多端编辑。
+- 新增 `/voice` 响应式设置页与 APK Hash 路由，可枚举当前设备音线、刷新、试听、停止与保存；换设备缺少同一音线时按语言安全回退。
+- 首个 `SpeechOutputAdapter` 使用免费的 Web Speech/设备系统语音，不引入第三方 TTS 费用，也不把回答正文上传到额外语音服务。
+- 聊天中完成的 Assistant 回答新增“朗读/停止朗读”；播放时才读取最新 Voice Profile，TTS 加载或播放失败只显示局部错误，不改变、不删除文字答案。
+- 新增 Speech Policy：移除 URL/Markdown 装饰，把公式标记为“公式”、省略代码块，单次限制 5000 字符并按句切分，可随时停止。
+- 修复浏览器执行 `speechSynthesis.cancel()` 却不派发结束事件时的悬挂边界：Adapter 主动结算正在播放的请求。
+- 新增可回滚迁移 `0019_voice_profile`，覆盖数据库约束、Repository/API、朗读策略、设备 Provider、组件与移动端页面闭环测试。
+
+### 当前边界
+
+- 系统音线由当前浏览器、Android WebView 或卓易通环境提供，同一个音线 ID 不保证跨设备存在；真实华为设备是否暴露 Web Speech 仍需真机确认。
+- 当前仅手动朗读，不自动播放；没有音频文件、服务端音频缓存、声音克隆或第三方 TTS API。稳定云端音线等有明确 Provider 与费用选择后再接入。
+- 本地系统语音无法可靠表达统一“情绪强度”，因此本阶段不保存一个名不副实的情绪参数；后续服务端 Provider 可通过版本化 Profile 扩展。
+
+### 下一步
+
+- Phase 5.5：实现 Proactivity Policy 与主动问候，以触发理由、每日预算、安静时段和无负罪感表达约束主动联系。
+
 ## Phase 5.3 — Persona Profile
 
 **Commit**: `same delivery commit`

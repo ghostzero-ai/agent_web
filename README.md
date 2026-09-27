@@ -60,7 +60,7 @@ Database
 * Phase 3：模式、Prompt、专业回答、搜索、引用与轻量质量评测（已完成）
 * Mobile Track：Capacitor Android 与 HarmonyOS 演进
 
-Phase 4 主动内容闭环与 Phase 5.1–5.2 可信记忆闭环已经完成：聊天只会从明确、可能长期有效的陈述中创建带来源和敏感等级的 MemoryCandidate，候选经用户确认后才成为正式记忆；正式记忆可查看来源、编辑、固定、过期、删除和导出。每次回答由服务端基于数据库中的真实用户消息检索最多 5 条、约 500 Token 的相关记忆，并原子记录实际使用情况，不会把全部个人资料无差别发送给模型。下一步进入 Phase 5.3 Persona Profile。Mobile M1.3 保留现有 APK 与真机验收清单，只修阻断使用的问题。
+Phase 4 主动内容闭环与 Phase 5.1–5.4 已完成：可信记忆经用户确认后才保存并按相关性注入；结构化 Persona Profile 只改变表达，不覆盖事实与安全策略；Voice Profile 可保存设备音线、试听、停止、切换并朗读聊天答案，语音失败不会影响文字结果。下一步进入 Phase 5.5 Proactivity Policy。Mobile M1.3 保留现有 APK 与真机验收清单，只修阻断使用的问题。
 
 当前优先级、修订后的交付顺序与防偏移规则见 `docs/PRODUCT_MAINLINE_GUIDE.md`。运行 `npm run eval:core` 可查看模式边界、专业回答与总回归分数；该分数只表示确定性契约没有回归，不代表模型事实正确率。
 
