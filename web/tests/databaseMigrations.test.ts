@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(16);
+      expect(migrations).toHaveLength(17);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -64,10 +64,12 @@ describe("database migrations", () => {
         ORDER BY tablename
       `);
       expect(tableResult.rows.map((row) => row.tablename)).toEqual([
-      "conversation_imports",
-      "conversations",
-      "inbox_items",
-      "messages",
+        "conversation_imports",
+        "conversations",
+        "inbox_items",
+        "memory_candidates",
+        "memory_items",
+        "messages",
         "model_credentials",
         "notification_deliveries",
         "notification_preferences",
@@ -328,6 +330,15 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[16].id,
+      );
+      const memoryTablesAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename IN ('memory_candidates', 'memory_items')
+      `);
+      expect(memoryTablesAfterRollback.rows).toEqual([]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[15].id,
       );
       const reflectionAfterRollback = await pglite.query<{ tablename: string }>(`
@@ -505,6 +516,7 @@ describe("database migrations", () => {
         migrations[13].id,
         migrations[14].id,
         migrations[15].id,
+        migrations[16].id,
       ]);
     },
     15_000,
@@ -547,6 +559,7 @@ describe("database migrations", () => {
       migrations[13].id,
       migrations[14].id,
       migrations[15].id,
+      migrations[16].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

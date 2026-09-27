@@ -97,6 +97,9 @@ export type ReflectionQuestionType =
   | "alternative"
   | "future"
   | "action";
+export type MemoryCandidateKind = "preference" | "goal" | "profile" | "fact";
+export type MemoryCandidateStatus = "pending" | "confirmed" | "rejected";
+export type MemorySensitivity = "low" | "personal" | "sensitive";
 
 export type ReflectionQuestionSignal = {
   question: string;
@@ -295,6 +298,110 @@ export const messages = pgTable(
       table.createdAt,
     ),
     index("messages_parent_idx").on(table.parentMessageId),
+  ],
+);
+
+export const memoryCandidates = pgTable(
+  "memory_candidates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sourceConversationId: uuid("source_conversation_id").references(
+      () => conversations.id,
+      { onDelete: "set null" },
+    ),
+    sourceMessageId: uuid("source_message_id").references(() => messages.id, {
+      onDelete: "set null",
+    }),
+    kind: text("kind").$type<MemoryCandidateKind>().notNull(),
+    content: text("content").notNull(),
+    evidenceQuote: text("evidence_quote").notNull(),
+    sensitivity: text("sensitivity").$type<MemorySensitivity>().notNull(),
+    confidence: integer("confidence").notNull(),
+    reason: text("reason").notNull(),
+    status: text("status")
+      .$type<MemoryCandidateStatus>()
+      .notNull()
+      .default("pending"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("memory_candidates_source_message_unique").on(
+      table.sourceMessageId,
+    ),
+    index("memory_candidates_user_status_created_idx").on(
+      table.userId,
+      table.status,
+      table.createdAt,
+    ),
+    check(
+      "memory_candidates_kind_supported",
+      sql`${table.kind} IN ('preference', 'goal', 'profile', 'fact')`,
+    ),
+    check(
+      "memory_candidates_sensitivity_supported",
+      sql`${table.sensitivity} IN ('low', 'personal', 'sensitive')`,
+    ),
+    check(
+      "memory_candidates_status_supported",
+      sql`${table.status} IN ('pending', 'confirmed', 'rejected')`,
+    ),
+    check(
+      "memory_candidates_confidence_range",
+      sql`${table.confidence} BETWEEN 0 AND 100`,
+    ),
+    check("memory_candidates_version_positive", sql`${table.version} > 0`),
+    check(
+      "memory_candidates_resolution_state",
+      sql`(${table.status} = 'pending' AND ${table.resolvedAt} IS NULL) OR (${table.status} IN ('confirmed', 'rejected') AND ${table.resolvedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const memoryItems = pgTable(
+  "memory_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    candidateId: uuid("candidate_id")
+      .notNull()
+      .references(() => memoryCandidates.id, { onDelete: "restrict" }),
+    sourceConversationId: uuid("source_conversation_id").references(
+      () => conversations.id,
+      { onDelete: "set null" },
+    ),
+    sourceMessageId: uuid("source_message_id").references(() => messages.id, {
+      onDelete: "set null",
+    }),
+    kind: text("kind").$type<MemoryCandidateKind>().notNull(),
+    content: text("content").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("memory_items_candidate_unique").on(table.candidateId),
+    index("memory_items_user_created_idx").on(table.userId, table.createdAt),
+    check(
+      "memory_items_kind_supported",
+      sql`${table.kind} IN ('preference', 'goal', 'profile', 'fact')`,
+    ),
+    check("memory_items_version_positive", sql`${table.version} > 0`),
   ],
 );
 
@@ -682,6 +789,8 @@ export type ReadingProfileRecord = typeof readingProfiles.$inferSelect;
 export type ReflectionPreferenceRecord = typeof reflectionPreferences.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
+export type MemoryCandidateRecord = typeof memoryCandidates.$inferSelect;
+export type MemoryItemRecord = typeof memoryItems.$inferSelect;
 export type PromptRunRecord = typeof promptRuns.$inferSelect;
 export type ConversationImportRecord = typeof conversationImports.$inferSelect;
 export type ModelCredentialRecord = typeof modelCredentials.$inferSelect;

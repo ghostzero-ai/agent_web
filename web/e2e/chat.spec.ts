@@ -201,6 +201,31 @@ async function installServerDataMock(page: Page) {
     }
     return route.fulfill({ status: 405, body: "{}" });
   });
+
+  await page.route("**/api/v1/memory-candidates/extract", async (route) => {
+    const input = route.request().postDataJSON() as {
+      conversationId: string;
+      messageId: string;
+    };
+    const source = conversations
+      .get(input.conversationId)
+      ?.messages.find((message) => message.id === input.messageId);
+    const isExplicit = source?.content.startsWith("请记住：") ?? false;
+    return respond(
+      route,
+      isExplicit
+        ? {
+            candidate: {
+              id: crypto.randomUUID(),
+              status: "pending",
+              content: source!.content.slice(4),
+            },
+            created: true,
+          }
+        : { candidate: null, created: false },
+      isExplicit ? 201 : 200,
+    );
+  });
 }
 
 test("chat session lifecycle survives reloads", async ({ page }) => {
@@ -313,6 +338,32 @@ test("persists the selected conversation mode across reloads", async ({ page }) 
   await page.reload();
   await expect(page.getByRole("combobox", { name: "对话模式" })).toHaveValue(
     "entertainment",
+  );
+});
+
+test("offers review instead of silently saving an explicit memory", async ({ page }) => {
+  await installServerDataMock(page);
+  await page.route("**/api/v1/model/stream", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        'event: meta\ndata: {"model":"e2e-model"}\n\n',
+        'event: delta\ndata: {"text":"好的，我会先请你确认。"}\n\n',
+        "event: done\ndata: {}\n\n",
+      ].join(""),
+    }),
+  );
+  await page.goto("/chat");
+  await page.getByRole("button", { name: "+ 新建对话" }).click();
+  const composer = page.getByPlaceholder("请输入你的问题");
+  await composer.fill("请记住：我更喜欢先看例题再学理论");
+  await composer.press("Enter");
+
+  await expect(page.getByText("尚未保存", { exact: false })).toBeVisible();
+  await expect(page.getByRole("link", { name: "查看并确认" })).toHaveAttribute(
+    "href",
+    "/memory",
   );
 });
 

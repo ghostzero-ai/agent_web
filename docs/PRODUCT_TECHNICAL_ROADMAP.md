@@ -1243,6 +1243,8 @@ interface ProactivityPolicy {
 临时信息：只进入 Conversation Summary
 ```
 
+Phase 5.1 的落地策略比上图更保守：低风险候选也不自动保存，全部先进入可见的 `pending` 状态；积累真实使用数据并建立记忆管理与检索评测后，再决定是否开放分级自动保存。
+
 ### 15.2 检索流程
 
 每次只检索与当前任务有关的记忆，而不是把最近十条记忆全部塞进 Prompt：
@@ -1745,7 +1747,7 @@ toolName, errorCode
 
 | Sprint | 内容 | 验收 |
 |---|---|---|
-| 5.1 | MemoryCandidate 与确认机制 | 不再直接把用户问题记为事实 |
+| 5.1 ✅ | MemoryCandidate 与确认机制 | 已完成：高精度规则只提出稳定陈述候选，保存来源、证据、敏感等级与置信度；用户可修改后确认或拒绝，只有确认事务写入正式记忆，问题不会直接成为 fact |
 | 5.2 | Memory 管理页面与相关性检索 | 可查看、编辑、删除并立即生效 |
 | 5.3 | Persona Profile | 语气稳定且不影响专业评测 |
 | 5.4 | Voice Profile + TTS Provider | 可试听、停止和切换音线，TTS 失败不影响文字答案 |
@@ -1979,7 +1981,7 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
 
-当前优先级遵循产品主线指导。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.5 已封版，Phase 4.1–4.4 已完成个人简报、跨期去重、反馈、书籍资料、阅读画像与可控思考问题。下一步进入 Phase 5.1：实现 MemoryCandidate 与显式确认机制；在用户确认前，候选信息不得进入长期记忆。
+当前优先级遵循产品主线指导。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.5、Phase 4.1–4.4 与 Phase 5.1 已完成。MemoryCandidate 在用户确认前不会进入正式记忆，已确认记忆暂不批量注入 Prompt。下一步进入 Phase 5.2：完成记忆管理和按任务相关性检索，避免把全部记忆无差别发送给模型。
 7. 完成新闻、书籍与 Reflection 的最小闭环后，实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
 8. 用背书与解题两个第一方学习活动验证 Capability Gateway；先让插件解决真实学习需求，再考虑冻结 Plugin API v1。
 9. 建立独立 GameSession 后再实现角色扮演与 AI 跑团，禁止把虚构状态混入普通长期记忆；娱乐规则包可作为 Plugin API 冻结前的补充验证。

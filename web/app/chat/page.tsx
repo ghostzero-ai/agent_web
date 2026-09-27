@@ -8,7 +8,7 @@ import { MessageList } from "@/components/chat/MessageList";
 import { ModeSelector } from "@/components/chat/ModeSelector";
 import { PromptExportControl } from "@/components/chat/PromptExportControl";
 import { SessionSidebar } from "@/components/chat/SessionSidebar";
-import { getMemory } from "@/lib/agent/memory";
+import { AppLink } from "@/components/platform/AppLink";
 import type { CoreModeId } from "@/lib/agent/modeRegistry";
 import { buildAgentPrompt } from "@/lib/agent/promptBuilder";
 import { applyRetryReply, applySendReply, sendChatMessage } from "@/lib/ai/chatService";
@@ -30,6 +30,7 @@ import {
   type ServerSession,
   updateServerSession,
 } from "@/lib/api/conversationClient";
+import { extractMemoryCandidateFromMessage } from "@/lib/api/memoryCandidateClient";
 import {
   clearLegacySessionsAfterImport,
   importLegacySessions,
@@ -71,6 +72,7 @@ export default function ChatPage() {
     string | null
   >(null);
   const [error, setError] = useState<string | null>(null);
+  const [memoryCandidateReady, setMemoryCandidateReady] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [promptEnvelopes, setPromptEnvelopes] = useState<
     Record<string, PromptEnvelope>
@@ -217,6 +219,18 @@ export default function ChatPage() {
         content: trimmed,
       });
       const userMessage = serverRecordToMessage(userResult.message);
+      void extractMemoryCandidateFromMessage({
+        conversationId: sessionId,
+        messageId: userResult.message.id,
+      })
+        .then((result) => {
+          if (result.candidate?.status === "pending") {
+            setMemoryCandidateReady(true);
+          }
+        })
+        .catch(() => {
+          // Candidate extraction is advisory and must never block the answer.
+        });
       persistedUserSession = {
         ...appendMessage(activeSession, userMessage),
         updatedAt: new Date(userResult.conversation.updatedAt).getTime(),
@@ -240,7 +254,7 @@ export default function ChatPage() {
 
       const prompt = buildAgentPrompt({
         session: persistedUserSession,
-        memory: getMemory(),
+        memory: [],
       });
       const provisionalId = crypto.randomUUID();
       let citations: MessageCitation[] = [];
@@ -319,7 +333,7 @@ export default function ChatPage() {
     setError(null);
 
     try {
-      const prompt = buildAgentPrompt({ session: retrySession, memory: getMemory() });
+      const prompt = buildAgentPrompt({ session: retrySession, memory: [] });
       let citations: MessageCitation[] = [];
       let verification: ResponseVerification | null = null;
       const reply = await sendChatMessage(
@@ -523,6 +537,14 @@ export default function ChatPage() {
 
       {error && (
         <ChatErrorBanner message={error} onDismiss={() => setError(null)} />
+      )}
+
+      {memoryCandidateReady && (
+        <div role="status" className="flex flex-wrap items-center justify-center gap-2 border-b border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+          <span>发现一条可能值得长期记住的信息，尚未保存。</span>
+          <AppLink href="/memory" className="font-medium underline underline-offset-2">查看并确认</AppLink>
+          <button type="button" onClick={() => setMemoryCandidateReady(false)} className="text-xs opacity-70 underline">稍后处理</button>
+        </div>
       )}
 
       <div className="flex flex-1 overflow-hidden">
