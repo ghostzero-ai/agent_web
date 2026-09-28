@@ -28,19 +28,27 @@ GOAL:
 
 CURRENT_PHASE:
 
-Phase 4 — Proactive Content Vertical Slice
+Phase 7 — First-party Learning Plugin Validation
 
 ==================================================
 
 CURRENT_TASK:
 
-Phase 4.4 — Reflection Question Quality and Controls
+Phase 7.1 — Plugin Manifest, Registry and Compatibility Check
 
 ==================================================
 
 NEXT_TASK:
 
-Phase 5.1 — Memory Candidate Pipeline
+Phase 7.2 — Capability Gateway, Isolated Storage, Quotas and Audit
+
+==================================================
+
+DEFERRED_RELEASE_GATE:
+
+Phase 5.6 — Emotional Support Safety Evaluation
+
+在学习插件、娱乐模式和关键移动能力完成后统一执行，不阻塞当前功能主线。
 
 ==================================================
 
