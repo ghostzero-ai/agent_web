@@ -101,6 +101,7 @@ export type ReflectionQuestionType =
 export type MemoryCandidateKind = "preference" | "goal" | "profile" | "fact";
 export type MemoryCandidateStatus = "pending" | "confirmed" | "rejected";
 export type MemorySensitivity = "low" | "personal" | "sensitive";
+export type PluginInstallationStatus = "enabled" | "disabled" | "incompatible";
 
 export type ProactivityPolicySnapshot = {
   maxMessagesPerDay: number;
@@ -365,6 +366,49 @@ export const proactivityPreferences = pgTable(
       sql`jsonb_typeof(${table.allowedReasons}) = 'array' AND ${table.allowedReasons} <@ '["goal_followup", "checkin"]'::jsonb`,
     ),
     check("proactivity_preferences_version_positive", sql`${table.version} > 0`),
+  ],
+);
+
+export const pluginInstallations = pgTable(
+  "plugin_installations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id").notNull(),
+    installedVersion: text("installed_version").notNull(),
+    status: text("status")
+      .$type<PluginInstallationStatus>()
+      .notNull()
+      .default("disabled"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("plugin_installations_user_plugin_unique").on(
+      table.userId,
+      table.pluginId,
+    ),
+    index("plugin_installations_user_status_idx").on(table.userId, table.status),
+    check(
+      "plugin_installations_plugin_id_nonempty",
+      sql`length(btrim(${table.pluginId})) BETWEEN 3 AND 100`,
+    ),
+    check(
+      "plugin_installations_version_nonempty",
+      sql`length(btrim(${table.installedVersion})) BETWEEN 5 AND 40`,
+    ),
+    check(
+      "plugin_installations_status_supported",
+      sql`${table.status} IN ('enabled', 'disabled', 'incompatible')`,
+    ),
+    check("plugin_installations_version_positive", sql`${table.version} > 0`),
   ],
 );
 
@@ -1032,6 +1076,7 @@ export type VoiceProfileRecord = typeof voiceProfiles.$inferSelect;
 export type ReflectionPreferenceRecord = typeof reflectionPreferences.$inferSelect;
 export type ProactivityPreferenceRecord = typeof proactivityPreferences.$inferSelect;
 export type ProactivityLedgerRecord = typeof proactivityLedger.$inferSelect;
+export type PluginInstallationRecord = typeof pluginInstallations.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type MemoryCandidateRecord = typeof memoryCandidates.$inferSelect;

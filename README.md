@@ -60,7 +60,7 @@ Database
 * Phase 3：模式、Prompt、专业回答、搜索、引用与轻量质量评测（已完成）
 * Mobile Track：Capacitor Android 与 HarmonyOS 演进
 
-Phase 4 主动内容闭环与 Phase 5.1–5.5 已完成：可信记忆、Persona、设备语音与有约束的主动问候已经形成闭环。当前先完成整体功能，下一步进入 Phase 7.1 第一方插件注册、启停与兼容性检查，并以背书和解题验证扩展接口；Phase 5.6 情绪支持安全评测延后为发布前统一封版。Mobile M1.3 保留现有 APK 与真机验收清单，只修阻断使用的问题。
+Phase 4 主动内容闭环、Phase 5.1–5.5 与 Phase 7.1 已完成：可信记忆、Persona、设备语音、有约束的主动问候，以及第一方插件发现、启停和兼容性检查已经落地。`/plugins` 当前登记背书与解题两个插件基础；启用只保存选择，不授予核心能力，完整活动分别在 7.3/7.4 实现。下一步进入 Phase 7.2 Capability Gateway、隔离存储、配额与审计；Phase 5.6 安全评测保留为发布前封版。
 
 当前优先级、修订后的交付顺序与防偏移规则见 `docs/PRODUCT_MAINLINE_GUIDE.md`。运行 `npm run eval:core` 可查看模式边界、专业回答与总回归分数；该分数只表示确定性契约没有回归，不代表模型事实正确率。
 

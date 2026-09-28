@@ -1,26 +1,23 @@
 import { AppLink } from "@/components/platform/AppLink";
-import { ReflectionPreferenceManager } from "@/components/reflection/ReflectionPreferenceManager";
+import { PluginManager } from "@/components/plugins/PluginManager";
 
 export const dynamic = "force-dynamic";
 
-export default function ReflectionPage() {
+export default function PluginsPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       <header className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 sm:px-6 dark:border-zinc-800 dark:bg-zinc-950">
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold text-zinc-950 dark:text-zinc-50">思考问题</h1>
-          <p className="hidden text-xs text-zinc-500 sm:block">控制问题的目标、数量、挑战程度与避谈边界</p>
+          <h1 className="truncate text-lg font-semibold text-zinc-950 dark:text-zinc-50">学习插件</h1>
+          <p className="hidden text-xs text-zinc-500 sm:block">第一方 Manifest、兼容性与启停状态</p>
         </div>
         <nav className="flex shrink-0 gap-3 text-xs font-medium text-zinc-500 sm:gap-4 sm:text-sm">
-          <AppLink href="/plugins" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">插件</AppLink>
-          <AppLink href="/inbox" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">收件箱</AppLink>
+          <AppLink href="/reflection" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">思考</AppLink>
           <AppLink href="/tasks" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">任务</AppLink>
           <AppLink href="/chat" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">对话</AppLink>
         </nav>
       </header>
-      <main className="px-4 py-6 sm:px-6 sm:py-10">
-        <ReflectionPreferenceManager />
-      </main>
+      <main className="px-4 py-6 sm:px-6 sm:py-10"><PluginManager /></main>
     </div>
   );
 }

@@ -62,6 +62,12 @@ export function ChatHeader({
           主动
         </AppLink>
         <AppLink
+          href="/plugins"
+          className="hidden transition-colors hover:text-zinc-900 lg:inline dark:hover:text-zinc-200"
+        >
+          插件
+        </AppLink>
+        <AppLink
           href="/memory"
           className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
         >

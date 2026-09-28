@@ -63,6 +63,7 @@ npm test -- databaseMigrations.test.ts
 - `voice_profiles` 与 `users` 一对一，只保存非秘密的系统音线偏好和百分比参数；不保存回答正文或音频，更新使用 `version` 乐观锁。
 - `proactivity_preferences` 与 `users` 一对一，保存默认关闭的原因白名单、每日预算、冷却期、未互动阈值和暂停时间，更新使用 `version` 乐观锁。
 - `proactivity_ledger` 只记录真正创建的主动问候、触发引用、可见理由与当时策略快照；不复制目标正文。`inbox_items` 保存用户实际阅读的问候正文及主动原因元数据。
+- `plugin_installations` 只保存当前用户对仓库内第一方插件的启停状态、当时安装版本和乐观锁版本；Manifest 与可执行代码不存入数据库，能力授权和插件数据属于 Phase 7.2。
 
 ## 6. 回滚注意事项
 

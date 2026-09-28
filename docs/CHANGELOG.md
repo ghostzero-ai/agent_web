@@ -4,6 +4,29 @@
 
 ---
 
+## Phase 7.1 — 第一方 Plugin Manifest、Registry 与兼容性
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增严格 Zod Manifest v1，声明插件 ID、版本、实验 Plugin API 范围、类型、来源、贡献和未来能力请求；未知字段、重复贡献、重复 ID 与不规范版本均安全拒绝。
+- 新增隔离式 Registry：单个无效 Manifest 不影响其他插件或核心功能；不兼容插件仍可见，但被标记并禁止启用。
+- 登记“背书训练”和“解题训练”两个随应用发布的第一方 Activity 插件基础，明确完整活动分别属于 Phase 7.3 与 7.4。
+- 新增 `plugin_installations` 与 `/api/v1/plugins` 启停接口；首次写入和多端修改均使用版本 fencing，数据库不保存 Manifest 或任意插件代码。
+- 新增 `/plugins` Web/APK 共享页面，展示来源、Manifest/API 版本、兼容状态、声明能力与启停状态；页面明确“声明不等于授权”。
+- 新增可回滚迁移 `0021_plugin_registry`、ADR-054，以及 Manifest、Registry、Repository、API、迁移、组件和移动端 E2E 测试。
+
+### 当前边界
+
+- 只加载编译进仓库的第一方 Manifest；没有上传、安装包、网络市场、动态代码、热重载或 Android 原生扩展。
+- 启用只保存选择。Phase 7.2 前插件不能调用模型、数据库、网络、任务、记忆、文件或通知，背书/解题活动页面也尚未开放。
+- Plugin API 当前为实验 `0.1.0`，不会在两个真实插件验证完成前冻结为 v1。
+
+### 下一步
+
+- Phase 7.2：实现 Capability Gateway、隔离存储、配额与审计，让插件只能通过显式授权的结构化能力工作。
+
 ## 2026-09-28 — 功能优先的主线顺序调整
 
 - Phase 5.6 情绪支持安全评测保留为必须完成的发布前门槛，但不再阻塞学习插件、娱乐模式与关键移动能力的开发。

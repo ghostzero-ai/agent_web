@@ -6,7 +6,7 @@
 
 ## 当前架构
 
-当前 APK 内置由 Vite 构建的本地 React Client 与 Capacitor Bridge，不再通过 `server.url` 加载远程网页。Chat、Task、Inbox、通知、主动问候与凭据页面复用 Web 端组件，通过共享 API Client 调用笔记本上的 Next.js `/api/v1/*`；模型密钥、数据库、Scheduler 与 Proactivity Worker 仍只存在服务端。
+当前 APK 内置由 Vite 构建的本地 React Client 与 Capacitor Bridge，不再通过 `server.url` 加载远程网页。Chat、Task、Inbox、通知、主动问候、学习插件与凭据页面复用 Web 端组件，通过共享 API Client 调用笔记本上的 Next.js `/api/v1/*`；模型密钥、数据库、Scheduler、Plugin Registry 与 Worker 仍只存在服务端。
 
 移动端使用 Hash Router，本地界面即使暂时连不上笔记本也能启动并显示连接诊断。需要服务端事实数据或模型的操作仍必须联网；本地 Bundle 不是数据库副本，也不伪造离线写入成功。旧 remote-shell 只保留为显式 `spike` 兼容工具。
 

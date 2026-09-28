@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(21);
+      expect(migrations).toHaveLength(22);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -75,6 +75,7 @@ describe("database migrations", () => {
         "notification_deliveries",
         "notification_preferences",
         "persona_profiles",
+        "plugin_installations",
         "proactivity_ledger",
         "proactivity_preferences",
         "prompt_runs",
@@ -139,6 +140,29 @@ describe("database migrations", () => {
           `INSERT INTO task_runs (task_id, scheduled_for)
            VALUES ($1, '2030-01-01T01:00:00Z')`,
           [taskResult.rows[0].id],
+        ),
+      ).rejects.toThrow();
+
+      const pluginInstallation = await pglite.query<{
+        status: string;
+        version: number;
+      }>(
+        `INSERT INTO plugin_installations (
+           user_id, plugin_id, installed_version, status
+         ) VALUES ($1, 'study.memorization', '0.1.0', 'enabled')
+         RETURNING status, version`,
+        [userResult.rows[0].id],
+      );
+      expect(pluginInstallation.rows[0]).toEqual({
+        status: "enabled",
+        version: 1,
+      });
+      await expect(
+        pglite.query(
+          `UPDATE plugin_installations
+           SET status = 'unknown'
+           WHERE user_id = $1`,
+          [userResult.rows[0].id],
         ),
       ).rejects.toThrow();
 
@@ -412,6 +436,14 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[21].id,
+      );
+      const pluginTableAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public' AND tablename = 'plugin_installations'
+      `);
+      expect(pluginTableAfterRollback.rows).toEqual([]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[20].id,
       );
       const proactivityAfterRollback = await pglite.query<{ tablename: string }>(`
@@ -653,6 +685,7 @@ describe("database migrations", () => {
         migrations[18].id,
         migrations[19].id,
         migrations[20].id,
+        migrations[21].id,
       ]);
     },
     15_000,
@@ -700,6 +733,7 @@ describe("database migrations", () => {
       migrations[18].id,
       migrations[19].id,
       migrations[20].id,
+      migrations[21].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,
