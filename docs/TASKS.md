@@ -138,7 +138,7 @@ Run 的 `workerId + attempt + 未过期 lease` 构成 fencing token。旧 Worker
 
 ## 6. Reminder Worker 与 Durable Inbox
 
-Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler Claim 领取最多 20 个 Run。普通提醒无需调用模型；Agent Prompt Task 直接复用服务端 Credential Vault 与 OpenAI-compatible Provider。个人简报先调用内部 SearXNG，再读取同一任务最近 30 天实际展示的来源签名：规范 URL 相同或标题二元组相似度超过阈值的结果视为同一事件，先在本次结果内部聚类，再做跨期过滤。用户标为“不相关”或“内容重复”的历史简报使用更严格阈值。剩余证据作为不可信数据交给生成器；代码校验固定章节与引用，并附加来源、日期和订阅理由。用户 prompt 作为 `user` 消息发送，固定执行规则才是 `system` 消息。
+Docker Compose 的 `worker` 服务默认每 5 秒扫描一次任务与 Push，每 60 秒评估一次主动问候。Scheduler Claim 每批领取最多 20 个 Run。普通提醒无需调用模型；Agent Prompt Task 直接复用服务端 Credential Vault 与 OpenAI-compatible Provider。个人简报先调用内部 SearXNG，再读取同一任务最近 30 天实际展示的来源签名：规范 URL 相同或标题二元组相似度超过阈值的结果视为同一事件，先在本次结果内部聚类，再做跨期过滤。用户标为“不相关”或“内容重复”的历史简报使用更严格阈值。剩余证据作为不可信数据交给生成器；代码校验固定章节与引用，并附加来源、日期和订阅理由。用户 prompt 作为 `user` 消息发送，固定执行规则才是 `system` 消息。
 
 同批 Run 并发进入执行，避免长模型调用耗尽其他 Run 的租约。AI 生成期间约每个租约三分之一周期续租，并在写结果前再次续租。临时 Provider 错误保留非终态并在租约过期后接管；配置缺失、空输出或超长输出等永久错误写为 `failed`。如果搜索结果全部属于近期已展示事件，Run 写为 `skipped`，不调用模型、不创建 InboxItem、也不规划 Push。成功结果、实际引用来源签名与 Run 终态在同一事务保存，正文最多 100,000 字符。
 
@@ -148,6 +148,7 @@ Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler
 |---|---:|---|
 | `REMINDER_WORKER_ID` | 主机名 + PID | 可留空自动生成 |
 | `REMINDER_POLL_INTERVAL_MS` | `5000` | 1000–300000 毫秒 |
+| `PROACTIVITY_POLL_INTERVAL_MS` | `60000` | 5000–3600000 毫秒 |
 | `SCHEDULER_BATCH_SIZE` | `20` | 1–100 |
 | `SCHEDULER_LEASE_MS` | `60000` | 5000–900000 毫秒 |
 
@@ -158,6 +159,8 @@ Docker Compose 的 `worker` 服务默认每 5 秒扫描一次，使用 Scheduler
 同一个 Worker 循环会把尚未规划的 InboxItem 转换成每设备唯一的持久 Delivery。系统通知总开关默认关闭，安静时段默认是北京时间 22:00–08:00；规划和发送前都会检查静默边界。408、429、5xx 和网络错误指数退避，最多尝试 5 次；404/410 将设备标为失效。
 
 浏览器权限必须由用户在 `/notifications` 明确点击后授予。iOS/iPadOS 16.4+ 还需要先把网站添加到主屏幕，再从主屏幕应用内启用。详细启用、数据流、安全与排障见 `WEB_PUSH.md`。
+
+主动问候由同一 Worker 的独立低频循环触发。它不领取 TaskRun，也不影响用户明确创建的提醒、简报或书籍任务。规则通过后，InboxItem 与 Proactivity Ledger 在同一事务创建，再由既有 Push 循环规划投递；当前问候使用确定性无负罪感模板，不调用模型。访问 `/proactivity` 可启用、降频、暂停一周、关闭某类原因并查看最近为何联系。
 
 ### Android APK 本地提醒
 

@@ -32,6 +32,8 @@ Reminder Worker 生成 InboxItem
 
 网页关闭不会影响投递，因为任务执行和 Push 发送都在独立 Worker 中。笔记本关机、休眠、Docker 停止或网络断开时无法发送；恢复后 Worker 会继续处理数据库中的待投递记录。
 
+Phase 5.5 的主动问候也复用这条 Inbox → Delivery 链路。Proactivity Policy 在创建 InboxItem 前先检查真实原因、暂停、安静时段、每日预算、冷却期和上一条未读状态；Push 失败不会丢失 Inbox 中的问候。主动问候默认关闭，可在 `/proactivity` 管理。这里的预算只约束陪伴问候，不拦截用户明确安排的任务通知。
+
 ## 3. 服务端接口
 
 | 方法 | 路径 | 用途 |

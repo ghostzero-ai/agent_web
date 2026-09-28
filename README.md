@@ -60,7 +60,7 @@ Database
 * Phase 3：模式、Prompt、专业回答、搜索、引用与轻量质量评测（已完成）
 * Mobile Track：Capacitor Android 与 HarmonyOS 演进
 
-Phase 4 主动内容闭环与 Phase 5.1–5.4 已完成：可信记忆经用户确认后才保存并按相关性注入；结构化 Persona Profile 只改变表达，不覆盖事实与安全策略；Voice Profile 可保存设备音线、试听、停止、切换并朗读聊天答案，语音失败不会影响文字结果。下一步进入 Phase 5.5 Proactivity Policy。Mobile M1.3 保留现有 APK 与真机验收清单，只修阻断使用的问题。
+Phase 4 主动内容闭环与 Phase 5.1–5.5 已完成：可信记忆经用户确认后才保存并按相关性注入；结构化 Persona Profile 只改变表达，不覆盖事实与安全策略；Voice Profile 可保存设备音线并朗读聊天答案；Proactivity Policy 默认关闭，只基于已确认目标或用户明确开启的久未互动条件，在通过安静时段、每日预算、冷却期和未读检查后生成可解释问候。下一步进入 Phase 5.6 情绪支持安全评测。Mobile M1.3 保留现有 APK 与真机验收清单，只修阻断使用的问题。
 
 当前优先级、修订后的交付顺序与防偏移规则见 `docs/PRODUCT_MAINLINE_GUIDE.md`。运行 `npm run eval:core` 可查看模式边界、专业回答与总回归分数；该分数只表示确定性契约没有回归，不代表模型事实正确率。
 
@@ -79,7 +79,7 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 
 服务端会话 API 使用 `/api/v1/conversations` 前缀，具体端点、请求格式和并发规则见 `docs/SERVER_DATA_API.md`。当前 API 没有登录鉴权，只能在本机或可信私有网络使用，不得直接暴露到公网。
 
-任务页面位于 `/tasks`，支持单次、每日和每周的普通提醒、AI 定时任务与个人简报。独立 Worker 在网页关闭后仍会通过事务 Claim、唯一 Run、周期续租和并发 fencing 执行到期任务；个人简报复用服务端模型和内部 SearXNG，并在生成前按历史来源聚类去重，结果带来源进入 `/inbox`，并向已授权设备尝试发送系统级 Push。访问 `/notifications` 可管理总开关、安静时段与设备；模型、时区和运行边界见 `docs/TASKS.md`，启用与排障见 `docs/WEB_PUSH.md`。
+任务页面位于 `/tasks`，支持单次、每日和每周的普通提醒、AI 定时任务与个人简报。独立 Worker 在网页关闭后仍会执行到期任务，并按 `/proactivity` 保存的规则检查主动问候；问候与任务结果都先进入 `/inbox`，再向已授权设备尝试 Push。访问 `/notifications` 可管理总开关、安静时段与设备；模型、时区和运行边界见 `docs/TASKS.md`，启用与排障见 `docs/WEB_PUSH.md`。
 
 旧版 `agent_chat_sessions` 的预检、确认、树形迁移、去重和失败恢复规则见 `docs/LEGACY_DATA_IMPORT.md`。
 

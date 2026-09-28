@@ -10,6 +10,7 @@ import { runNotificationWorker } from "../lib/notifications/notificationWorker";
 import { createInboxRepository } from "../lib/repositories/inboxRepository";
 import { createNotificationDeliveryRepository } from "../lib/repositories/notificationDeliveryRepository";
 import { createNotificationRepository } from "../lib/repositories/notificationRepository";
+import { createProactivityRepository } from "../lib/repositories/proactivityRepository";
 import { createReadingProfileRepository } from "../lib/repositories/readingProfileRepository";
 import { createReflectionPreferenceRepository } from "../lib/repositories/reflectionPreferenceRepository";
 import { createSchedulerRepository } from "../lib/repositories/schedulerRepository";
@@ -19,6 +20,7 @@ import { createBookRecommendationGenerator } from "../lib/tasks/bookRecommendati
 import { createPersonalBriefingGenerator } from "../lib/tasks/personalBriefingGenerator";
 import { createReflectionQuestionGenerator } from "../lib/tasks/reflectionQuestionGenerator";
 import { runReminderWorker } from "../lib/tasks/reminderWorker";
+import { runProactivityWorker } from "../lib/proactivity/proactivityWorker";
 
 function integerSetting(
   name: string,
@@ -58,6 +60,12 @@ async function main(): Promise<void> {
     5_000,
     1_000,
     5 * 60_000,
+  );
+  const proactivityPollIntervalMs = integerSetting(
+    "PROACTIVITY_POLL_INTERVAL_MS",
+    60_000,
+    5_000,
+    60 * 60_000,
   );
   const abortController = new AbortController();
   const stop = () => abortController.abort();
@@ -187,6 +195,34 @@ async function main(): Promise<void> {
             console.error(
               JSON.stringify({
                 event: "push-batch-deferred",
+                workerId,
+                error: errorName(error),
+              }),
+            );
+          },
+        },
+      ),
+      runProactivityWorker(
+        { repository: createProactivityRepository(database) },
+        {
+          pollIntervalMs: proactivityPollIntervalMs,
+          signal: abortController.signal,
+          onResult(result) {
+            if (result.status === "created") {
+              console.log(
+                JSON.stringify({
+                  event: "proactivity-contact-created",
+                  workerId,
+                  reason: result.reason,
+                  inboxItemId: result.inboxItemId,
+                }),
+              );
+            }
+          },
+          onError(error) {
+            console.error(
+              JSON.stringify({
+                event: "proactivity-evaluation-deferred",
                 workerId,
                 error: errorName(error),
               }),

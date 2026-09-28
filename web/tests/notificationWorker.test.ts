@@ -50,6 +50,8 @@ function claim(
     body: "不可出现在锁屏上的私人内容",
     briefingSources: null,
     reflectionQuestions: null,
+    proactivityReason: null,
+    proactivityRationale: null,
     feedback: null,
     occurredAt: FIXED_NOW,
     status: "unread",

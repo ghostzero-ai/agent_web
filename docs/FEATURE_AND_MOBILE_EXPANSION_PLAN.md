@@ -136,7 +136,7 @@ Phase 5.4 已落地第一阶段：`VoiceProfile` 在服务端保存 provider、�
 | 场景 | 事实与生成位置 | 首选投递 | 离线能力 |
 |---|---|---|---|
 | 到期普通提醒 | PostgreSQL Task；同步一份近期 occurrence 到设备 | APK Local Notification | 有，设备已同步的提醒可触发 |
-| AI 主动聊天 | 服务端 Proactivity Policy + Worker | Huawei Push / Web Push | 无，生成需要服务端与模型 |
+| AI 主动聊天 | 服务端 Proactivity Policy + Worker | Huawei Push / Web Push | 无；当前规则与模板无需模型，但仍要求服务端 Worker 在线 |
 | 每日新闻/书籍 | 服务端搜索、去重、引用和生成 | Inbox + Huawei Push | 已生成内容可缓存阅读 |
 
 Inbox 始终是持久事实源，Push 和本地通知只是 Delivery。通知失败不能丢失任务结果。
@@ -195,7 +195,7 @@ Capacitor 官方将 `server.url` 定位为 Live Reload，而非生产发布配�
 | 4.1 ✅ | 有来源的个人简报 | Worker 搜索并生成日期、来源、理由和一个思考问题，原子进入 Inbox |
 | 4.2 ✅ | 简报去重与反馈 | 30 天跨期事件聚类、无新事件静默跳过、轻量反馈与任务调整入口已完成 |
 | 4.3–4.4 | 书籍与反思质量 | 推荐目的清晰，问题少而精 |
-| 5.1–5.4 ✅ / 5.5–5.6 | 记忆、Persona、TTS、主动性 | 记忆、Persona 与设备 TTS 已完成；主动联系仍需预算和安静时段控制 |
+| 5.1–5.5 ✅ / 5.6 | 记忆、Persona、TTS、主动性 | 记忆、Persona、设备 TTS 与有理由/预算/安静时段约束的主动问候已完成；下一步验证情绪支持安全边界 |
 | 6.x | 角色扮演与 AI 跑团 | 独立 GameSession、结构化状态、骰子工具、分支存档 |
 
 ### Mobile Track

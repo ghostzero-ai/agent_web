@@ -47,6 +47,7 @@ function inboxSourceLabel(source: InboxItem["source"]): string {
   if (source === "personal_briefing") return "个人简报";
   if (source === "book_recommendation") return "书籍推荐";
   if (source === "reflection_question") return "思考问题";
+  if (source === "proactive_checkin") return "主动问候";
   return "普通提醒";
 }
 
@@ -273,6 +274,13 @@ export function InboxManager() {
                           调整主题与频率
                         </a>
                       )}
+                    </div>
+                  )}
+                  {item.source === "proactive_checkin" && item.proactivityRationale && (
+                    <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-5 text-violet-900 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-100">
+                      <p className="font-medium">为什么联系你</p>
+                      <p className="mt-1">{item.proactivityRationale}</p>
+                      <a href={appHref("/proactivity")} className="mt-2 inline-block underline underline-offset-2">降低频率、暂停或关闭这类问候</a>
                     </div>
                   )}
                   {item.reflectionQuestions && item.reflectionQuestions.length > 0 && (

@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(20);
+      expect(migrations).toHaveLength(21);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -75,6 +75,8 @@ describe("database migrations", () => {
         "notification_deliveries",
         "notification_preferences",
         "persona_profiles",
+        "proactivity_ledger",
+        "proactivity_preferences",
         "prompt_runs",
         "push_subscriptions",
         "push_vapid_configurations",
@@ -184,6 +186,35 @@ describe("database migrations", () => {
       await expect(
         pglite.query(
           `UPDATE voice_profiles SET rate = 201 WHERE user_id = $1`,
+          [userResult.rows[0].id],
+        ),
+      ).rejects.toThrow();
+
+      const proactivity = await pglite.query<{
+        enabled: boolean;
+        max_messages_per_day: number;
+        min_cooldown_hours: number;
+        checkin_after_days: number;
+        allowed_reasons: string[];
+      }>(
+        `INSERT INTO proactivity_preferences (user_id)
+         VALUES ($1)
+         RETURNING enabled, max_messages_per_day, min_cooldown_hours,
+                   checkin_after_days, allowed_reasons`,
+        [userResult.rows[0].id],
+      );
+      expect(proactivity.rows[0]).toEqual({
+        enabled: false,
+        max_messages_per_day: 1,
+        min_cooldown_hours: 72,
+        checkin_after_days: 3,
+        allowed_reasons: ["goal_followup", "checkin"],
+      });
+      await expect(
+        pglite.query(
+          `UPDATE proactivity_preferences
+           SET allowed_reasons = '["unknown"]'::jsonb
+           WHERE user_id = $1`,
           [userResult.rows[0].id],
         ),
       ).rejects.toThrow();
@@ -380,6 +411,21 @@ describe("database migrations", () => {
       await expect(migrateDatabase(database, migrations)).resolves.toEqual([]);
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[20].id,
+      );
+      const proactivityAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename IN ('proactivity_preferences', 'proactivity_ledger')
+      `);
+      expect(proactivityAfterRollback.rows).toEqual([]);
+      const proactivityColumnsAfterRollback = await pglite.query<{ column_name: string }>(`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'inbox_items'
+          AND column_name IN ('proactivity_reason', 'proactivity_rationale')
+      `);
+      expect(proactivityColumnsAfterRollback.rows).toEqual([]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[19].id,
       );
@@ -606,6 +652,7 @@ describe("database migrations", () => {
         migrations[17].id,
         migrations[18].id,
         migrations[19].id,
+        migrations[20].id,
       ]);
     },
     15_000,
@@ -652,6 +699,7 @@ describe("database migrations", () => {
       migrations[17].id,
       migrations[18].id,
       migrations[19].id,
+      migrations[20].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

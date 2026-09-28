@@ -85,7 +85,8 @@ export type TaskKind =
   | "personal_briefing"
   | "book_recommendation"
   | "reflection_question";
-export type InboxSource = TaskKind;
+export type ProactivityReason = "goal_followup" | "checkin";
+export type InboxSource = TaskKind | "proactive_checkin";
 export type BriefingFeedback = "helpful" | "not_relevant" | "duplicate";
 export type ReadingDifficulty = "introductory" | "intermediate" | "advanced";
 export type ReadingGoal = "beginner" | "systematic" | "broaden" | "literary";
@@ -100,6 +101,19 @@ export type ReflectionQuestionType =
 export type MemoryCandidateKind = "preference" | "goal" | "profile" | "fact";
 export type MemoryCandidateStatus = "pending" | "confirmed" | "rejected";
 export type MemorySensitivity = "low" | "personal" | "sensitive";
+
+export type ProactivityPolicySnapshot = {
+  maxMessagesPerDay: number;
+  minCooldownHours: number;
+  checkinAfterDays: number;
+  allowedReasons: ProactivityReason[];
+  quietHours: {
+    enabled: boolean;
+    start: string;
+    end: string;
+    timezone: "Asia/Shanghai";
+  };
+};
 
 export type ReflectionQuestionSignal = {
   question: string;
@@ -307,6 +321,50 @@ export const reflectionPreferences = pgTable(
       sql`${table.maxQuestions} BETWEEN 1 AND 3`,
     ),
     check("reflection_preferences_version_positive", sql`${table.version} > 0`),
+  ],
+);
+
+export const proactivityPreferences = pgTable(
+  "proactivity_preferences",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(false),
+    maxMessagesPerDay: integer("max_messages_per_day").notNull().default(1),
+    minCooldownHours: integer("min_cooldown_hours").notNull().default(72),
+    checkinAfterDays: integer("checkin_after_days").notNull().default(3),
+    allowedReasons: jsonb("allowed_reasons")
+      .$type<ProactivityReason[]>()
+      .notNull()
+      .default(sql`'["goal_followup", "checkin"]'::jsonb`),
+    pausedUntil: timestamp("paused_until", { withTimezone: true, mode: "date" }),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "proactivity_preferences_daily_budget_range",
+      sql`${table.maxMessagesPerDay} BETWEEN 1 AND 3`,
+    ),
+    check(
+      "proactivity_preferences_cooldown_range",
+      sql`${table.minCooldownHours} BETWEEN 6 AND 168`,
+    ),
+    check(
+      "proactivity_preferences_checkin_days_range",
+      sql`${table.checkinAfterDays} BETWEEN 1 AND 30`,
+    ),
+    check(
+      "proactivity_preferences_allowed_reasons_array",
+      sql`jsonb_typeof(${table.allowedReasons}) = 'array' AND ${table.allowedReasons} <@ '["goal_followup", "checkin"]'::jsonb`,
+    ),
+    check("proactivity_preferences_version_positive", sql`${table.version} > 0`),
   ],
 );
 
@@ -749,6 +807,8 @@ export const inboxItems = pgTable(
     briefingSources: jsonb("briefing_sources").$type<BriefingSourceSignal[]>(),
     reflectionQuestions: jsonb("reflection_questions")
       .$type<ReflectionQuestionSignal[]>(),
+    proactivityReason: text("proactivity_reason").$type<ProactivityReason>(),
+    proactivityRationale: text("proactivity_rationale"),
     feedback: text("feedback").$type<BriefingFeedback>(),
     occurredAt: timestamp("occurred_at", {
       withTimezone: true,
@@ -776,7 +836,7 @@ export const inboxItems = pgTable(
     ),
     check(
       "inbox_items_source_supported",
-      sql`${table.source} IN ('reminder', 'agent_prompt', 'personal_briefing', 'book_recommendation', 'reflection_question')`,
+      sql`${table.source} IN ('reminder', 'agent_prompt', 'personal_briefing', 'book_recommendation', 'reflection_question', 'proactive_checkin')`,
     ),
     check(
       "inbox_items_feedback_supported",
@@ -791,8 +851,55 @@ export const inboxItems = pgTable(
       sql`${table.reflectionQuestions} IS NULL OR ${table.source} IN ('personal_briefing', 'reflection_question')`,
     ),
     check(
+      "inbox_items_proactivity_metadata_supported",
+      sql`(${table.source} = 'proactive_checkin' AND ${table.proactivityReason} IN ('goal_followup', 'checkin') AND coalesce(length(btrim(${table.proactivityRationale})), 0) > 0) OR (${table.source} <> 'proactive_checkin' AND ${table.proactivityReason} IS NULL AND ${table.proactivityRationale} IS NULL)`,
+    ),
+    check(
       "inbox_items_read_state",
       sql`(${table.status} = 'unread' AND ${table.readAt} IS NULL) OR (${table.status} = 'read' AND ${table.readAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const proactivityLedger = pgTable(
+  "proactivity_ledger",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    inboxItemId: uuid("inbox_item_id").references(() => inboxItems.id, {
+      onDelete: "set null",
+    }),
+    reason: text("reason").$type<ProactivityReason>().notNull(),
+    triggerKey: text("trigger_key").notNull(),
+    triggerRefId: uuid("trigger_ref_id"),
+    rationale: text("rationale").notNull(),
+    policySnapshot: jsonb("policy_snapshot")
+      .$type<ProactivityPolicySnapshot>()
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("proactivity_ledger_user_trigger_unique").on(
+      table.userId,
+      table.triggerKey,
+    ),
+    uniqueIndex("proactivity_ledger_inbox_unique").on(table.inboxItemId),
+    index("proactivity_ledger_user_created_idx").on(table.userId, table.createdAt),
+    check(
+      "proactivity_ledger_reason_supported",
+      sql`${table.reason} IN ('goal_followup', 'checkin')`,
+    ),
+    check(
+      "proactivity_ledger_trigger_key_nonempty",
+      sql`length(btrim(${table.triggerKey})) > 0`,
+    ),
+    check(
+      "proactivity_ledger_rationale_nonempty",
+      sql`length(btrim(${table.rationale})) > 0`,
     ),
   ],
 );
@@ -923,6 +1030,8 @@ export type ReadingProfileRecord = typeof readingProfiles.$inferSelect;
 export type PersonaProfileRecord = typeof personaProfiles.$inferSelect;
 export type VoiceProfileRecord = typeof voiceProfiles.$inferSelect;
 export type ReflectionPreferenceRecord = typeof reflectionPreferences.$inferSelect;
+export type ProactivityPreferenceRecord = typeof proactivityPreferences.$inferSelect;
+export type ProactivityLedgerRecord = typeof proactivityLedger.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type MemoryCandidateRecord = typeof memoryCandidates.$inferSelect;

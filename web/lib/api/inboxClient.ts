@@ -36,11 +36,14 @@ export type InboxItem = {
     | "agent_prompt"
     | "personal_briefing"
     | "book_recommendation"
-    | "reflection_question";
+    | "reflection_question"
+    | "proactive_checkin";
   title: string;
   body: string | null;
   briefingSources: BriefingSourceSignal[] | null;
   reflectionQuestions: ReflectionQuestionSignal[] | null;
+  proactivityReason: ProactivityReason | null;
+  proactivityRationale: string | null;
   feedback: BriefingFeedback | null;
   occurredAt: string;
   status: InboxStatus;
@@ -48,6 +51,8 @@ export type InboxItem = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type ProactivityReason = "goal_followup" | "checkin";
 
 export class InboxClientError extends Error {
   constructor(

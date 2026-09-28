@@ -61,6 +61,8 @@ npm test -- databaseMigrations.test.ts
 - JSONB 仅用于结构开放的 `citations`；角色、状态和模式均使用 PostgreSQL Enum。
 - `persona_profiles` 与 `users` 一对一，使用整数范围约束保存五个表达维度；任意 Persona Prompt 不进入数据库，更新使用 `version` 乐观锁。
 - `voice_profiles` 与 `users` 一对一，只保存非秘密的系统音线偏好和百分比参数；不保存回答正文或音频，更新使用 `version` 乐观锁。
+- `proactivity_preferences` 与 `users` 一对一，保存默认关闭的原因白名单、每日预算、冷却期、未互动阈值和暂停时间，更新使用 `version` 乐观锁。
+- `proactivity_ledger` 只记录真正创建的主动问候、触发引用、可见理由与当时策略快照；不复制目标正文。`inbox_items` 保存用户实际阅读的问候正文及主动原因元数据。
 
 ## 6. 回滚注意事项
 

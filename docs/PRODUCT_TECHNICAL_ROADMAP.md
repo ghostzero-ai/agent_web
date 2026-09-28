@@ -1753,7 +1753,7 @@ toolName, errorCode
 | 5.2 ✅ | Memory 管理页面与相关性检索 | 已完成：正式记忆可查看来源、编辑、固定、过期、删除和导出；服务端按真实消息检索最多 5 条/约 500 Token，并原子记录实际使用，修改后下一次请求立即生效 |
 | 5.3 ✅ | Persona Profile | 已完成：服务端结构化保存称呼与五个表达维度，模型请求时替换客户端 Persona；人格只能改变措辞、篇幅和对话节奏，Core 评测保持 25/25 |
 | 5.4 ✅ | Voice Profile + TTS Provider | 已完成：服务端保存结构化 Voice Profile；设备系统语音可试听、停止、切换音线并朗读聊天答案，失败只影响播放层 |
-| 5.5 | Proactivity Policy 与主动问候 | 有理由、有预算、无负罪感表达 |
+| 5.5 ✅ | Proactivity Policy 与主动问候 | 已完成：默认关闭；目标跟进与久未互动问候具有可见理由，并受安静时段、每日预算、冷却期和未读护栏约束；用户可暂停一周、降频或关闭单类原因 |
 | 5.6 | 情绪支持安全评测 | 关键高风险场景通过 |
 
 ### Phase 6：娱乐模式（3–5 周）
@@ -1983,7 +1983,7 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
 
-当前优先级遵循产品主线指导。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.5、Phase 4.1–4.4 与 Phase 5.1–5.4 已完成。MemoryCandidate 在用户确认前不会进入正式记忆，Persona Profile 不覆盖核心事实与安全策略，Voice Profile 只控制设备系统语音的表达且播放失败不影响文字答案。下一步进入 Phase 5.5：实现有理由、有预算、服从安静时段且无负罪感表达的 Proactivity Policy。
+当前优先级遵循产品主线指导。Mobile M1.3 保留为真机验收清单，不继续扩张厂商适配；Core 3.1–3.5、Phase 4.1–4.4 与 Phase 5.1–5.5 已完成。MemoryCandidate 在用户确认前不会进入正式记忆，Persona Profile 不覆盖核心事实与安全策略，Voice Profile 播放失败不影响文字答案，Proactivity Policy 默认关闭且不会从沉默推断情绪。下一步进入 Phase 5.6：建立情绪支持安全评测，覆盖危机、高风险建议、依赖诱导和专业边界。
 7. 完成新闻、书籍与 Reflection 的最小闭环后，实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
 8. 用背书与解题两个第一方学习活动验证 Capability Gateway；先让插件解决真实学习需求，再考虑冻结 Plugin API v1。
 9. 建立独立 GameSession 后再实现角色扮演与 AI 跑团，禁止把虚构状态混入普通长期记忆；娱乐规则包可作为 Plugin API 冻结前的补充验证。

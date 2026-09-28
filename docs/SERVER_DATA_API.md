@@ -38,10 +38,15 @@ X-Request-Id: <uuid>
 | `PATCH` | `/api/v1/persona-profile` | 以乐观版本锁更新人格设置 |
 | `GET` | `/api/v1/voice-profile` | 读取当前用户的 Voice Profile；不存在时创建默认值 |
 | `PATCH` | `/api/v1/voice-profile` | 以乐观版本锁更新系统音线、语言、语速、音高和音量 |
+| `GET` | `/api/v1/proactivity` | 读取主动问候偏好、通知安静时段与最近联系账本 |
+| `PATCH` | `/api/v1/proactivity` | 以乐观版本锁更新开关、原因、预算、冷却期、未互动阈值与暂停时间 |
+| `POST` | `/api/v1/proactivity` | 立即按服务端已保存规则评估一次；不绕过任何策略护栏 |
 
 Persona Profile 只接受名称、可选用户称呼，以及 `warmth`、`humor`、`directness`、`verbosity`、`initiative` 五个 0–100 整数。API 不接受自定义 Prompt 或硬边界文本；`initiative` 只表示当前对话中的引导强度，不代表后台主动联系。
 
 Voice Profile 当前只接受 `provider=system`、可空的设备 `voiceId`、BCP 47 风格语言标签，以及 `rate=50..200`、`pitch=0..200`、`volume=0..100` 整数百分比和 `expectedVersion`。音线枚举与播放发生在当前设备，服务端不接收回答正文或音频；设备缺少已保存音线时客户端按语言回退。
+
+Proactivity 默认关闭，仅支持 `goal_followup` 与 `checkin` 两类明确原因。`POST` 只触发与 Worker 相同的规则评估：暂停、安静时段、上一条未读、每日预算、冷却期或没有真实信号时返回稳定的 `skipped` 原因，不创建 InboxItem。目标跟进只读取用户确认、未过期且非敏感的正式目标；久未互动只比较最后一条真实用户消息时间，不推断情绪。任务提醒、简报和书籍推荐不计入这套陪伴预算。
 
 ### 创建会话
 
