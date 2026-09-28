@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(22);
+      expect(migrations).toHaveLength(23);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -75,7 +75,11 @@ describe("database migrations", () => {
         "notification_deliveries",
         "notification_preferences",
         "persona_profiles",
+        "plugin_capability_audit",
+        "plugin_capability_grants",
         "plugin_installations",
+        "plugin_quota_usage",
+        "plugin_storage_entries",
         "proactivity_ledger",
         "proactivity_preferences",
         "prompt_runs",
@@ -162,6 +166,48 @@ describe("database migrations", () => {
           `UPDATE plugin_installations
            SET status = 'unknown'
            WHERE user_id = $1`,
+          [userResult.rows[0].id],
+        ),
+      ).rejects.toThrow();
+
+      const capabilityGrant = await pglite.query<{
+        status: string;
+        version: number;
+      }>(
+        `INSERT INTO plugin_capability_grants (
+           user_id, plugin_id, capability_id, plugin_version, status
+         ) VALUES ($1, 'study.memorization', 'storage.read-write', '0.1.0', 'granted')
+         RETURNING status, version`,
+        [userResult.rows[0].id],
+      );
+      expect(capabilityGrant.rows[0]).toEqual({ status: "granted", version: 1 });
+      await pglite.query(
+        `INSERT INTO plugin_storage_entries (
+           user_id, plugin_id, key, value, byte_size
+         ) VALUES ($1, 'study.memorization', 'deck.current', '{"step":1}', 10)`,
+        [userResult.rows[0].id],
+      );
+      await pglite.query(
+        `INSERT INTO plugin_quota_usage (
+           user_id, plugin_id, capability_id, period_start, used_units
+         ) VALUES ($1, 'study.memorization', 'storage.read-write', '2026-09-28T00:00:00Z', 1)`,
+        [userResult.rows[0].id],
+      );
+      await pglite.query(
+        `INSERT INTO plugin_capability_audit (
+           request_id, user_id, plugin_id, capability_id, operation,
+           execution, outcome, units, completed_at
+         ) VALUES (
+           '11111111-1111-4111-8111-111111111111', $1, 'study.memorization',
+           'storage.read-write', 'storage.set', 'foreground', 'succeeded', 1, now()
+         )`,
+        [userResult.rows[0].id],
+      );
+      await expect(
+        pglite.query(
+          `INSERT INTO plugin_capability_grants (
+             user_id, plugin_id, capability_id, plugin_version
+           ) VALUES ($1, 'study.memorization', 'network.unrestricted', '0.1.0')`,
           [userResult.rows[0].id],
         ),
       ).rejects.toThrow();
@@ -436,6 +482,20 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[22].id,
+      );
+      const capabilityTablesAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename IN (
+            'plugin_capability_audit',
+            'plugin_capability_grants',
+            'plugin_quota_usage',
+            'plugin_storage_entries'
+          )
+      `);
+      expect(capabilityTablesAfterRollback.rows).toEqual([]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[21].id,
       );
       const pluginTableAfterRollback = await pglite.query<{ tablename: string }>(`
@@ -686,6 +746,7 @@ describe("database migrations", () => {
         migrations[19].id,
         migrations[20].id,
         migrations[21].id,
+        migrations[22].id,
       ]);
     },
     15_000,
@@ -734,6 +795,7 @@ describe("database migrations", () => {
       migrations[19].id,
       migrations[20].id,
       migrations[21].id,
+      migrations[22].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

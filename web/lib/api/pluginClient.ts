@@ -2,6 +2,10 @@ import { apiFetch } from "@/lib/api/clientRuntime";
 
 export type PluginKind = "skill" | "tool" | "activity" | "connector";
 export type PluginInstallationStatus = "enabled" | "disabled" | "incompatible";
+export type PluginCapabilityId =
+  | "model.generate"
+  | "storage.read-write"
+  | "task.create-draft";
 
 export type PluginCatalogItem = {
   manifest: {
@@ -46,6 +50,48 @@ export class PluginClientError extends Error {
   }
 }
 
+export type PluginCapabilityDashboard = {
+  pluginId: string;
+  pluginVersion: string;
+  pluginEnabled: boolean;
+  capabilities: Array<{
+    id: PluginCapabilityId;
+    name: string;
+    description: string;
+    risk: "compute" | "private-storage" | "core-write";
+    adapterStatus: "available" | "planned";
+    grant: {
+      status: "granted" | "revoked";
+      effective: boolean;
+      version: number;
+      reviewedPluginVersion: string | null;
+      requiresReview: boolean;
+    };
+    quota: {
+      used: number;
+      limit: number;
+      remaining: number;
+      resetsAt: string;
+    };
+  }>;
+};
+
+export type PluginCapabilityAuditItem = {
+  id: string;
+  requestId: string;
+  pluginId: string;
+  capabilityId: PluginCapabilityId;
+  operation: string;
+  execution: "foreground" | "background" | "authorization";
+  runId: string | null;
+  outcome: "started" | "succeeded" | "denied" | "failed";
+  errorCode: string | null;
+  units: number;
+  durationMs: number | null;
+  createdAt: string;
+  completedAt: string | null;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await apiFetch(path, {
     ...init,
@@ -82,5 +128,37 @@ export function setPluginEnabled(
       method: "POST",
       body: JSON.stringify({ expectedVersion }),
     },
+  );
+}
+
+export function getPluginCapabilities(
+  pluginId: string,
+): Promise<PluginCapabilityDashboard> {
+  return request(
+    `/api/v1/plugins/${encodeURIComponent(pluginId)}/capabilities`,
+  );
+}
+
+export function setPluginCapabilityGrant(
+  pluginId: string,
+  capabilityId: PluginCapabilityId,
+  granted: boolean,
+  expectedVersion: number,
+): Promise<PluginCapabilityDashboard> {
+  return request(
+    `/api/v1/plugins/${encodeURIComponent(pluginId)}/capabilities/${encodeURIComponent(capabilityId)}/${granted ? "grant" : "revoke"}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ expectedVersion }),
+    },
+  );
+}
+
+export function listPluginCapabilityAudit(
+  pluginId: string,
+  limit = 20,
+): Promise<PluginCapabilityAuditItem[]> {
+  return request(
+    `/api/v1/plugins/${encodeURIComponent(pluginId)}/audit?limit=${limit}`,
   );
 }

@@ -34,13 +34,13 @@ Phase 7 — First-party Learning Plugin Validation
 
 CURRENT_TASK:
 
-Phase 7.2 — Capability Gateway, Isolated Storage, Quotas and Audit
+Phase 7.3 — Memorization Plugin MVP
 
 ==================================================
 
 NEXT_TASK:
 
-Phase 7.3 — Memorization Plugin MVP
+Phase 7.4 — Problem-solving Plugin MVP
 
 ==================================================
 

@@ -44,6 +44,10 @@ X-Request-Id: <uuid>
 | `GET` | `/api/v1/plugins` | 返回仓库内第一方插件 Manifest、兼容性和当前用户启停状态 |
 | `POST` | `/api/v1/plugins/:id/enable` | 以乐观版本锁启用兼容的第一方插件基础 |
 | `POST` | `/api/v1/plugins/:id/disable` | 以乐观版本锁禁用第一方插件基础 |
+| `GET` | `/api/v1/plugins/:id/capabilities` | 读取逐项授权、有效状态与当日配额 |
+| `POST` | `/api/v1/plugins/:id/capabilities/:capability/grant` | 以乐观版本锁授权 Manifest 已声明的能力 |
+| `POST` | `/api/v1/plugins/:id/capabilities/:capability/revoke` | 撤销能力；插件已禁用时仍允许撤销 |
+| `GET` | `/api/v1/plugins/:id/audit?limit=20` | 读取最近 1–50 条无业务正文的能力审计 |
 
 Persona Profile 只接受名称、可选用户称呼，以及 `warmth`、`humor`、`directness`、`verbosity`、`initiative` 五个 0–100 整数。API 不接受自定义 Prompt 或硬边界文本；`initiative` 只表示当前对话中的引导强度，不代表后台主动联系。
 
@@ -51,7 +55,7 @@ Voice Profile 当前只接受 `provider=system`、可空的设备 `voiceId`、BC
 
 Proactivity 默认关闭，仅支持 `goal_followup` 与 `checkin` 两类明确原因。`POST` 只触发与 Worker 相同的规则评估：暂停、安静时段、上一条未读、每日预算、冷却期或没有真实信号时返回稳定的 `skipped` 原因，不创建 InboxItem。目标跟进只读取用户确认、未过期且非敏感的正式目标；久未互动只比较最后一条真实用户消息时间，不推断情绪。任务提醒、简报和书籍推荐不计入这套陪伴预算。
 
-Phase 7.1 的插件端点只管理随应用发布的第一方清单，不接受上传 URL、压缩包、代码或自定义 Manifest。启停请求只接受 `expectedVersion`；版本范围不兼容返回 `PLUGIN_INCOMPATIBLE`，并保持有效禁用。Manifest 中的 `requestedCapabilities` 只是声明，Phase 7.2 前没有任何能力授权或执行入口。
+插件端点只管理随应用发布的第一方清单，不接受上传 URL、压缩包、代码或自定义 Manifest。Manifest 声明、插件启用和用户授权是三个独立状态；授权请求只接受 `expectedVersion`，且插件必须兼容、已启用、安装版本与当前 Manifest 一致。插件升级会使旧授权失效，等待重新审核。Capability Gateway 没有浏览器调用端点：只有服务端第一方活动能通过已注册 Adapter 请求能力；当前 7.2 实际注册 `storage.read-write`，模型生成和任务草稿 Adapter 分别随 7.3/7.4 的真实活动接入。
 
 ### 创建会话
 

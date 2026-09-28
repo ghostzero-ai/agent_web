@@ -4,6 +4,30 @@
 
 ---
 
+## Phase 7.2 — Capability Gateway、隔离存储、配额与审计
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增固定 Capability Catalog：`model.generate`、`storage.read-write`、`task.create-draft` 具有可读说明、风险类型与 UTC 每日配额；Manifest 只能申请宿主认识的能力。
+- 新增逐项授权与版本复核。声明、启用、授权相互独立；插件未启用、版本变化、能力未声明/未授权或额度耗尽时均由 Gateway 稳定拒绝。
+- 新增结构化 Capability Gateway 与 Adapter Registry；前台调用必须来自用户动作，后台调用必须携带 Run ID。没有向浏览器开放通用执行端点，也不把数据库连接或模型 Key 交给插件。
+- 新增 `storage.read-write` 宿主 Adapter 和按用户/插件隔离的 JSON 存储；单值 64 KiB、每插件 250 项/1 MiB，并使用乐观锁防止静默覆盖。
+- 新增按用户、插件、能力和 UTC 日原子计数的配额，以及不含 Prompt、学习正文、存储值、模型响应或凭据的调用审计。
+- `/plugins` Web/APK 共享页面现在可逐项授权/撤销、查看当日用量和最近审计；禁用插件后授权立即失效，已禁用状态仍可撤销授权。
+- 新增可回滚迁移 `0022_plugin_capability_gateway`、ADR-055，以及迁移、Repository、Gateway、API、隔离和移动端 E2E 测试。
+
+### 当前边界
+
+- 当前只有隔离存储 Adapter 可执行；模型生成与任务草稿的受控 Adapter 将由 7.3/7.4 的真实学习活动接入。
+- 第一方插件仍与宿主同进程，不应把当前边界描述为第三方代码沙箱。第三方包、市场、签名、UI 隔离和动态原生能力仍未开放。
+- 禁用插件不删除数据或授权记录，但 Gateway 会立即拒绝；重新启用同版本可恢复既有授权，版本升级必须重新审核。
+
+### 下一步
+
+- Phase 7.3：使用 Gateway、隔离存储和任务草稿边界完成“材料→复述→评分→下次复习”背书闭环。
+
 ## Phase 7.1 — 第一方 Plugin Manifest、Registry 与兼容性
 
 **Commit**: `same delivery commit`

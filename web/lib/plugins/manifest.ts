@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pluginCapabilityIdSchema } from "@/lib/plugins/capabilityCatalog";
 
 export const PLUGIN_MANIFEST_SCHEMA_VERSION = "1" as const;
 export const HOST_PLUGIN_API_VERSION = "0.1.0" as const;
@@ -47,7 +48,7 @@ export const pluginManifestSchema = z
         }
       }),
     requestedCapabilities: z
-      .array(identifier)
+      .array(pluginCapabilityIdSchema)
       .max(30)
       .refine(unique, "Capabilities must not contain duplicates."),
   })

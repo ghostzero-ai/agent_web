@@ -4,6 +4,7 @@ import {
   type AnyPgColumn,
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -102,6 +103,12 @@ export type MemoryCandidateKind = "preference" | "goal" | "profile" | "fact";
 export type MemoryCandidateStatus = "pending" | "confirmed" | "rejected";
 export type MemorySensitivity = "low" | "personal" | "sensitive";
 export type PluginInstallationStatus = "enabled" | "disabled" | "incompatible";
+export type PluginCapabilityGrantStatus = "granted" | "revoked";
+export type PluginCapabilityAuditOutcome =
+  | "started"
+  | "succeeded"
+  | "denied"
+  | "failed";
 
 export type ProactivityPolicySnapshot = {
   maxMessagesPerDay: number;
@@ -409,6 +416,205 @@ export const pluginInstallations = pgTable(
       sql`${table.status} IN ('enabled', 'disabled', 'incompatible')`,
     ),
     check("plugin_installations_version_positive", sql`${table.version} > 0`),
+  ],
+);
+
+export const pluginCapabilityGrants = pgTable(
+  "plugin_capability_grants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id").notNull(),
+    capabilityId: text("capability_id").notNull(),
+    pluginVersion: text("plugin_version").notNull(),
+    status: text("status")
+      .$type<PluginCapabilityGrantStatus>()
+      .notNull()
+      .default("revoked"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("plugin_capability_grants_user_plugin_capability_unique").on(
+      table.userId,
+      table.pluginId,
+      table.capabilityId,
+    ),
+    index("plugin_capability_grants_user_plugin_idx").on(
+      table.userId,
+      table.pluginId,
+    ),
+    check(
+      "plugin_capability_grants_capability_supported",
+      sql`${table.capabilityId} IN ('model.generate', 'storage.read-write', 'task.create-draft')`,
+    ),
+    check(
+      "plugin_capability_grants_plugin_version_nonempty",
+      sql`length(btrim(${table.pluginVersion})) BETWEEN 5 AND 40`,
+    ),
+    check(
+      "plugin_capability_grants_status_supported",
+      sql`${table.status} IN ('granted', 'revoked')`,
+    ),
+    check("plugin_capability_grants_version_positive", sql`${table.version} > 0`),
+    foreignKey({
+      columns: [table.userId, table.pluginId],
+      foreignColumns: [pluginInstallations.userId, pluginInstallations.pluginId],
+      name: "plugin_capability_grants_installation_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const pluginStorageEntries = pgTable(
+  "plugin_storage_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id").notNull(),
+    key: text("key").notNull(),
+    value: jsonb("value").$type<unknown>().notNull(),
+    byteSize: integer("byte_size").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("plugin_storage_entries_user_plugin_key_unique").on(
+      table.userId,
+      table.pluginId,
+      table.key,
+    ),
+    index("plugin_storage_entries_user_plugin_updated_idx").on(
+      table.userId,
+      table.pluginId,
+      table.updatedAt,
+    ),
+    check(
+      "plugin_storage_entries_key_valid",
+      sql`length(${table.key}) BETWEEN 1 AND 120 AND ${table.key} ~ '^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$'`,
+    ),
+    check(
+      "plugin_storage_entries_byte_size_range",
+      sql`${table.byteSize} BETWEEN 1 AND 65536`,
+    ),
+    check("plugin_storage_entries_version_positive", sql`${table.version} > 0`),
+    foreignKey({
+      columns: [table.userId, table.pluginId],
+      foreignColumns: [pluginInstallations.userId, pluginInstallations.pluginId],
+      name: "plugin_storage_entries_installation_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const pluginQuotaUsage = pgTable(
+  "plugin_quota_usage",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id").notNull(),
+    capabilityId: text("capability_id").notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true, mode: "date" })
+      .notNull(),
+    usedUnits: integer("used_units").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("plugin_quota_usage_scope_period_unique").on(
+      table.userId,
+      table.pluginId,
+      table.capabilityId,
+      table.periodStart,
+    ),
+    index("plugin_quota_usage_user_period_idx").on(
+      table.userId,
+      table.periodStart,
+    ),
+    check(
+      "plugin_quota_usage_capability_supported",
+      sql`${table.capabilityId} IN ('model.generate', 'storage.read-write', 'task.create-draft')`,
+    ),
+    check("plugin_quota_usage_used_nonnegative", sql`${table.usedUnits} >= 0`),
+    foreignKey({
+      columns: [table.userId, table.pluginId],
+      foreignColumns: [pluginInstallations.userId, pluginInstallations.pluginId],
+      name: "plugin_quota_usage_installation_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const pluginCapabilityAudit = pgTable(
+  "plugin_capability_audit",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    requestId: uuid("request_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id").notNull(),
+    capabilityId: text("capability_id").notNull(),
+    operation: text("operation").notNull(),
+    execution: text("execution").notNull(),
+    runId: text("run_id"),
+    outcome: text("outcome")
+      .$type<PluginCapabilityAuditOutcome>()
+      .notNull(),
+    errorCode: text("error_code"),
+    units: integer("units").notNull().default(0),
+    durationMs: integer("duration_ms"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    uniqueIndex("plugin_capability_audit_request_unique").on(table.requestId),
+    index("plugin_capability_audit_user_plugin_created_idx").on(
+      table.userId,
+      table.pluginId,
+      table.createdAt,
+    ),
+    check(
+      "plugin_capability_audit_capability_supported",
+      sql`${table.capabilityId} IN ('model.generate', 'storage.read-write', 'task.create-draft')`,
+    ),
+    check(
+      "plugin_capability_audit_operation_nonempty",
+      sql`length(btrim(${table.operation})) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "plugin_capability_audit_execution_supported",
+      sql`${table.execution} IN ('foreground', 'background', 'authorization')`,
+    ),
+    check(
+      "plugin_capability_audit_outcome_supported",
+      sql`${table.outcome} IN ('started', 'succeeded', 'denied', 'failed')`,
+    ),
+    check("plugin_capability_audit_units_nonnegative", sql`${table.units} >= 0`),
+    check(
+      "plugin_capability_audit_duration_nonnegative",
+      sql`${table.durationMs} IS NULL OR ${table.durationMs} >= 0`,
+    ),
+    check(
+      "plugin_capability_audit_completion_state",
+      sql`(${table.outcome} = 'started' AND ${table.completedAt} IS NULL) OR (${table.outcome} <> 'started' AND ${table.completedAt} IS NOT NULL)`,
+    ),
   ],
 );
 
@@ -1077,6 +1283,10 @@ export type ReflectionPreferenceRecord = typeof reflectionPreferences.$inferSele
 export type ProactivityPreferenceRecord = typeof proactivityPreferences.$inferSelect;
 export type ProactivityLedgerRecord = typeof proactivityLedger.$inferSelect;
 export type PluginInstallationRecord = typeof pluginInstallations.$inferSelect;
+export type PluginCapabilityGrantRecord = typeof pluginCapabilityGrants.$inferSelect;
+export type PluginStorageEntryRecord = typeof pluginStorageEntries.$inferSelect;
+export type PluginQuotaUsageRecord = typeof pluginQuotaUsage.$inferSelect;
+export type PluginCapabilityAuditRecord = typeof pluginCapabilityAudit.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type MemoryCandidateRecord = typeof memoryCandidates.$inferSelect;

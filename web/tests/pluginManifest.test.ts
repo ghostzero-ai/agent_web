@@ -21,6 +21,10 @@ describe("plugin manifest", () => {
       ...base,
       requestedCapabilities: ["model.generate", "model.generate"],
     }).success).toBe(false);
+    expect(pluginManifestSchema.safeParse({
+      ...base,
+      requestedCapabilities: ["network.unrestricted"],
+    }).success).toBe(false);
     expect(pluginManifestSchema.safeParse({ ...base, version: "latest" }).success)
       .toBe(false);
     expect(pluginManifestSchema.safeParse({
