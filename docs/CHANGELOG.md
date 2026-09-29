@@ -4,6 +4,28 @@
 
 ---
 
+## Phase 6.1 — GameSession、角色卡与世界设定
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增独立 `game_sessions` 与 `game_characters`，只关联本地用户和游戏会话，不引用普通 Conversation、Message、MemoryCandidate 或 Memory。
+- 世界设定保存名称、前提、叙事语调、规则和内容边界；角色卡保存控制者、简介、性格、目标和专属边界。
+- 新增严格 GameSession 请求契约、Repository 与 `/api/v1/game-sessions` CRUD；Session 和 Character 分别使用版本锁，角色变更同步推进 Session 版本。
+- 新增 Web/APK 共用 `/entertainment` 页面，可创建角色扮演、AI 跑团或互动故事设定，并管理角色卡。
+- MemoryCandidate 服务端提取会忽略普通聊天中的 `entertainment` 模式消息，避免虚构身份或设定进入长期记忆候选。
+- 新增可回滚迁移 `0023_game_session_foundation`、ADR-059，以及 API、Repository、隔离性、迁移、移动端结构和 E2E 测试。
+
+### 当前边界
+
+- 本阶段只建立设定与持久化边界，不调用模型、不生成剧情、不掷骰，也不提供分支、检查点或导出。
+- 普通聊天中的 `entertainment` 模式仍只是交互协议，不会自动成为 GameSession；用户需要从娱乐页面显式创建。
+
+### 下一步
+
+- Phase 6.2：实现角色扮演回合、暂停/继续、树形分支和记录导出，并继续保持 GameSession 与普通记忆隔离。
+
 ## Phase 7.5 — Plugin API v1 冻结
 
 **Commit**: `same delivery commit`

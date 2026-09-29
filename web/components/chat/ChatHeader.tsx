@@ -68,6 +68,12 @@ export function ChatHeader({
           插件
         </AppLink>
         <AppLink
+          href="/entertainment"
+          className="hidden transition-colors hover:text-zinc-900 lg:inline dark:hover:text-zinc-200"
+        >
+          娱乐
+        </AppLink>
+        <AppLink
           href="/memory"
           className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
         >

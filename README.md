@@ -60,7 +60,7 @@ Database
 * Phase 3：模式、Prompt、专业回答、搜索、引用与轻量质量评测（已完成）
 * Mobile Track：Capacitor Android 与 HarmonyOS 演进
 
-Phase 4 主动内容闭环、Phase 5.1–5.5 与 Phase 7.1–7.5 已完成：可信记忆、Persona、设备语音、有约束的主动问候，以及第一方插件发现、逐项授权、隔离存储、每日配额和元数据审计已经落地。背书与解题两个真实活动完成后，Plugin API 1.0.0 已冻结：使用注册模型操作、待确认任务草稿、中立学习卡和预编译 Activity Registry。下一步进入 Phase 6 娱乐模式；Phase 5.6 安全评测保留为发布前封版。
+Phase 4 主动内容闭环、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1 已完成：可信记忆、Persona、设备语音、有约束的主动问候和 Plugin API 1.0.0 已经落地。娱乐模式现有独立的 GameSession、世界设定和角色卡，不会污染普通对话或长期记忆；下一步进入 Phase 6.2 角色扮演回合。Phase 5.6 安全评测保留为发布前封版。
 
 当前优先级、修订后的交付顺序与防偏移规则见 `docs/PRODUCT_MAINLINE_GUIDE.md`。运行 `npm run eval:core` 可查看模式边界、专业回答与总回归分数；该分数只表示确定性契约没有回归，不代表模型事实正确率。
 
@@ -88,6 +88,8 @@ Phase 1 已完成：Conversation/Message 服务端 Repository/API、模型 Strea
 笔记本自托管的启动、健康检查、凭据主密钥、重启恢复、备份还原与 Tailscale 私有访问见 `docs/SELF_HOSTING.md`。默认只绑定 localhost，当前无应用登录鉴权，不可使用 Funnel 或端口转发直接暴露公网。
 
 移动端采用“共享 React 客户端 + 薄平台壳”：Mobile M1.1 已把复用 Web 页面与 API Client 的 Vite 本地 Bundle 打入 Capacitor APK，正式构建不再使用 `server.url`，经 Tailscale HTTPS 调用笔记本服务端。之后加入 Prompt 文件导出、语音与 HMS Push，最终以 ArkTS + ArkWeb HAP 替换 HarmonyOS 平台能力而不重写服务端。娱乐模式、移动端和语音的设计见 `docs/FEATURE_AND_MOBILE_EXPANSION_PLAN.md`。
+
+娱乐模式入口位于 `/entertainment`。Phase 6.1 支持创建世界设定、内容边界和多张角色卡，数据由独立 GameSession 表保存；具体边界与 API 见 `docs/GAME_SESSIONS.md`。
 
 Android Debug APK 已可构建；当前安装路径、重建命令、JDK/SDK 边界与 M0.3 真机清单见 `docs/MOBILE_ANDROID.md`。该 APK 是个人兼容性测试版本，不是正式发布包。
 

@@ -109,6 +109,9 @@ export type PluginCapabilityAuditOutcome =
   | "succeeded"
   | "denied"
   | "failed";
+export type GameSessionKind = "roleplay" | "tabletop" | "interactive-story";
+export type GameSessionStatus = "setup" | "active" | "paused" | "archived";
+export type GameCharacterController = "user" | "ai" | "shared";
 
 export type ProactivityPolicySnapshot = {
   maxMessagesPerDay: number;
@@ -615,6 +618,86 @@ export const pluginCapabilityAudit = pgTable(
       "plugin_capability_audit_completion_state",
       sql`(${table.outcome} = 'started' AND ${table.completedAt} IS NULL) OR (${table.outcome} <> 'started' AND ${table.completedAt} IS NOT NULL)`,
     ),
+  ],
+);
+
+export const gameSessions = pgTable(
+  "game_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    kind: text("kind").$type<GameSessionKind>().notNull(),
+    status: text("status").$type<GameSessionStatus>().notNull().default("setup"),
+    worldName: text("world_name").notNull(),
+    worldPremise: text("world_premise").notNull(),
+    worldTone: text("world_tone").notNull(),
+    worldRules: jsonb("world_rules").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    safetyBoundaries: jsonb("safety_boundaries")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("game_sessions_user_updated_idx").on(table.userId, table.updatedAt),
+    check(
+      "game_sessions_kind_supported",
+      sql`${table.kind} IN ('roleplay', 'tabletop', 'interactive-story')`,
+    ),
+    check(
+      "game_sessions_status_supported",
+      sql`${table.status} IN ('setup', 'active', 'paused', 'archived')`,
+    ),
+    check("game_sessions_title_length", sql`length(btrim(${table.title})) BETWEEN 1 AND 120`),
+    check("game_sessions_world_name_length", sql`length(btrim(${table.worldName})) BETWEEN 1 AND 120`),
+    check("game_sessions_world_premise_length", sql`length(btrim(${table.worldPremise})) BETWEEN 1 AND 4000`),
+    check("game_sessions_world_tone_length", sql`length(btrim(${table.worldTone})) BETWEEN 1 AND 500`),
+    check("game_sessions_version_positive", sql`${table.version} > 0`),
+  ],
+);
+
+export const gameCharacters = pgTable(
+  "game_characters",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => gameSessions.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    role: text("role").notNull(),
+    controller: text("controller").$type<GameCharacterController>().notNull(),
+    description: text("description").notNull(),
+    personality: text("personality").notNull().default(""),
+    goals: jsonb("goals").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    boundaries: jsonb("boundaries").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("game_characters_session_created_idx").on(table.sessionId, table.createdAt),
+    check("game_characters_name_length", sql`length(btrim(${table.name})) BETWEEN 1 AND 120`),
+    check("game_characters_role_length", sql`length(btrim(${table.role})) BETWEEN 1 AND 120`),
+    check(
+      "game_characters_controller_supported",
+      sql`${table.controller} IN ('user', 'ai', 'shared')`,
+    ),
+    check("game_characters_description_length", sql`length(btrim(${table.description})) BETWEEN 1 AND 2000`),
+    check("game_characters_personality_length", sql`length(${table.personality}) <= 1200`),
+    check("game_characters_version_positive", sql`${table.version} > 0`),
   ],
 );
 
@@ -1287,6 +1370,8 @@ export type PluginCapabilityGrantRecord = typeof pluginCapabilityGrants.$inferSe
 export type PluginStorageEntryRecord = typeof pluginStorageEntries.$inferSelect;
 export type PluginQuotaUsageRecord = typeof pluginQuotaUsage.$inferSelect;
 export type PluginCapabilityAuditRecord = typeof pluginCapabilityAudit.$inferSelect;
+export type GameSessionRecord = typeof gameSessions.$inferSelect;
+export type GameCharacterRecord = typeof gameCharacters.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type MemoryCandidateRecord = typeof memoryCandidates.$inferSelect;

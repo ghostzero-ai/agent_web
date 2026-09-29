@@ -23,6 +23,9 @@ export function createMemoryCandidateService(
   return {
     async proposeFromMessage(conversationId, messageId, now) {
       const source = await repository.getSourceMessage(conversationId, messageId);
+      if (source.mode === "entertainment") {
+        return { candidate: null, created: false };
+      }
       const draft = extractMemoryCandidate(source.content);
       if (!draft) return { candidate: null, created: false };
       return repository.createCandidate(source, draft, now);

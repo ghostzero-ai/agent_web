@@ -43,11 +43,11 @@ describe("MemoryCandidateRepository", () => {
 
   afterEach(async () => pglite.close());
 
-  async function source(content: string) {
+  async function source(content: string, mode: "auto" | "entertainment" = "auto") {
     const conversations = createConversationRepository(database);
     const conversation = await conversations.createConversation({
       title: "记忆测试",
-      mode: "auto",
+      mode,
     });
     const result = await conversations.appendMessage(conversation.id, {
       parentMessageId: null,
@@ -132,6 +132,19 @@ describe("MemoryCandidateRepository", () => {
     const repository = createMemoryCandidateRepository(database);
     const service = createMemoryCandidateService(repository);
     const { conversation, message } = await source("我应该怎样完成作品集？");
+    await expect(
+      service.proposeFromMessage(conversation.id, message.id, new Date()),
+    ).resolves.toEqual({ candidate: null, created: false });
+    await expect(repository.list()).resolves.toEqual([]);
+  });
+
+  it("never proposes long-term memory from an entertainment conversation", async () => {
+    const repository = createMemoryCandidateRepository(database);
+    const service = createMemoryCandidateService(repository);
+    const { conversation, message } = await source(
+      "请记住：我是雾港的守灯人",
+      "entertainment",
+    );
     await expect(
       service.proposeFromMessage(conversation.id, message.id, new Date()),
     ).resolves.toEqual({ candidate: null, created: false });

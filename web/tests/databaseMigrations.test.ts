@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(23);
+      expect(migrations).toHaveLength(24);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -66,6 +66,8 @@ describe("database migrations", () => {
       expect(tableResult.rows.map((row) => row.tablename)).toEqual([
         "conversation_imports",
         "conversations",
+        "game_characters",
+        "game_sessions",
         "inbox_items",
         "memory_candidates",
         "memory_items",
@@ -125,6 +127,29 @@ describe("database migrations", () => {
         [conversationResult.rows[0].id],
       );
       expect(entertainmentMode.rows[0].mode).toBe("entertainment");
+
+      const gameSession = await pglite.query<{ id: string; version: number }>(
+        `INSERT INTO game_sessions (
+           user_id, title, kind, world_name, world_premise, world_tone
+         ) VALUES ($1, 'Fog Harbor', 'roleplay', 'Fog Harbor', 'A hidden port', 'mysterious')
+         RETURNING id, version`,
+        [userResult.rows[0].id],
+      );
+      expect(gameSession.rows[0].version).toBe(1);
+      await pglite.query(
+        `INSERT INTO game_characters (
+           session_id, name, role, controller, description
+         ) VALUES ($1, 'Lin', 'Investigator', 'user', 'Looking for the sender')`,
+        [gameSession.rows[0].id],
+      );
+      await expect(
+        pglite.query(
+          `INSERT INTO game_characters (
+             session_id, name, role, controller, description
+           ) VALUES ($1, 'Invalid', 'Unknown', 'system', 'Invalid controller')`,
+          [gameSession.rows[0].id],
+        ),
+      ).rejects.toThrow();
 
       const taskResult = await pglite.query<{ id: string }>(
         `INSERT INTO scheduled_tasks (
@@ -482,6 +507,15 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[23].id,
+      );
+      const gameTablesAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename IN ('game_characters', 'game_sessions')
+      `);
+      expect(gameTablesAfterRollback.rows).toEqual([]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[22].id,
       );
       const capabilityTablesAfterRollback = await pglite.query<{ tablename: string }>(`
@@ -747,6 +781,7 @@ describe("database migrations", () => {
         migrations[20].id,
         migrations[21].id,
         migrations[22].id,
+        migrations[23].id,
       ]);
     },
     15_000,
@@ -796,6 +831,7 @@ describe("database migrations", () => {
       migrations[20].id,
       migrations[21].id,
       migrations[22].id,
+      migrations[23].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

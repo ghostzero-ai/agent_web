@@ -1,4 +1,4 @@
-# Conversation/Message 服务端 API
+# 服务端数据 API
 
 Sprint 1.2 提供单用户 Conversation/Message Repository 和 `/api/v1` HTTP 接口。它是 Chat UI 迁移到服务端的基础，不包含模型调用、Streaming 或旧 localStorage 导入。
 
@@ -58,6 +58,10 @@ X-Request-Id: <uuid>
 | `POST` | `/api/v1/problem-solving/:id/interactions` | 按提示/引导/检查/讲解策略请求模型并保存错因和工具证据 |
 | `POST` | `/api/v1/problem-solving/:id/review-cards` | 从指定解题记录生成并保存复习卡 |
 | `POST` | `/api/v1/problem-solving/:id/task-draft` | 为指定复习卡返回待用户确认的核心任务草稿 |
+| `GET` / `POST` | `/api/v1/game-sessions` | 列出或创建独立游戏会话，可同时创建首张角色卡 |
+| `GET` / `PATCH` / `DELETE` | `/api/v1/game-sessions/:id` | 读取、更新或删除世界设定，写入使用 Session 版本锁 |
+| `POST` | `/api/v1/game-sessions/:id/characters` | 添加角色卡并推进 Session 版本 |
+| `PATCH` / `DELETE` | `/api/v1/game-sessions/:id/characters/:characterId` | 以 Session + Character 双版本锁更新或删除角色卡 |
 
 Persona Profile 只接受名称、可选用户称呼，以及 `warmth`、`humor`、`directness`、`verbosity`、`initiative` 五个 0–100 整数。API 不接受自定义 Prompt 或硬边界文本；`initiative` 只表示当前对话中的引导强度，不代表后台主动联系。
 
@@ -66,6 +70,8 @@ Voice Profile 当前只接受 `provider=system`、可空的设备 `voiceId`、BC
 Proactivity 默认关闭，仅支持 `goal_followup` 与 `checkin` 两类明确原因。`POST` 只触发与 Worker 相同的规则评估：暂停、安静时段、上一条未读、每日预算、冷却期或没有真实信号时返回稳定的 `skipped` 原因，不创建 InboxItem。目标跟进只读取用户确认、未过期且非敏感的正式目标；久未互动只比较最后一条真实用户消息时间，不推断情绪。任务提醒、简报和书籍推荐不计入这套陪伴预算。
 
 插件端点只管理随应用发布的第一方清单，不接受上传 URL、压缩包、代码或自定义 Manifest。Manifest 声明、插件启用和用户授权是三个独立状态；授权请求只接受 `expectedVersion`，且插件必须兼容、已启用、安装版本与当前 Manifest 一致。插件升级会使旧授权失效，等待重新审核。Capability Gateway 没有浏览器通用调用端点：只有服务端第一方活动能请求已注册 Adapter。Phase 7.5 已冻结 Plugin API 1.0.0：模型使用插件绑定的注册操作，任务能力只返回待确认草稿，跨插件学习卡只交换带来源的中立 Schema；这些宿主内部契约不会额外暴露通用浏览器执行 API。
+
+GameSession 端点只管理虚构世界与角色卡，不调用模型，也不创建普通 Conversation、Message、MemoryCandidate 或 Memory。世界规则与边界、角色目标与边界均使用受限数组；角色变更会推进 Session 版本，避免多端静默覆盖。完整边界见 `docs/GAME_SESSIONS.md`。
 
 ### 创建会话
 

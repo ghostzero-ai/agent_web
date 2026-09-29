@@ -5,6 +5,7 @@ import {
   memoryCandidates,
   memoryItems,
   messages,
+  type ConversationRecord,
   type MemoryCandidateRecord,
   type MemoryCandidateStatus,
 } from "@/lib/db/schema";
@@ -18,6 +19,7 @@ export type MemorySourceMessage = {
   conversationId: string;
   messageId: string;
   content: string;
+  mode: ConversationRecord["mode"];
 };
 
 export type CandidateProposal = {
@@ -96,6 +98,7 @@ export class MemoryCandidateRepository<
         messageId: messages.id,
         content: messages.content,
         role: messages.role,
+        mode: conversations.mode,
       })
       .from(messages)
       .innerJoin(conversations, eq(messages.conversationId, conversations.id))

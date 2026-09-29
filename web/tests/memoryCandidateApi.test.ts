@@ -15,6 +15,7 @@ function repository(
       conversationId,
       messageId,
       content: "我喜欢通过例题学习数学",
+      mode: "auto",
     }),
     createCandidate: vi.fn().mockResolvedValue({
       candidate: { id: candidateId, status: "pending" },

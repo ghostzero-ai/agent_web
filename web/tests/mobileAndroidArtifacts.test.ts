@@ -68,6 +68,7 @@ describe("Capacitor Android project artifacts", () => {
       "gradlew.bat assembleDebug",
     );
     expect(mobileApp).toContain('"/reading": lazy');
+    expect(mobileApp).toContain('"/entertainment": lazy');
     for (const activity of FIRST_PARTY_PLUGIN_ACTIVITIES) {
       if (!activity.platforms.includes("android")) continue;
       expect(mobileApp).toContain(`"${activity.route}": lazy`);
