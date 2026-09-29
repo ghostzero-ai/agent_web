@@ -27,12 +27,12 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS: readonly unknown[] = [
     id: "study.problem-solving",
     name: "解题训练",
     description:
-      "支持提示、逐步引导、答案检查和错因记录。Phase 7.4 将实现完整活动。",
-    version: "0.1.0",
+      "支持文字/图片题目、提示、逐步引导、答案检查、错因记录和复习卡。",
+    version: "0.2.0",
     pluginApiVersion: ">=0.1.0 <0.2.0",
     kind: "activity",
     source: "first-party",
-    availability: "foundation",
+    availability: "available",
     contributions: {
       skills: ["problem-solving.guidance"],
       tools: [],

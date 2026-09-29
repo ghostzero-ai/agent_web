@@ -22,6 +22,7 @@ type MobileRoute =
   | "/proactivity"
   | "/plugins"
   | "/study/memorization"
+  | "/study/problem-solving"
   | "/notifications"
   | "/api-key";
 
@@ -37,6 +38,7 @@ const ROUTES: Record<MobileRoute, LazyExoticComponent<ComponentType>> = {
   "/proactivity": lazy(() => import("@/app/proactivity/page")),
   "/plugins": lazy(() => import("@/app/plugins/page")),
   "/study/memorization": lazy(() => import("@/app/study/memorization/page")),
+  "/study/problem-solving": lazy(() => import("@/app/study/problem-solving/page")),
   "/notifications": lazy(() => import("@/app/notifications/page")),
   "/api-key": lazy(() => import("@/app/api-key/page")),
 };

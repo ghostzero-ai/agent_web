@@ -24,7 +24,12 @@ import type {
 
 function friendlyError(error: unknown): string {
   if (error instanceof MemorizationClientError) {
-    if (["PLUGIN_DISABLED", "CAPABILITY_NOT_GRANTED", "PLUGIN_VERSION_REVIEW_REQUIRED"].includes(error.code)) {
+    if ([
+      "PLUGIN_DISABLED",
+      "CAPABILITY_NOT_GRANTED",
+      "PLUGIN_UPDATE_REVIEW_REQUIRED",
+      "CAPABILITY_REVIEW_REQUIRED",
+    ].includes(error.code)) {
       return "背书插件尚未启用，或隔离存储能力尚未授权。请先到插件页完成启用与授权。";
     }
     return error.message;

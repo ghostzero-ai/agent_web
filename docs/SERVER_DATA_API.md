@@ -53,6 +53,11 @@ X-Request-Id: <uuid>
 | `GET` | `/api/v1/memorization/:id` | 读取一份材料、学习进度与存储版本 |
 | `DELETE` | `/api/v1/memorization/:id` | 以存储版本锁删除材料及其学习记录 |
 | `POST` | `/api/v1/memorization/:id/review` | 提交复述，保存评价并返回可选任务草稿 |
+| `GET` / `POST` | `/api/v1/problem-solving` | 列出或创建文字/图片题目记录；图片正文不落库 |
+| `GET` / `DELETE` | `/api/v1/problem-solving/:id` | 读取或以存储版本锁删除题目、解题记录与复习卡 |
+| `POST` | `/api/v1/problem-solving/:id/interactions` | 按提示/引导/检查/讲解策略请求模型并保存错因和工具证据 |
+| `POST` | `/api/v1/problem-solving/:id/review-cards` | 从指定解题记录生成并保存复习卡 |
+| `POST` | `/api/v1/problem-solving/:id/task-draft` | 为指定复习卡返回待用户确认的核心任务草稿 |
 
 Persona Profile 只接受名称、可选用户称呼，以及 `warmth`、`humor`、`directness`、`verbosity`、`initiative` 五个 0–100 整数。API 不接受自定义 Prompt 或硬边界文本；`initiative` 只表示当前对话中的引导强度，不代表后台主动联系。
 
@@ -60,7 +65,7 @@ Voice Profile 当前只接受 `provider=system`、可空的设备 `voiceId`、BC
 
 Proactivity 默认关闭，仅支持 `goal_followup` 与 `checkin` 两类明确原因。`POST` 只触发与 Worker 相同的规则评估：暂停、安静时段、上一条未读、每日预算、冷却期或没有真实信号时返回稳定的 `skipped` 原因，不创建 InboxItem。目标跟进只读取用户确认、未过期且非敏感的正式目标；久未互动只比较最后一条真实用户消息时间，不推断情绪。任务提醒、简报和书籍推荐不计入这套陪伴预算。
 
-插件端点只管理随应用发布的第一方清单，不接受上传 URL、压缩包、代码或自定义 Manifest。Manifest 声明、插件启用和用户授权是三个独立状态；授权请求只接受 `expectedVersion`，且插件必须兼容、已启用、安装版本与当前 Manifest 一致。插件升级会使旧授权失效，等待重新审核。Capability Gateway 没有浏览器通用调用端点：只有服务端第一方活动能请求已注册 Adapter。7.3 已接入隔离存储、受控背书评价和待确认任务草稿；任务草稿返回客户端后仍需用户明确确认，才会调用核心 Task API。
+插件端点只管理随应用发布的第一方清单，不接受上传 URL、压缩包、代码或自定义 Manifest。Manifest 声明、插件启用和用户授权是三个独立状态；授权请求只接受 `expectedVersion`，且插件必须兼容、已启用、安装版本与当前 Manifest 一致。插件升级会使旧授权失效，等待重新审核。Capability Gateway 没有浏览器通用调用端点：只有服务端第一方活动能请求已注册 Adapter。7.3–7.4 已接入隔离存储、受控背书/解题模型生成和两类待确认任务草稿；任务草稿返回客户端后仍需用户明确确认，才会调用核心 Task API。
 
 ### 创建会话
 

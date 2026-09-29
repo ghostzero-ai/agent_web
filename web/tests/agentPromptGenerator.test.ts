@@ -91,4 +91,30 @@ describe("Agent Prompt generator", () => {
       retryable: false,
     });
   });
+
+  it("keeps a vision image inside the provider request without exposing the key", async () => {
+    const stream = vi.fn<ModelProvider["stream"]>(() => streamText("图片题已识别"));
+    const generator = createAgentPromptGenerator({
+      getConfig: vi.fn().mockResolvedValue({
+        apiKey: "vision-secret",
+        baseUrl: "https://provider.example/v1",
+        model: "vision-model",
+      }),
+      createProvider: vi.fn().mockReturnValue({ stream } satisfies ModelProvider),
+    });
+    const imageDataUrl = `data:image/jpeg;base64,${Buffer.from("image").toString("base64")}`;
+    await expect(generator.generateWithImage?.("识别题目", imageDataUrl)).resolves.toEqual({
+      content: "图片题已识别",
+      model: "vision-model",
+    });
+    const request = stream.mock.calls[0][0] as ModelStreamRequest;
+    expect(request.messages[1]).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: "识别题目" },
+        { type: "image_url", image_url: { url: imageDataUrl } },
+      ],
+    });
+    expect(JSON.stringify(request)).not.toContain("vision-secret");
+  });
 });

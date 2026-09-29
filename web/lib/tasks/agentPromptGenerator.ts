@@ -25,6 +25,11 @@ export type AgentPromptResult = {
 
 export interface AgentPromptGeneratorPort {
   generate(prompt: string, signal?: AbortSignal): Promise<AgentPromptResult>;
+  generateWithImage?(
+    prompt: string,
+    imageDataUrl: string,
+    signal?: AbortSignal,
+  ): Promise<AgentPromptResult>;
 }
 
 export class AgentPromptGenerationError extends Error {
@@ -55,70 +60,93 @@ function promptMessages(prompt: string): ChatCompletionMessage[] {
   ];
 }
 
+function promptMessagesWithImage(prompt: string, imageDataUrl: string) {
+  return [
+    { role: "system" as const, content: SCHEDULED_TASK_SYSTEM_PROMPT },
+    {
+      role: "user" as const,
+      content: [
+        { type: "text" as const, text: prompt },
+        { type: "image_url" as const, image_url: { url: imageDataUrl } },
+      ],
+    },
+  ];
+}
+
 export function createAgentPromptGenerator(
   dependencies: AgentPromptGeneratorDependencies = {
     getConfig: resolveModelProviderConfig,
     createProvider: (config) => new OpenAICompatibleProvider(config),
   },
 ): AgentPromptGeneratorPort {
-  return {
-    async generate(prompt, signal) {
-      let config: ModelProviderConfig;
-      try {
-        config = await dependencies.getConfig();
-      } catch (error) {
-        if (error instanceof ModelConfigError) {
-          throw new AgentPromptGenerationError(
-            "MODEL_CONFIGURATION_ERROR",
-            "Server model provider is not configured.",
-            false,
-          );
-        }
-        throw error;
-      }
-
-      let content = "";
-      const providerController = new AbortController();
-      const providerSignal = signal
-        ? AbortSignal.any([signal, providerController.signal])
-        : providerController.signal;
-      try {
-        for await (const event of dependencies
-          .createProvider(config)
-          .stream({ messages: promptMessages(prompt) }, providerSignal)) {
-          if (event.type !== "delta") continue;
-          content += event.text;
-          if (content.length > MAX_AGENT_RESULT_LENGTH) {
-            providerController.abort("Agent task output is too large.");
-            throw new AgentPromptGenerationError(
-              "AGENT_OUTPUT_TOO_LARGE",
-              "Agent task output exceeded the supported size.",
-              false,
-            );
-          }
-        }
-      } catch (error) {
-        if (error instanceof AgentPromptGenerationError) throw error;
-        if (error instanceof ModelProviderError) {
-          throw new AgentPromptGenerationError(
-            error.code,
-            error.message,
-            error.retryable,
-          );
-        }
-        throw error;
-      } finally {
-        providerController.abort("Agent task generation finished.");
-      }
-
-      if (!content.trim()) {
+  const generateMessages = async (
+    messages: Parameters<ModelProvider["stream"]>[0]["messages"],
+    signal?: AbortSignal,
+  ): Promise<AgentPromptResult> => {
+    let config: ModelProviderConfig;
+    try {
+      config = await dependencies.getConfig();
+    } catch (error) {
+      if (error instanceof ModelConfigError) {
         throw new AgentPromptGenerationError(
-          "AGENT_OUTPUT_EMPTY",
-          "Model provider returned no content for the Agent task.",
+          "MODEL_CONFIGURATION_ERROR",
+          "Server model provider is not configured.",
           false,
         );
       }
-      return { content, model: config.model };
+      throw error;
+    }
+
+    let content = "";
+    const providerController = new AbortController();
+    const providerSignal = signal
+      ? AbortSignal.any([signal, providerController.signal])
+      : providerController.signal;
+    try {
+      for await (const event of dependencies
+        .createProvider(config)
+        .stream({ messages }, providerSignal)) {
+        if (event.type !== "delta") continue;
+        content += event.text;
+        if (content.length > MAX_AGENT_RESULT_LENGTH) {
+          providerController.abort("Agent task output is too large.");
+          throw new AgentPromptGenerationError(
+            "AGENT_OUTPUT_TOO_LARGE",
+            "Agent task output exceeded the supported size.",
+            false,
+          );
+        }
+      }
+    } catch (error) {
+      if (error instanceof AgentPromptGenerationError) throw error;
+      if (error instanceof ModelProviderError) {
+        throw new AgentPromptGenerationError(
+          error.code,
+          error.message,
+          error.retryable,
+        );
+      }
+      throw error;
+    } finally {
+      providerController.abort("Agent task generation finished.");
+    }
+
+    if (!content.trim()) {
+      throw new AgentPromptGenerationError(
+        "AGENT_OUTPUT_EMPTY",
+        "Model provider returned no content for the Agent task.",
+        false,
+      );
+    }
+    return { content, model: config.model };
+  };
+
+  return {
+    async generate(prompt, signal) {
+      return generateMessages(promptMessages(prompt), signal);
+    },
+    async generateWithImage(prompt, imageDataUrl, signal) {
+      return generateMessages(promptMessagesWithImage(prompt, imageDataUrl), signal);
     },
   };
 }

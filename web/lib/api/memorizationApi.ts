@@ -28,7 +28,8 @@ function statusFor(error: unknown): number {
   if (
     code === "PLUGIN_DISABLED" ||
     code === "CAPABILITY_NOT_GRANTED" ||
-    code === "PLUGIN_VERSION_REVIEW_REQUIRED"
+    code === "PLUGIN_UPDATE_REVIEW_REQUIRED" ||
+    code === "CAPABILITY_REVIEW_REQUIRED"
   ) return 403;
   if (code.includes("VERSION_CONFLICT") || code === "MATERIAL_LIMIT_REACHED") return 409;
   if (

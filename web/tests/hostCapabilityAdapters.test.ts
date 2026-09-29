@@ -51,4 +51,54 @@ describe("Phase 7.3 host capability adapters", () => {
       schedule: { type: "once", runAt: "2026-10-01T08:00:00.000Z" },
     });
   });
+
+  it("constrains problem-solving strategies and sends an optional image through the host", async () => {
+    const generateWithImage = vi.fn().mockResolvedValue({
+      content: JSON.stringify({
+        subject: "math",
+        problemSummary: "计算 2+3",
+        response: "先想一想加法的含义。",
+        assessment: "not_applicable",
+        misconception: null,
+        errorTags: [],
+        nextQuestion: "2 和 3 合起来是多少？",
+      }),
+      model: "vision-model",
+    });
+    const adapter = createControlledModelCapabilityAdapter({
+      generate: vi.fn(),
+      generateWithImage,
+    });
+    const imageDataUrl = `data:image/jpeg;base64,${Buffer.from("image").toString("base64")}`;
+    const prepared = adapter.prepare({
+      purpose: "problem-solving.respond",
+      title: "加法题",
+      problemText: "",
+      strategy: "hint",
+      userAnswer: null,
+      priorContext: "",
+      toolEvidence: '{"status":"not_applicable"}',
+      imageDataUrl,
+    });
+    await expect(adapter.execute({
+      pluginId: "study.problem-solving",
+      prepared,
+      now: new Date(),
+    })).resolves.toMatchObject({
+      subject: "math",
+      response: "先想一想加法的含义。",
+      model: "vision-model",
+    });
+    expect(generateWithImage).toHaveBeenCalledWith(expect.stringContaining("只给一个"), imageDataUrl);
+    expect(() => adapter.prepare({
+      purpose: "problem-solving.respond",
+      title: "题目",
+      problemText: "1+1",
+      strategy: "reveal-answer",
+      userAnswer: null,
+      priorContext: "",
+      toolEvidence: "{}",
+      imageDataUrl: null,
+    })).toThrow();
+  });
 });

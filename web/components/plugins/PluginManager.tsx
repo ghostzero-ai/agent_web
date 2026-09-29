@@ -25,6 +25,7 @@ function friendlyError(error: unknown): string {
 
 function statusLabel(plugin: PluginCatalogItem): string {
   if (plugin.compatibility.status === "incompatible") return "版本不兼容";
+  if (plugin.installation.updateAvailable) return "待审核更新";
   if (plugin.installation.enabled) return "已启用";
   return "未启用";
 }
@@ -80,7 +81,7 @@ export function PluginManager() {
   };
 
   const changeState = async (plugin: PluginCatalogItem) => {
-    const enabled = !plugin.installation.enabled;
+    const enabled = plugin.installation.updateAvailable || !plugin.installation.enabled;
     setBusyId(plugin.manifest.id);
     setNotice(null);
     setError(null);
@@ -97,7 +98,9 @@ export function PluginManager() {
       );
       await refreshCapabilityState(plugin.manifest.id);
       setNotice(
-        enabled
+        plugin.installation.updateAvailable
+          ? `${updated.manifest.name}已更新；请重新审核它申请的能力。`
+          : enabled
           ? `${updated.manifest.name}已启用；请逐项审核它申请的能力。`
           : `${updated.manifest.name}已禁用，核心聊天、任务和历史数据不受影响。`,
       );
@@ -154,9 +157,9 @@ export function PluginManager() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5">
       <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm leading-6 text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-        <h2 className="font-semibold">Phase 7.3 学习活动与受控能力</h2>
+        <h2 className="font-semibold">Phase 7.4 双学习活动与受控能力</h2>
         <p className="mt-1">
-          背书训练已可使用；启用插件后仍需逐项授权。每次调用都会检查插件版本、授权和每日配额，审计记录不保存 Prompt、学习正文或 API Key。
+          背书与解题训练均已可使用；启用或更新插件后仍需逐项授权。每次调用都会检查插件版本、授权和每日配额，审计记录不保存 Prompt、学习正文、题目图片或 API Key。
         </p>
       </section>
 
@@ -273,12 +276,22 @@ export function PluginManager() {
               <div className="mt-auto pt-5">
                 {plugin.manifest.id === "study.memorization" &&
                   plugin.manifest.availability === "available" &&
-                  plugin.installation.enabled && (
+                  dashboard?.pluginEnabled && (
                     <AppLink
                       href="/study/memorization"
                       className="mb-2 block w-full rounded-xl border border-blue-300 px-4 py-2.5 text-center text-sm font-medium text-blue-700 dark:border-blue-800 dark:text-blue-300"
                     >
                       打开背书训练
+                    </AppLink>
+                  )}
+                {plugin.manifest.id === "study.problem-solving" &&
+                  plugin.manifest.availability === "available" &&
+                  dashboard?.pluginEnabled && (
+                    <AppLink
+                      href="/study/problem-solving"
+                      className="mb-2 block w-full rounded-xl border border-blue-300 px-4 py-2.5 text-center text-sm font-medium text-blue-700 dark:border-blue-800 dark:text-blue-300"
+                    >
+                      打开解题训练
                     </AppLink>
                   )}
                 <button
@@ -291,6 +304,8 @@ export function PluginManager() {
                     ? "处理中…"
                     : incompatible
                       ? "无法启用"
+                      : plugin.installation.updateAvailable
+                        ? "审核并更新"
                       : plugin.installation.enabled
                         ? "禁用插件"
                         : "启用插件"}
