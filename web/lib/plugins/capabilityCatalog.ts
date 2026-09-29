@@ -30,7 +30,7 @@ export const PLUGIN_CAPABILITY_CATALOG: Readonly<
     description: "使用宿主模型配置生成学习反馈；插件不能读取 API Key。",
     risk: "compute",
     dailyLimit: 40,
-    adapterStatus: "planned",
+    adapterStatus: "available",
   },
   "storage.read-write": {
     id: "storage.read-write",
@@ -46,7 +46,7 @@ export const PLUGIN_CAPABILITY_CATALOG: Readonly<
     description: "向核心任务系统提交待用户确认的草稿，不能直接创建提醒。",
     risk: "core-write",
     dailyLimit: 20,
-    adapterStatus: "planned",
+    adapterStatus: "available",
   },
 };
 

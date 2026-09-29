@@ -1,0 +1,306 @@
+import { z } from "zod";
+import type {
+  PluginCapabilityGateway,
+  PluginExecutionContext,
+} from "@/lib/plugins/capabilityGateway";
+import {
+  memorizationMaterialSchema,
+  memorizationUnitInputSchema,
+  materialStorageKey,
+  MAX_MEMORIZATION_MATERIALS,
+  MEMORIZATION_PLUGIN_ID,
+  nextReviewInstant,
+  scoreRecitation,
+  summarizeMaterial,
+  type MemorizationMaterial,
+} from "@/lib/memorization/domain";
+import { taskDraftResultSchema } from "@/lib/plugins/hostCapabilityAdapters";
+
+const storageEntrySchema = z
+  .object({
+    key: z.string(),
+    value: z.unknown(),
+    byteSize: z.number(),
+    version: z.number().int().positive(),
+    updatedAt: z.coerce.date(),
+  })
+  .strict();
+
+const modelEvaluationSchema = z
+  .object({
+    score: z.number().int().min(0).max(100),
+    feedback: z.string().trim().min(1).max(500),
+    missedPoints: z.array(z.string().trim().min(1).max(160)).max(6),
+    model: z.string().min(1),
+  })
+  .strict();
+
+export const createMemorizationMaterialInputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(120),
+    sourceText: z.string().trim().min(1).max(6_000),
+    units: z.array(memorizationUnitInputSchema).min(1).max(24),
+  })
+  .strict();
+
+export const reviewMemorizationUnitInputSchema = z
+  .object({
+    unitId: z.string().uuid(),
+    recitation: z.string().trim().min(1).max(4_000),
+    expectedVersion: z.number().int().positive(),
+  })
+  .strict();
+
+export const deleteMemorizationMaterialInputSchema = z
+  .object({ expectedVersion: z.number().int().positive() })
+  .strict();
+
+export type MemorizationTaskDraft = z.infer<typeof taskDraftResultSchema>;
+
+export type MemorizationReviewResult = {
+  material: MemorizationMaterial;
+  storageVersion: number;
+  evaluation: {
+    score: number;
+    localScore: number;
+    source: "model" | "deterministic";
+    feedback: string;
+    missedPoints: string[];
+    model: string | null;
+  };
+  taskDraft: MemorizationTaskDraft | null;
+  taskDraftUnavailable: boolean;
+};
+
+export type MemorizationGatewayPort = Pick<PluginCapabilityGateway, "invoke">;
+
+const foregroundContext: PluginExecutionContext = {
+  execution: "foreground",
+  runId: null,
+  userInitiated: true,
+};
+
+function deterministicFeedback(score: number): string {
+  if (score >= 90) return "复述覆盖完整，可以进入较长间隔复习。";
+  if (score >= 80) return "主体准确，建议对照原文补齐个别表述。";
+  if (score >= 60) return "已抓住部分要点，请重点核对遗漏和逻辑顺序。";
+  return "当前复述与原文重合较少，建议分句理解后尽快再复习。";
+}
+
+export function createMemorizationService(
+  gatewayOrFactory: MemorizationGatewayPort | (() => MemorizationGatewayPort),
+  now: () => Date = () => new Date(),
+) {
+  const gateway = () =>
+    typeof gatewayOrFactory === "function" ? gatewayOrFactory() : gatewayOrFactory;
+
+  async function storage(operation: unknown): Promise<unknown> {
+    const result = await gateway().invoke({
+      pluginId: MEMORIZATION_PLUGIN_ID,
+      capabilityId: "storage.read-write",
+      payload: operation,
+      context: foregroundContext,
+    });
+    return result.data;
+  }
+
+  async function readMaterial(id: string): Promise<{
+    material: MemorizationMaterial;
+    storageVersion: number;
+  } | null> {
+    const result = await storage({ operation: "get", key: materialStorageKey(id) });
+    if (result === null) return null;
+    const entry = storageEntrySchema.parse(result);
+    return {
+      material: memorizationMaterialSchema.parse(entry.value),
+      storageVersion: entry.version,
+    };
+  }
+
+  async function listMaterials() {
+    const result = z.array(storageEntrySchema).parse(await storage({
+      operation: "list",
+      prefix: "memorization/materials/",
+      limit: MAX_MEMORIZATION_MATERIALS,
+    }));
+    return result
+      .map((entry) => memorizationMaterialSchema.parse(entry.value))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
+
+  return {
+    async list() {
+      return (await listMaterials()).map(summarizeMaterial);
+    },
+
+    get(id: string) {
+      return readMaterial(id);
+    },
+
+    async delete(id: string, rawInput: unknown) {
+      const input = deleteMemorizationMaterialInputSchema.parse(rawInput);
+      return storage({
+        operation: "delete",
+        key: materialStorageKey(id),
+        expectedVersion: input.expectedVersion,
+      });
+    },
+
+    async create(rawInput: unknown) {
+      const input = createMemorizationMaterialInputSchema.parse(rawInput);
+      const current = await listMaterials();
+      if (current.length >= MAX_MEMORIZATION_MATERIALS) {
+        throw new MemorizationServiceError(
+          "MATERIAL_LIMIT_REACHED",
+          `最多保留 ${MAX_MEMORIZATION_MATERIALS} 份背书材料。`,
+        );
+      }
+      const timestamp = now().toISOString();
+      const material: MemorizationMaterial = {
+        schemaVersion: 1,
+        id: crypto.randomUUID(),
+        title: input.title,
+        sourceText: input.sourceText,
+        units: input.units.map((unit) => ({
+          ...unit,
+          id: crypto.randomUUID(),
+          reviewCount: 0,
+          lastScore: null,
+          nextReviewAt: null,
+          weakPoints: [],
+        })),
+        attempts: [],
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      const saved = storageEntrySchema.parse(await storage({
+        operation: "set",
+        key: materialStorageKey(material.id),
+        value: memorizationMaterialSchema.parse(material),
+        expectedVersion: 0,
+      }));
+      return { material, storageVersion: saved.version };
+    },
+
+    async review(id: string, rawInput: unknown): Promise<MemorizationReviewResult | null> {
+      const input = reviewMemorizationUnitInputSchema.parse(rawInput);
+      const stored = await readMaterial(id);
+      if (!stored) return null;
+      if (stored.storageVersion !== input.expectedVersion) {
+        throw new MemorizationServiceError(
+          "MATERIAL_VERSION_CONFLICT",
+          "材料已发生变化，请刷新后重试。",
+        );
+      }
+      const unit = stored.material.units.find((item) => item.id === input.unitId);
+      if (!unit) {
+        throw new MemorizationServiceError("UNIT_NOT_FOUND", "复习单元不存在。");
+      }
+
+      const localScore = scoreRecitation(unit.content, input.recitation);
+      let score = localScore;
+      let source: "model" | "deterministic" = "deterministic";
+      let feedback = deterministicFeedback(score);
+      let missedPoints = score >= 90 ? [] : ["请对照原文核对遗漏的关键词与逻辑关系。"];
+      let model: string | null = null;
+      try {
+        const result = await gateway().invoke({
+          pluginId: MEMORIZATION_PLUGIN_ID,
+          capabilityId: "model.generate",
+          payload: {
+            purpose: "memorization.evaluate",
+            materialTitle: stored.material.title,
+            cue: unit.cue,
+            target: unit.content,
+            recitation: input.recitation,
+            localScore,
+          },
+          context: foregroundContext,
+        });
+        const evaluation = modelEvaluationSchema.parse(result.data);
+        score = Math.round(localScore * 0.45 + evaluation.score * 0.55);
+        source = "model";
+        feedback = evaluation.feedback;
+        missedPoints = evaluation.missedPoints;
+        model = evaluation.model;
+      } catch {
+        // The deterministic evaluator keeps review usable when model access is
+        // unconfigured, unavailable, or not granted. The Gateway still audits denial.
+      }
+
+      const reviewedAt = now();
+      const nextReviewAt = nextReviewInstant(reviewedAt, score);
+      const attempt = {
+        id: crypto.randomUUID(),
+        unitId: unit.id,
+        score,
+        localScore,
+        source,
+        feedback,
+        missedPoints,
+        reviewedAt: reviewedAt.toISOString(),
+        nextReviewAt: nextReviewAt.toISOString(),
+      } as const;
+      const material = memorizationMaterialSchema.parse({
+        ...stored.material,
+        units: stored.material.units.map((item) =>
+          item.id === unit.id
+            ? {
+                ...item,
+                reviewCount: item.reviewCount + 1,
+                lastScore: score,
+                nextReviewAt: nextReviewAt.toISOString(),
+                weakPoints: missedPoints,
+              }
+            : item,
+        ),
+        attempts: [...stored.material.attempts, attempt].slice(-40),
+        updatedAt: reviewedAt.toISOString(),
+      });
+      const saved = storageEntrySchema.parse(await storage({
+        operation: "set",
+        key: materialStorageKey(material.id),
+        value: material,
+        expectedVersion: input.expectedVersion,
+      }));
+      let taskDraft: MemorizationTaskDraft | null = null;
+      let taskDraftUnavailable = false;
+      try {
+        const draft = await gateway().invoke({
+          pluginId: MEMORIZATION_PLUGIN_ID,
+          capabilityId: "task.create-draft",
+          payload: {
+            purpose: "memorization.review",
+            title: `复习：${material.title}`,
+            prompt: `打开背书训练，复习“${material.title}”中薄弱的知识单元。`,
+            runAt: nextReviewAt.toISOString(),
+          },
+          context: foregroundContext,
+        });
+        taskDraft = taskDraftResultSchema.parse(draft.data);
+      } catch {
+        taskDraftUnavailable = true;
+      }
+      return {
+        material,
+        storageVersion: saved.version,
+        evaluation: { score, localScore, source, feedback, missedPoints, model },
+        taskDraft,
+        taskDraftUnavailable,
+      };
+    },
+  };
+}
+
+export class MemorizationServiceError extends Error {
+  constructor(
+    readonly code:
+      | "MATERIAL_LIMIT_REACHED"
+      | "MATERIAL_VERSION_CONFLICT"
+      | "UNIT_NOT_FOUND",
+    message: string,
+  ) {
+    super(message);
+    this.name = "MemorizationServiceError";
+  }
+}

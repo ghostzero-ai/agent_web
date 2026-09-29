@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AppLink } from "@/components/platform/AppLink";
 import {
   getPluginCapabilities,
   listPlugins,
@@ -153,9 +154,9 @@ export function PluginManager() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5">
       <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm leading-6 text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-        <h2 className="font-semibold">Phase 7.2 受控能力边界</h2>
+        <h2 className="font-semibold">Phase 7.3 学习活动与受控能力</h2>
         <p className="mt-1">
-          启用插件后仍需逐项授权。每次调用都会检查插件版本、授权和每日配额，并留下不含 Prompt、学习正文或 API Key 的元数据审计记录。
+          背书训练已可使用；启用插件后仍需逐项授权。每次调用都会检查插件版本、授权和每日配额，审计记录不保存 Prompt、学习正文或 API Key。
         </p>
       </section>
 
@@ -270,6 +271,16 @@ export function PluginManager() {
               )}
 
               <div className="mt-auto pt-5">
+                {plugin.manifest.id === "study.memorization" &&
+                  plugin.manifest.availability === "available" &&
+                  plugin.installation.enabled && (
+                    <AppLink
+                      href="/study/memorization"
+                      className="mb-2 block w-full rounded-xl border border-blue-300 px-4 py-2.5 text-center text-sm font-medium text-blue-700 dark:border-blue-800 dark:text-blue-300"
+                    >
+                      打开背书训练
+                    </AppLink>
+                  )}
                 <button
                   type="button"
                   disabled={busy || incompatible}

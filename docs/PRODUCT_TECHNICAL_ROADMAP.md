@@ -1776,7 +1776,7 @@ Phase 5.6 的编号保留，但不再作为 Phase 7/Phase 6 的前置条件。�
 |---|---|---|
 | 7.1 ✅ | Plugin Manifest、Registry、Compatibility Check | 已完成：背书与解题第一方 Manifest 可发现、启停并持久化；严格校验、重复隔离、实验 API 范围检查和不兼容拒绝均已覆盖 |
 | 7.2 ✅ | Capability Gateway、隔离存储、配额和审计 | 已完成：显式逐项授权、版本复核、Run 上下文、隔离 JSON 存储、UTC 日配额和无正文审计；当前仅开放存储 Adapter |
-| 7.3 | 背书插件 MVP | 材料→复习→评分→下次任务形成闭环 |
+| 7.3 ✅ | 背书插件 MVP | 已完成：材料导入与人工校对、确定性/模型复述评分、薄弱点与间隔记录、待确认任务草稿形成闭环 |
 | 7.4 | 解题插件 MVP | 支持提示/引导/检查/讲解并记录错因，可请求生成复习卡 |
 | 7.5 | Plugin API v1 复盘 | 两个插件均无需修改 Agent Loop，接口才冻结 |
 
@@ -1985,7 +1985,7 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
 
-当前优先级遵循产品主线指导。Core 3.1–3.5、Phase 4.1–4.4、Phase 5.1–5.5 与 Phase 7.1–7.2 已完成；Mobile M1.3 只处理阻断使用的问题。Phase 5.6 延后为发布前安全封版，当前下一步是 Phase 7.3：使用 Capability Gateway 完成背书插件 MVP；随后完成解题与 Plugin API 复盘，再进入 Phase 6 娱乐模式。
+当前优先级遵循产品主线指导。Core 3.1–3.5、Phase 4.1–4.4、Phase 5.1–5.5 与 Phase 7.1–7.3 已完成；Mobile M1.3 只处理阻断使用的问题。Phase 5.6 延后为发布前安全封版，当前下一步是 Phase 7.4：让解题插件复用 Capability Gateway；随后完成 Plugin API 复盘，再进入 Phase 6 娱乐模式。
 7. 完成新闻、书籍与 Reflection 的最小闭环后，实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
 8. 用背书与解题两个第一方学习活动验证 Capability Gateway；先让插件解决真实学习需求，再考虑冻结 Plugin API v1。
 9. 建立独立 GameSession 后再实现角色扮演与 AI 跑团，禁止把虚构状态混入普通长期记忆；娱乐规则包可作为 Plugin API 冻结前的补充验证。

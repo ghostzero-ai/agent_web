@@ -4,12 +4,12 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS: readonly unknown[] = [
     id: "study.memorization",
     name: "背书训练",
     description:
-      "把学习材料拆成可校对的知识单元，进行复述、反馈和间隔复习。Phase 7.3 将实现完整活动。",
+      "把学习材料拆成可校对的知识单元，进行复述评分、薄弱点记录和间隔复习。",
     version: "0.1.0",
     pluginApiVersion: ">=0.1.0 <0.2.0",
     kind: "activity",
     source: "first-party",
-    availability: "foundation",
+    availability: "available",
     contributions: {
       skills: ["memorization.feedback"],
       tools: [],

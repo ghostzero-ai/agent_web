@@ -15,6 +15,10 @@ import {
   PluginStorageRepositoryError,
   type PluginStorageRepositoryPort,
 } from "@/lib/repositories/pluginStorageRepository";
+import {
+  createControlledModelCapabilityAdapter,
+  createTaskDraftCapabilityAdapter,
+} from "@/lib/plugins/hostCapabilityAdapters";
 
 const executionContextSchema = z
   .object({
@@ -307,6 +311,8 @@ export function getPluginCapabilityGateway(): PluginCapabilityGateway {
   );
   const storage = createPluginStorageRepository(database);
   return new PluginCapabilityGateway(policy, [
+    createControlledModelCapabilityAdapter(),
     createPluginStorageCapabilityAdapter(storage),
+    createTaskDraftCapabilityAdapter(),
   ]);
 }
