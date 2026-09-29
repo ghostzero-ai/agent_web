@@ -315,6 +315,11 @@ test("mobile chat uses a collapsible conversation drawer", async ({ page }) => {
   await openDrawer.click();
   await expect(page.getByRole("dialog", { name: "对话列表" })).toBeVisible();
   await expect(
+    page.getByRole("dialog", { name: "对话列表" }).getByRole("link", {
+      name: "娱乐模式",
+    }),
+  ).toHaveAttribute("href", "/entertainment");
+  await expect(
     page.getByRole("dialog", { name: "对话列表" }).getByText("新对话", {
       exact: true,
     }),

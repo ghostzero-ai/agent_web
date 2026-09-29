@@ -39,9 +39,10 @@ describe("Capacitor Android project artifacts", () => {
   });
 
   it("tracks all required Capacitor packages and repeatable build commands", async () => {
-    const [packageContents, mobileApp] = await Promise.all([
+    const [packageContents, mobileApp, sessionSidebar] = await Promise.all([
       readWebFile("package.json"),
       readWebFile("mobile/MobileApp.tsx"),
+      readWebFile("components/chat/SessionSidebar.tsx"),
     ]);
     const packageJson = JSON.parse(packageContents) as {
       dependencies: Record<string, string>;
@@ -69,6 +70,7 @@ describe("Capacitor Android project artifacts", () => {
     );
     expect(mobileApp).toContain('"/reading": lazy');
     expect(mobileApp).toContain('"/entertainment": lazy');
+    expect(sessionSidebar).toContain('href="/entertainment"');
     for (const activity of FIRST_PARTY_PLUGIN_ACTIVITIES) {
       if (!activity.platforms.includes("android")) continue;
       expect(mobileApp).toContain(`"${activity.route}": lazy`);

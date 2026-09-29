@@ -1,4 +1,5 @@
 import type { Session } from "@/lib/config";
+import { AppLink } from "@/components/platform/AppLink";
 
 type SessionSidebarProps = {
   sessions: Session[];
@@ -115,6 +116,20 @@ export function SessionSidebar({
           </div>
         )}
       </div>
+      <nav className="grid grid-cols-2 gap-2 border-t border-zinc-200 p-3 text-center text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
+        <AppLink
+          href="/entertainment"
+          className="rounded-lg bg-violet-50 px-2 py-2.5 text-violet-800 hover:bg-violet-100 dark:bg-violet-950/40 dark:text-violet-200 dark:hover:bg-violet-950"
+        >
+          娱乐模式
+        </AppLink>
+        <AppLink
+          href="/plugins"
+          className="rounded-lg bg-zinc-100 px-2 py-2.5 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+        >
+          学习插件
+        </AppLink>
+      </nav>
     </aside>
   );
 }
