@@ -13,11 +13,11 @@ test("discovers and toggles first-party plugin foundations on mobile", async ({
       id: "study.memorization",
       name: "背书训练",
       description: "把学习材料拆成可校对的知识单元。",
-      version: "0.1.0",
-      pluginApiVersion: ">=0.1.0 <0.2.0",
+      version: "1.0.0",
+      pluginApiVersion: ">=1.0.0 <2.0.0",
       kind: "activity",
       source: "first-party",
-      availability: "foundation",
+      availability: "available",
       contributions: {
         skills: ["memorization.feedback"],
         tools: [],
@@ -28,13 +28,13 @@ test("discovers and toggles first-party plugin foundations on mobile", async ({
     },
     compatibility: {
       status: "compatible",
-      hostApiVersion: "0.1.0",
+      hostApiVersion: "1.0.0",
       reason: null,
     },
     installation: {
       status: enabled ? "enabled" : "disabled",
       enabled,
-      installedVersion: version ? "0.1.0" : null,
+      installedVersion: version ? "1.0.0" : null,
       version,
       updateAvailable: false,
       updatedAt: version ? "2026-09-28T05:00:00.000Z" : null,
@@ -42,7 +42,7 @@ test("discovers and toggles first-party plugin foundations on mobile", async ({
   });
   const capabilityDashboard = () => ({
     pluginId: "study.memorization",
-    pluginVersion: "0.1.0",
+    pluginVersion: "1.0.0",
     pluginEnabled: enabled,
     capabilities: ["model.generate", "storage.read-write"].map((id, index) => ({
       id,
@@ -54,7 +54,7 @@ test("discovers and toggles first-party plugin foundations on mobile", async ({
         status: granted && index === 0 ? "granted" : "revoked",
         effective: enabled && granted && index === 0,
         version: index === 0 ? grantVersion : 0,
-        reviewedPluginVersion: granted && index === 0 ? "0.1.0" : null,
+        reviewedPluginVersion: granted && index === 0 ? "1.0.0" : null,
         requiresReview: false,
       },
       quota: {
@@ -131,10 +131,14 @@ test("discovers and toggles first-party plugin foundations on mobile", async ({
 
   await page.goto("/plugins");
   await expect(page.getByRole("heading", { name: "学习插件" })).toBeVisible();
+  await expect(page.getByText("Plugin API v1", { exact: false })).toBeVisible();
+  await expect(page.getByText("v1.0.0", { exact: true })).toBeVisible();
   await expect(page.getByText("启用本身不会自动授权")).toBeVisible();
   await page.getByRole("button", { name: "启用插件" }).click();
   await expect(page.getByRole("status")).toContainText("逐项审核");
   await expect(page.getByText("已启用", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "打开背书训练" }))
+    .toHaveAttribute("href", "/study/memorization");
   await page.getByRole("button", { name: "授权" }).first().click();
   await expect(page.getByRole("status")).toContainText("调用仍受每日配额和审计约束");
   await expect(page.getByText("今日 0/40 次 · 已生效")).toBeVisible();

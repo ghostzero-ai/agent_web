@@ -60,8 +60,8 @@ function gateway() {
           },
         };
       }
-      const payload = input.payload as { purpose: string };
-      if (payload.purpose === "problem-solving.review-card") {
+      const payload = input.payload as { operation: string };
+      if (payload.operation === "problem-solving.review-card") {
         return {
           requestId: crypto.randomUUID(),
           data: {
@@ -128,6 +128,11 @@ describe("Phase 7.4 problem-solving service", () => {
       "model.generate",
       "task.create-draft",
     ]));
+    expect(fake.calls.filter((call) => call.capabilityId === "model.generate").map((call) =>
+      (call.payload as { operation: string }).operation,
+    )).toEqual(["problem-solving.respond", "problem-solving.review-card"]);
+    expect(fake.calls.find((call) => call.capabilityId === "task.create-draft")?.payload)
+      .toMatchObject({ intent: "review", activityId: "problem-solving.practice" });
   });
 
   it("stores image metadata but never persists the image data URL", async () => {

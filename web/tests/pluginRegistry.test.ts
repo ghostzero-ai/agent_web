@@ -21,10 +21,28 @@ describe("PluginRegistry", () => {
   });
 
   it("keeps incompatible manifests discoverable but marked unavailable", () => {
-    const registry = new PluginRegistry(FIRST_PARTY_PLUGIN_MANIFESTS, "1.0.0");
+    const registry = new PluginRegistry(FIRST_PARTY_PLUGIN_MANIFESTS, "2.0.0");
     expect(registry.list()).toHaveLength(2);
     expect(registry.list().every((plugin) =>
       plugin.compatibility.status === "incompatible",
     )).toBe(true);
+  });
+
+  it("rejects an activity contribution that is not owned by the plugin", () => {
+    const manifest = {
+      ...(FIRST_PARTY_PLUGIN_MANIFESTS[0] as Record<string, unknown>),
+      contributions: {
+        ...((FIRST_PARTY_PLUGIN_MANIFESTS[0] as {
+          contributions: Record<string, unknown>;
+        }).contributions),
+        activities: ["problem-solving.practice"],
+      },
+    };
+    const registry = new PluginRegistry([manifest]);
+
+    expect(registry.list()).toEqual([]);
+    expect(registry.rejected).toEqual([
+      { sourceIndex: 0, code: "INVALID_ACTIVITY_CONTRIBUTION" },
+    ]);
   });
 });

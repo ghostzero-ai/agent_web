@@ -111,6 +111,10 @@ describe("Phase 7.3 memorization service", () => {
     expect(fake.calls.map((call) => call.capabilityId)).toEqual(
       expect.arrayContaining(["storage.read-write", "model.generate", "task.create-draft"]),
     );
+    expect(fake.calls.find((call) => call.capabilityId === "model.generate")?.payload)
+      .toMatchObject({ operation: "memorization.evaluate", input: { localScore: 100 } });
+    expect(fake.calls.find((call) => call.capabilityId === "task.create-draft")?.payload)
+      .toMatchObject({ intent: "review", activityId: "memorization.review" });
     await expect(service.delete(created.material.id, {
       expectedVersion: reviewed!.storageVersion,
     })).resolves.toBe(true);

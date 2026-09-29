@@ -5,6 +5,14 @@ import {
 } from "@/lib/tasks/agentPromptGenerator";
 import { normalizeTaskSchedule } from "@/lib/tasks/schedule";
 import type { PluginCapabilityAdapter } from "@/lib/plugins/capabilityGateway";
+import { ownsRegisteredActivity } from "@/lib/plugins/activityRegistry";
+import {
+  learningCardContentSchema,
+  pluginContributionIdSchema,
+  pluginModelGenerateRequestSchema,
+  pluginTaskDraftRequestSchema,
+  taskDraftResultSchema,
+} from "@/lib/plugins/pluginApiV1";
 
 const memorizationModelRequestSchema = z
   .object({
@@ -50,12 +58,6 @@ const problemReviewCardRequestSchema = z
   })
   .strict();
 
-const controlledModelRequestSchema = z.discriminatedUnion("purpose", [
-  memorizationModelRequestSchema,
-  problemResponseRequestSchema,
-  problemReviewCardRequestSchema,
-]);
-
 export const memorizationModelResultSchema = z
   .object({
     score: z.number().int().min(0).max(100),
@@ -76,32 +78,8 @@ export const problemResponseResultSchema = z
   })
   .strict();
 
-export const problemReviewCardResultSchema = z
-  .object({
-    front: z.string().trim().min(1).max(600),
-    back: z.string().trim().min(1).max(2_000),
-    reason: z.string().trim().min(1).max(500),
-    tags: z.array(z.string().trim().min(1).max(80)).max(6),
-  })
-  .strict();
-
-const taskDraftRequestSchema = z
-  .object({
-    purpose: z.enum(["memorization.review", "problem-solving.review"]),
-    title: z.string().trim().min(1).max(120),
-    prompt: z.string().trim().min(1).max(10_000),
-    runAt: z.string().datetime(),
-  })
-  .strict();
-
-export const taskDraftResultSchema = z
-  .object({
-    title: z.string(),
-    kind: z.literal("reminder"),
-    prompt: z.string(),
-    schedule: z.object({ type: z.literal("once"), runAt: z.string().datetime() }),
-  })
-  .strict();
+export const problemReviewCardResultSchema = learningCardContentSchema;
+export { taskDraftResultSchema };
 
 function jsonObject(value: string): unknown {
   const trimmed = value.trim();
@@ -146,38 +124,122 @@ function reviewCardPrompt(input: z.infer<typeof problemReviewCardRequestSchema>)
   ].join("\n");
 }
 
-export function createControlledModelCapabilityAdapter(
-  generator: AgentPromptGeneratorPort = createAgentPromptGenerator(),
-): PluginCapabilityAdapter {
-  return {
-    capabilityId: "model.generate",
-    prepare(input) {
-      const request = controlledModelRequestSchema.parse(input);
-      return {
-        operation: request.purpose,
-        units: 1,
-        input: request,
-      };
+export type ControlledModelOperation = {
+  readonly id: string;
+  readonly pluginId: string;
+  parse(input: unknown): unknown;
+  execute(
+    input: unknown,
+    generator: AgentPromptGeneratorPort,
+  ): Promise<unknown>;
+};
+
+export class ControlledModelOperationRegistry {
+  private readonly operations = new Map<string, ControlledModelOperation>();
+
+  constructor(operations: readonly ControlledModelOperation[]) {
+    for (const operation of operations) {
+      pluginContributionIdSchema.parse(operation.id);
+      pluginContributionIdSchema.parse(operation.pluginId);
+      if (this.operations.has(operation.id)) {
+        throw new Error(`Duplicate controlled model operation: ${operation.id}`);
+      }
+      this.operations.set(operation.id, operation);
+    }
+  }
+
+  prepare(pluginId: string, operationId: string, input: unknown): unknown {
+    const operation = this.operations.get(operationId);
+    if (!operation || operation.pluginId !== pluginId) {
+      throw new Error("The model operation is not registered for this plugin.");
+    }
+    return operation.parse(input);
+  }
+
+  execute(
+    pluginId: string,
+    operationId: string,
+    input: unknown,
+    generator: AgentPromptGeneratorPort,
+  ): Promise<unknown> {
+    const operation = this.operations.get(operationId);
+    if (!operation || operation.pluginId !== pluginId) {
+      throw new Error("The model operation is not registered for this plugin.");
+    }
+    return operation.execute(operation.parse(input), generator);
+  }
+}
+
+export const FIRST_PARTY_MODEL_OPERATIONS: readonly ControlledModelOperation[] = [
+  {
+    id: "memorization.evaluate",
+    pluginId: "study.memorization",
+    parse: (input) => memorizationModelRequestSchema.parse({
+      ...z.record(z.string(), z.unknown()).parse(input),
+      purpose: "memorization.evaluate",
+    }),
+    async execute(input, generator) {
+      const request = memorizationModelRequestSchema.parse(input);
+      const generated = await generator.generate(evaluationPrompt(request));
+      const result = memorizationModelResultSchema.parse(jsonObject(generated.content));
+      return { ...result, model: generated.model };
     },
-    async execute({ prepared }) {
-      const request = controlledModelRequestSchema.parse(prepared.input);
-      if (request.purpose === "memorization.evaluate") {
-        const generated = await generator.generate(evaluationPrompt(request));
-        const result = memorizationModelResultSchema.parse(jsonObject(generated.content));
-        return { ...result, model: generated.model };
-      }
-      if (request.purpose === "problem-solving.respond") {
-        const prompt = problemResponsePrompt(request);
-        const generated = request.imageDataUrl
-          ? await generator.generateWithImage?.(prompt, request.imageDataUrl)
-          : await generator.generate(prompt);
-        if (!generated) throw new Error("The configured model generator does not support images.");
-        const result = problemResponseResultSchema.parse(jsonObject(generated.content));
-        return { ...result, model: generated.model };
-      }
+  },
+  {
+    id: "problem-solving.respond",
+    pluginId: "study.problem-solving",
+    parse: (input) => problemResponseRequestSchema.parse({
+      ...z.record(z.string(), z.unknown()).parse(input),
+      purpose: "problem-solving.respond",
+    }),
+    async execute(input, generator) {
+      const request = problemResponseRequestSchema.parse(input);
+      const prompt = problemResponsePrompt(request);
+      const generated = request.imageDataUrl
+        ? await generator.generateWithImage?.(prompt, request.imageDataUrl)
+        : await generator.generate(prompt);
+      if (!generated) throw new Error("The configured model generator does not support images.");
+      const result = problemResponseResultSchema.parse(jsonObject(generated.content));
+      return { ...result, model: generated.model };
+    },
+  },
+  {
+    id: "problem-solving.review-card",
+    pluginId: "study.problem-solving",
+    parse: (input) => problemReviewCardRequestSchema.parse({
+      ...z.record(z.string(), z.unknown()).parse(input),
+      purpose: "problem-solving.review-card",
+    }),
+    async execute(input, generator) {
+      const request = problemReviewCardRequestSchema.parse(input);
       const generated = await generator.generate(reviewCardPrompt(request));
       const result = problemReviewCardResultSchema.parse(jsonObject(generated.content));
       return { ...result, model: generated.model };
+    },
+  },
+];
+
+export function createControlledModelCapabilityAdapter(
+  generator: AgentPromptGeneratorPort = createAgentPromptGenerator(),
+  operations: readonly ControlledModelOperation[] = FIRST_PARTY_MODEL_OPERATIONS,
+): PluginCapabilityAdapter {
+  const registry = new ControlledModelOperationRegistry(operations);
+  return {
+    capabilityId: "model.generate",
+    prepare(input, context) {
+      const request = pluginModelGenerateRequestSchema.parse(input);
+      return {
+        operation: request.operation,
+        units: 1,
+        input: {
+          operation: request.operation,
+          input: registry.prepare(context.pluginId, request.operation, request.input),
+        },
+      };
+    },
+    async execute({ pluginId, prepared }) {
+      const request = pluginModelGenerateRequestSchema.parse(prepared.input);
+      return registry.execute(pluginId, request.operation, request.input, generator);
     },
   };
 }
@@ -185,12 +247,15 @@ export function createControlledModelCapabilityAdapter(
 export function createTaskDraftCapabilityAdapter(): PluginCapabilityAdapter {
   return {
     capabilityId: "task.create-draft",
-    prepare(input) {
-      const request = taskDraftRequestSchema.parse(input);
-      return { operation: request.purpose, units: 1, input: request };
+    prepare(input, context) {
+      const request = pluginTaskDraftRequestSchema.parse(input);
+      if (!ownsRegisteredActivity(context.pluginId, request.activityId)) {
+        throw new Error("The task draft activity is not registered for this plugin.");
+      }
+      return { operation: `task.${request.intent}`, units: 1, input: request };
     },
     async execute({ prepared, now }) {
-      const request = taskDraftRequestSchema.parse(prepared.input);
+      const request = pluginTaskDraftRequestSchema.parse(prepared.input);
       const normalized = normalizeTaskSchedule(
         { type: "once", runAt: request.runAt },
         now,

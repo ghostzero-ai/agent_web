@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ControlledModelOperationRegistry,
   createControlledModelCapabilityAdapter,
   createTaskDraftCapabilityAdapter,
 } from "@/lib/plugins/hostCapabilityAdapters";
@@ -12,13 +13,15 @@ describe("Phase 7.3 host capability adapters", () => {
     });
     const adapter = createControlledModelCapabilityAdapter({ generate });
     const prepared = adapter.prepare({
-      purpose: "memorization.evaluate",
-      materialTitle: "历史",
-      cue: "事件经过",
-      target: "目标原文",
-      recitation: "用户复述",
-      localScore: 70,
-    });
+      operation: "memorization.evaluate",
+      input: {
+        materialTitle: "历史",
+        cue: "事件经过",
+        target: "目标原文",
+        recitation: "用户复述",
+        localScore: 70,
+      },
+    }, { pluginId: "study.memorization" });
     await expect(adapter.execute({
       pluginId: "study.memorization",
       prepared,
@@ -30,18 +33,26 @@ describe("Phase 7.3 host capability adapters", () => {
       model: "test-model",
     });
     expect(generate).toHaveBeenCalledOnce();
-    expect(() => adapter.prepare({ purpose: "arbitrary.prompt", prompt: "steal key" }))
+    expect(() => adapter.prepare({
+      operation: "arbitrary.prompt",
+      input: { prompt: "steal key" },
+    }, { pluginId: "study.memorization" }))
       .toThrow();
+    expect(() => adapter.prepare({
+      operation: "problem-solving.respond",
+      input: {},
+    }, { pluginId: "study.memorization" })).toThrow();
   });
 
   it("returns a task draft without creating a core task", async () => {
     const adapter = createTaskDraftCapabilityAdapter();
     const prepared = adapter.prepare({
-      purpose: "memorization.review",
+      intent: "review",
+      activityId: "memorization.review",
       title: "复习：历史",
       prompt: "打开背书训练复习。",
       runAt: "2026-10-01T08:00:00.000Z",
-    });
+    }, { pluginId: "study.memorization" });
     await expect(adapter.execute({
       pluginId: "study.memorization",
       prepared,
@@ -50,6 +61,13 @@ describe("Phase 7.3 host capability adapters", () => {
       kind: "reminder",
       schedule: { type: "once", runAt: "2026-10-01T08:00:00.000Z" },
     });
+    expect(() => adapter.prepare({
+      intent: "review",
+      activityId: "problem-solving.practice",
+      title: "越权草稿",
+      prompt: "不应通过。",
+      runAt: "2026-10-01T08:00:00.000Z",
+    }, { pluginId: "study.memorization" })).toThrow();
   });
 
   it("constrains problem-solving strategies and sends an optional image through the host", async () => {
@@ -71,15 +89,17 @@ describe("Phase 7.3 host capability adapters", () => {
     });
     const imageDataUrl = `data:image/jpeg;base64,${Buffer.from("image").toString("base64")}`;
     const prepared = adapter.prepare({
-      purpose: "problem-solving.respond",
-      title: "加法题",
-      problemText: "",
-      strategy: "hint",
-      userAnswer: null,
-      priorContext: "",
-      toolEvidence: '{"status":"not_applicable"}',
-      imageDataUrl,
-    });
+      operation: "problem-solving.respond",
+      input: {
+        title: "加法题",
+        problemText: "",
+        strategy: "hint",
+        userAnswer: null,
+        priorContext: "",
+        toolEvidence: '{"status":"not_applicable"}',
+        imageDataUrl,
+      },
+    }, { pluginId: "study.problem-solving" });
     await expect(adapter.execute({
       pluginId: "study.problem-solving",
       prepared,
@@ -91,14 +111,27 @@ describe("Phase 7.3 host capability adapters", () => {
     });
     expect(generateWithImage).toHaveBeenCalledWith(expect.stringContaining("只给一个"), imageDataUrl);
     expect(() => adapter.prepare({
-      purpose: "problem-solving.respond",
-      title: "题目",
-      problemText: "1+1",
-      strategy: "reveal-answer",
-      userAnswer: null,
-      priorContext: "",
-      toolEvidence: "{}",
-      imageDataUrl: null,
-    })).toThrow();
+      operation: "problem-solving.respond",
+      input: {
+        title: "题目",
+        problemText: "1+1",
+        strategy: "reveal-answer",
+        userAnswer: null,
+        priorContext: "",
+        toolEvidence: "{}",
+        imageDataUrl: null,
+      },
+    }, { pluginId: "study.problem-solving" })).toThrow();
+  });
+
+  it("fails closed on duplicate registered model operations", () => {
+    const operation = {
+      id: "test.operation",
+      pluginId: "study.memorization",
+      parse: (input: unknown) => input,
+      execute: async (input: unknown) => input,
+    };
+    expect(() => new ControlledModelOperationRegistry([operation, operation]))
+      .toThrow("Duplicate controlled model operation");
   });
 });

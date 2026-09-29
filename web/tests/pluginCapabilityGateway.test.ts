@@ -127,6 +127,72 @@ describe("Phase 7.2 plugin capability boundary", () => {
     })).rejects.toMatchObject({ code: "PLUGIN_DISABLED" });
   });
 
+  it("requires installation and grant review when plugins move to API v1", async () => {
+    const oldManifest = {
+      ...(FIRST_PARTY_PLUGIN_MANIFESTS[0] as Record<string, unknown>),
+      version: "0.9.0",
+    };
+    const oldRegistry = new PluginRegistry([oldManifest]);
+    const now = new Date("2026-09-30T01:00:00.000Z");
+    await createPluginRepository(database, oldRegistry).setEnabled({
+      pluginId: "study.memorization",
+      enabled: true,
+      expectedVersion: 0,
+      now,
+    });
+    const oldPolicy = createPluginCapabilityRepository(database, oldRegistry);
+    await oldPolicy.setGrant({
+      pluginId: "study.memorization",
+      capabilityId: "storage.read-write",
+      granted: true,
+      expectedVersion: 0,
+      now,
+    });
+
+    const currentPlugins = createPluginRepository(database, registry);
+    const catalog = await currentPlugins.list();
+    expect(catalog.find((item) => item.manifest.id === "study.memorization"))
+      .toMatchObject({
+        manifest: { version: "1.0.0" },
+        installation: { installedVersion: "0.9.0", updateAvailable: true },
+      });
+    const currentPolicy = createPluginCapabilityRepository(database, registry);
+    await expect(currentPolicy.getDashboard("study.memorization", now)).resolves
+      .toMatchObject({
+        pluginEnabled: false,
+        capabilities: expect.arrayContaining([
+          expect.objectContaining({
+            id: "storage.read-write",
+            grant: expect.objectContaining({ effective: false, requiresReview: true }),
+          }),
+        ]),
+      });
+
+    await currentPlugins.setEnabled({
+      pluginId: "study.memorization",
+      enabled: true,
+      expectedVersion: 1,
+      now,
+    });
+    await currentPolicy.setGrant({
+      pluginId: "study.memorization",
+      capabilityId: "storage.read-write",
+      granted: true,
+      expectedVersion: 1,
+      now,
+    });
+    await expect(currentPolicy.getDashboard("study.memorization", now)).resolves
+      .toMatchObject({
+        pluginEnabled: true,
+        capabilities: expect.arrayContaining([
+          expect.objectContaining({
+            id: "storage.read-write",
+            grant: expect.objectContaining({ effective: true, requiresReview: false }),
+          }),
+        ]),
+      });
+  });
+
   it("isolates identical storage keys by plugin and fences stale writes", async () => {
     await enable("study.memorization");
     await enable("study.problem-solving");

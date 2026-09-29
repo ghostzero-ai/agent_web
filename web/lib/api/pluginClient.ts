@@ -1,11 +1,9 @@
 import { apiFetch } from "@/lib/api/clientRuntime";
+import type { PluginCapabilityId } from "@/lib/plugins/capabilityCatalog";
 
 export type PluginKind = "skill" | "tool" | "activity" | "connector";
 export type PluginInstallationStatus = "enabled" | "disabled" | "incompatible";
-export type PluginCapabilityId =
-  | "model.generate"
-  | "storage.read-write"
-  | "task.create-draft";
+export type { PluginCapabilityId };
 
 export type PluginCatalogItem = {
   manifest: {
@@ -24,7 +22,7 @@ export type PluginCatalogItem = {
       activities: string[];
       backgroundJobs: string[];
     };
-    requestedCapabilities: string[];
+    requestedCapabilities: PluginCapabilityId[];
   };
   compatibility:
     | { status: "compatible"; hostApiVersion: string; reason: null }

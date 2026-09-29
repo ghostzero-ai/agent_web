@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { learningCardContentSchema } from "@/lib/plugins/pluginApiV1";
 
 export const PROBLEM_SOLVING_PLUGIN_ID = "study.problem-solving";
 export const MAX_PROBLEM_CASES = 20;
@@ -48,14 +49,10 @@ export const problemAttemptSchema = z
   })
   .strict();
 
-export const reviewCardSchema = z
-  .object({
+export const reviewCardSchema = learningCardContentSchema
+  .extend({
     id: z.string().uuid(),
     sourceAttemptId: z.string().uuid(),
-    front: z.string().min(1).max(600),
-    back: z.string().min(1).max(2_000),
-    reason: z.string().min(1).max(500),
-    tags: z.array(z.string().max(80)).max(6),
     createdAt: z.string().datetime(),
   })
   .strict();

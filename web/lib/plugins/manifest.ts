@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { pluginCapabilityIdSchema } from "@/lib/plugins/capabilityCatalog";
+import { HOST_PLUGIN_API_VERSION } from "@/lib/plugins/pluginApiV1";
 
 export const PLUGIN_MANIFEST_SCHEMA_VERSION = "1" as const;
-export const HOST_PLUGIN_API_VERSION = "0.1.0" as const;
+export { HOST_PLUGIN_API_VERSION };
 
 const SEMVER_SOURCE = "(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)";
 const SEMVER_PATTERN = new RegExp(`^${SEMVER_SOURCE}$`);

@@ -1,13 +1,15 @@
 import { z } from "zod";
-import type {
-  PluginCapabilityGateway,
-  PluginExecutionContext,
-} from "@/lib/plugins/capabilityGateway";
+import type { PluginCapabilityGateway } from "@/lib/plugins/capabilityGateway";
 import {
   problemResponseResultSchema,
   problemReviewCardResultSchema,
-  taskDraftResultSchema,
 } from "@/lib/plugins/hostCapabilityAdapters";
+import {
+  learningCardDraftSchema,
+  pluginStorageEntrySchema,
+  taskDraftResultSchema,
+  USER_INITIATED_PLUGIN_CONTEXT,
+} from "@/lib/plugins/pluginApiV1";
 import {
   MAX_PROBLEM_ATTEMPTS,
   MAX_PROBLEM_CASES,
@@ -23,16 +25,6 @@ import {
 import { verifyBasicArithmetic } from "@/lib/problemSolving/arithmeticVerifier";
 
 const IMAGE_DATA_URL = /^data:(image\/(?:jpeg|png|webp));base64,([a-zA-Z0-9+/]+=*)$/u;
-
-const storageEntrySchema = z
-  .object({
-    key: z.string(),
-    value: z.unknown(),
-    byteSize: z.number(),
-    version: z.number().int().positive(),
-    updatedAt: z.coerce.date(),
-  })
-  .strict();
 
 const imageInputSchema = z
   .object({
@@ -89,12 +81,6 @@ const modelCardSchema = problemReviewCardResultSchema.extend({ model: z.string()
 export type ProblemGatewayPort = Pick<PluginCapabilityGateway, "invoke">;
 export type ProblemTaskDraft = z.infer<typeof taskDraftResultSchema>;
 
-const foregroundContext: PluginExecutionContext = {
-  execution: "foreground",
-  runId: null,
-  userInitiated: true,
-};
-
 function imageMetadata(image: z.infer<typeof imageInputSchema>) {
   const match = IMAGE_DATA_URL.exec(image.dataUrl);
   if (!match) throw new ProblemSolvingServiceError("IMAGE_INVALID", "题目图片格式无效。");
@@ -122,7 +108,7 @@ export function createProblemSolvingService(
       pluginId: PROBLEM_SOLVING_PLUGIN_ID,
       capabilityId: "storage.read-write",
       payload: operation,
-      context: foregroundContext,
+      context: USER_INITIATED_PLUGIN_CONTEXT,
     })).data;
   }
 
@@ -132,12 +118,12 @@ export function createProblemSolvingService(
   } | null> {
     const result = await storage({ operation: "get", key: problemStorageKey(id) });
     if (result === null) return null;
-    const entry = storageEntrySchema.parse(result);
+    const entry = pluginStorageEntrySchema.parse(result);
     return { problemCase: problemCaseSchema.parse(entry.value), storageVersion: entry.version };
   }
 
   async function listCases() {
-    const entries = z.array(storageEntrySchema).parse(await storage({
+    const entries = z.array(pluginStorageEntrySchema).parse(await storage({
       operation: "list",
       prefix: "problem-solving/cases/",
       limit: MAX_PROBLEM_CASES,
@@ -148,7 +134,7 @@ export function createProblemSolvingService(
   }
 
   async function save(problemCase: ProblemCase, expectedVersion: number) {
-    const saved = storageEntrySchema.parse(await storage({
+    const saved = pluginStorageEntrySchema.parse(await storage({
       operation: "set",
       key: problemStorageKey(problemCase.id),
       value: problemCaseSchema.parse(problemCase),
@@ -234,16 +220,18 @@ export function createProblemSolvingService(
         pluginId: PROBLEM_SOLVING_PLUGIN_ID,
         capabilityId: "model.generate",
         payload: {
-          purpose: "problem-solving.respond",
-          title: stored.problemCase.title,
-          problemText,
-          strategy: input.strategy,
-          userAnswer: input.userAnswer,
-          priorContext,
-          toolEvidence: JSON.stringify(verification),
-          imageDataUrl: input.imageDataUrl,
+          operation: "problem-solving.respond",
+          input: {
+            title: stored.problemCase.title,
+            problemText,
+            strategy: input.strategy,
+            userAnswer: input.userAnswer,
+            priorContext,
+            toolEvidence: JSON.stringify(verification),
+            imageDataUrl: input.imageDataUrl,
+          },
         },
-        context: foregroundContext,
+        context: USER_INITIATED_PLUGIN_CONTEXT,
       });
       const modelResult = modelResponseSchema.parse(generated.data);
       const timestamp = now().toISOString();
@@ -292,25 +280,38 @@ export function createProblemSolvingService(
         pluginId: PROBLEM_SOLVING_PLUGIN_ID,
         capabilityId: "model.generate",
         payload: {
-          purpose: "problem-solving.review-card",
-          title: stored.problemCase.title,
-          problemSummary: stored.problemCase.normalizedProblem ?? stored.problemCase.problemText,
-          userAnswer: attempt.userAnswer,
-          misconception: attempt.misconception,
-          errorTags: attempt.errorTags,
-          response: attempt.response,
+          operation: "problem-solving.review-card",
+          input: {
+            title: stored.problemCase.title,
+            problemSummary: stored.problemCase.normalizedProblem ?? stored.problemCase.problemText,
+            userAnswer: attempt.userAnswer,
+            misconception: attempt.misconception,
+            errorTags: attempt.errorTags,
+            response: attempt.response,
+          },
         },
-        context: foregroundContext,
+        context: USER_INITIATED_PLUGIN_CONTEXT,
       });
       const cardResult = modelCardSchema.parse(generated.data);
       const timestamp = now().toISOString();
+      const draft = learningCardDraftSchema.parse({
+        schemaVersion: 1,
+        source: {
+          pluginId: PROBLEM_SOLVING_PLUGIN_ID,
+          activityId: "problem-solving.practice",
+          recordId: attempt.id,
+        },
+        content: {
+          front: cardResult.front,
+          back: cardResult.back,
+          reason: cardResult.reason,
+          tags: cardResult.tags,
+        },
+      });
       const card = {
         id: crypto.randomUUID(),
         sourceAttemptId: attempt.id,
-        front: cardResult.front,
-        back: cardResult.back,
-        reason: cardResult.reason,
-        tags: cardResult.tags,
+        ...draft.content,
         createdAt: timestamp,
       };
       const problemCase = problemCaseSchema.parse({
@@ -334,12 +335,13 @@ export function createProblemSolvingService(
         pluginId: PROBLEM_SOLVING_PLUGIN_ID,
         capabilityId: "task.create-draft",
         payload: {
-          purpose: "problem-solving.review",
+          intent: "review",
+          activityId: "problem-solving.practice",
           title: `错题复习：${stored.problemCase.title}`,
           prompt: `打开解题训练，复习卡片：“${card.front}”`,
           runAt: runAt.toISOString(),
         },
-        context: foregroundContext,
+        context: USER_INITIATED_PLUGIN_CONTEXT,
       });
       return taskDraftResultSchema.parse(draft.data);
     },

@@ -1,4 +1,5 @@
 import { FIRST_PARTY_PLUGIN_MANIFESTS } from "@/lib/plugins/firstPartyManifests";
+import { hasValidActivityContributions } from "@/lib/plugins/activityRegistry";
 import {
   HOST_PLUGIN_API_VERSION,
   checkPluginCompatibility,
@@ -15,7 +16,10 @@ export type RegisteredPlugin = {
 
 export type RejectedPluginManifest = {
   sourceIndex: number;
-  code: "INVALID_MANIFEST" | "DUPLICATE_PLUGIN_ID";
+  code:
+    | "INVALID_MANIFEST"
+    | "DUPLICATE_PLUGIN_ID"
+    | "INVALID_ACTIVITY_CONTRIBUTION";
 };
 
 export interface PluginRegistryPort {
@@ -40,6 +44,13 @@ export class PluginRegistry implements PluginRegistryPort {
       }
       if (this.plugins.has(parsed.data.id)) {
         rejected.push({ sourceIndex, code: "DUPLICATE_PLUGIN_ID" });
+        return;
+      }
+      if (!hasValidActivityContributions(
+        parsed.data.id,
+        parsed.data.contributions.activities,
+      )) {
+        rejected.push({ sourceIndex, code: "INVALID_ACTIVITY_CONTRIBUTION" });
         return;
       }
       const compatibility = checkPluginCompatibility(

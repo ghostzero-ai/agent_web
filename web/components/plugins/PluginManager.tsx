@@ -12,6 +12,7 @@ import {
   type PluginCapabilityDashboard,
   type PluginCatalogItem,
 } from "@/lib/api/pluginClient";
+import { listPluginActivities } from "@/lib/plugins/activityRegistry";
 
 const CAPABILITY_LABELS: Record<string, string> = {
   "model.generate": "请求受控模型生成",
@@ -157,9 +158,9 @@ export function PluginManager() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5">
       <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm leading-6 text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-        <h2 className="font-semibold">Phase 7.4 双学习活动与受控能力</h2>
+        <h2 className="font-semibold">Plugin API v1 · 两个已验证学习活动</h2>
         <p className="mt-1">
-          背书与解题训练均已可使用；启用或更新插件后仍需逐项授权。每次调用都会检查插件版本、授权和每日配额，审计记录不保存 Prompt、学习正文、题目图片或 API Key。
+          背书与解题共同验证了 Plugin API 1.0.0；活动入口来自宿主静态 Registry。启用或更新后仍需逐项授权，审计不会保存 Prompt、学习正文、题目图片或 API Key。
         </p>
       </section>
 
@@ -180,6 +181,10 @@ export function PluginManager() {
           const busy = busyId === plugin.manifest.id;
           const dashboard = capabilities[plugin.manifest.id];
           const pluginAudit = audits[plugin.manifest.id] ?? [];
+          const activities = listPluginActivities(
+            plugin.manifest.id,
+            plugin.manifest.contributions.activities,
+          );
           return (
             <article key={plugin.manifest.id} className="flex min-h-full flex-col rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
               <div className="flex items-start justify-between gap-3">
@@ -196,6 +201,7 @@ export function PluginManager() {
 
               <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-zinc-50 p-3 text-xs dark:bg-zinc-900">
                 <div><dt className="text-zinc-500">插件版本</dt><dd className="mt-1 font-medium">{plugin.manifest.version}</dd></div>
+                <div><dt className="text-zinc-500">宿主 API</dt><dd className="mt-1 font-medium">v{plugin.compatibility.hostApiVersion}</dd></div>
                 <div><dt className="text-zinc-500">API 范围</dt><dd className="mt-1 font-medium">{plugin.manifest.pluginApiVersion}</dd></div>
                 <div><dt className="text-zinc-500">Manifest</dt><dd className="mt-1 font-medium">v{plugin.manifest.schemaVersion}</dd></div>
                 <div><dt className="text-zinc-500">来源</dt><dd className="mt-1 font-medium">随应用发布</dd></div>
@@ -274,26 +280,17 @@ export function PluginManager() {
               )}
 
               <div className="mt-auto pt-5">
-                {plugin.manifest.id === "study.memorization" &&
-                  plugin.manifest.availability === "available" &&
-                  dashboard?.pluginEnabled && (
+                {plugin.manifest.availability === "available" &&
+                  dashboard?.pluginEnabled &&
+                  activities.map((activity) => (
                     <AppLink
-                      href="/study/memorization"
+                      key={activity.id}
+                      href={activity.route}
                       className="mb-2 block w-full rounded-xl border border-blue-300 px-4 py-2.5 text-center text-sm font-medium text-blue-700 dark:border-blue-800 dark:text-blue-300"
                     >
-                      打开背书训练
+                      {activity.label}
                     </AppLink>
-                  )}
-                {plugin.manifest.id === "study.problem-solving" &&
-                  plugin.manifest.availability === "available" &&
-                  dashboard?.pluginEnabled && (
-                    <AppLink
-                      href="/study/problem-solving"
-                      className="mb-2 block w-full rounded-xl border border-blue-300 px-4 py-2.5 text-center text-sm font-medium text-blue-700 dark:border-blue-800 dark:text-blue-300"
-                    >
-                      打开解题训练
-                    </AppLink>
-                  )}
+                  ))}
                 <button
                   type="button"
                   disabled={busy || incompatible}

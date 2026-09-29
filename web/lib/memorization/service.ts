@@ -1,8 +1,5 @@
 import { z } from "zod";
-import type {
-  PluginCapabilityGateway,
-  PluginExecutionContext,
-} from "@/lib/plugins/capabilityGateway";
+import type { PluginCapabilityGateway } from "@/lib/plugins/capabilityGateway";
 import {
   memorizationMaterialSchema,
   memorizationUnitInputSchema,
@@ -14,17 +11,11 @@ import {
   summarizeMaterial,
   type MemorizationMaterial,
 } from "@/lib/memorization/domain";
-import { taskDraftResultSchema } from "@/lib/plugins/hostCapabilityAdapters";
-
-const storageEntrySchema = z
-  .object({
-    key: z.string(),
-    value: z.unknown(),
-    byteSize: z.number(),
-    version: z.number().int().positive(),
-    updatedAt: z.coerce.date(),
-  })
-  .strict();
+import {
+  pluginStorageEntrySchema,
+  taskDraftResultSchema,
+  USER_INITIATED_PLUGIN_CONTEXT,
+} from "@/lib/plugins/pluginApiV1";
 
 const modelEvaluationSchema = z
   .object({
@@ -74,12 +65,6 @@ export type MemorizationReviewResult = {
 
 export type MemorizationGatewayPort = Pick<PluginCapabilityGateway, "invoke">;
 
-const foregroundContext: PluginExecutionContext = {
-  execution: "foreground",
-  runId: null,
-  userInitiated: true,
-};
-
 function deterministicFeedback(score: number): string {
   if (score >= 90) return "复述覆盖完整，可以进入较长间隔复习。";
   if (score >= 80) return "主体准确，建议对照原文补齐个别表述。";
@@ -99,7 +84,7 @@ export function createMemorizationService(
       pluginId: MEMORIZATION_PLUGIN_ID,
       capabilityId: "storage.read-write",
       payload: operation,
-      context: foregroundContext,
+      context: USER_INITIATED_PLUGIN_CONTEXT,
     });
     return result.data;
   }
@@ -110,7 +95,7 @@ export function createMemorizationService(
   } | null> {
     const result = await storage({ operation: "get", key: materialStorageKey(id) });
     if (result === null) return null;
-    const entry = storageEntrySchema.parse(result);
+    const entry = pluginStorageEntrySchema.parse(result);
     return {
       material: memorizationMaterialSchema.parse(entry.value),
       storageVersion: entry.version,
@@ -118,7 +103,7 @@ export function createMemorizationService(
   }
 
   async function listMaterials() {
-    const result = z.array(storageEntrySchema).parse(await storage({
+    const result = z.array(pluginStorageEntrySchema).parse(await storage({
       operation: "list",
       prefix: "memorization/materials/",
       limit: MAX_MEMORIZATION_MATERIALS,
@@ -173,7 +158,7 @@ export function createMemorizationService(
         createdAt: timestamp,
         updatedAt: timestamp,
       };
-      const saved = storageEntrySchema.parse(await storage({
+      const saved = pluginStorageEntrySchema.parse(await storage({
         operation: "set",
         key: materialStorageKey(material.id),
         value: memorizationMaterialSchema.parse(material),
@@ -208,14 +193,16 @@ export function createMemorizationService(
           pluginId: MEMORIZATION_PLUGIN_ID,
           capabilityId: "model.generate",
           payload: {
-            purpose: "memorization.evaluate",
-            materialTitle: stored.material.title,
-            cue: unit.cue,
-            target: unit.content,
-            recitation: input.recitation,
-            localScore,
+            operation: "memorization.evaluate",
+            input: {
+              materialTitle: stored.material.title,
+              cue: unit.cue,
+              target: unit.content,
+              recitation: input.recitation,
+              localScore,
+            },
           },
-          context: foregroundContext,
+          context: USER_INITIATED_PLUGIN_CONTEXT,
         });
         const evaluation = modelEvaluationSchema.parse(result.data);
         score = Math.round(localScore * 0.45 + evaluation.score * 0.55);
@@ -257,7 +244,7 @@ export function createMemorizationService(
         attempts: [...stored.material.attempts, attempt].slice(-40),
         updatedAt: reviewedAt.toISOString(),
       });
-      const saved = storageEntrySchema.parse(await storage({
+      const saved = pluginStorageEntrySchema.parse(await storage({
         operation: "set",
         key: materialStorageKey(material.id),
         value: material,
@@ -270,12 +257,13 @@ export function createMemorizationService(
           pluginId: MEMORIZATION_PLUGIN_ID,
           capabilityId: "task.create-draft",
           payload: {
-            purpose: "memorization.review",
+            intent: "review",
+            activityId: "memorization.review",
             title: `复习：${material.title}`,
             prompt: `打开背书训练，复习“${material.title}”中薄弱的知识单元。`,
             runAt: nextReviewAt.toISOString(),
           },
-          context: foregroundContext,
+          context: USER_INITIATED_PLUGIN_CONTEXT,
         });
         taskDraft = taskDraftResultSchema.parse(draft.data);
       } catch {

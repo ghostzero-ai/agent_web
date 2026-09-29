@@ -4,6 +4,30 @@
 
 ---
 
+## Phase 7.5 — Plugin API v1 冻结
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 宿主 Plugin API 从实验版 `0.1.0` 冻结为 `1.0.0`；背书与解题插件统一升级为 `1.0.0` 并要求一次更新/授权复核。
+- 新增代码级 v1 契约，统一执行上下文、隔离存储请求/返回、模型信封、任务草稿、学习卡内容与来源草稿 Schema，移除两个活动重复定义。
+- `model.generate` 改为 `{ operation, input }` 注册操作分发。操作绑定唯一插件，未知、重复、跨插件借用或无效输入均失败；新增第一方操作不再修改中央条件分支。
+- `task.create-draft` 改为稳定的 review intent + Activity ID，Adapter 校验 Activity 归属并继续只返回待用户确认的草稿。
+- 新增预编译 Activity Registry；插件页从 Manifest Contribution 解析入口，不再按插件 ID 写死背书/解题按钮。
+- 冻结带来源的中立学习卡草稿格式；解题卡片已经使用该 Schema，但插件私有存储继续隔离，不伪装成共享卡片数据库。
+- 新增 ADR-058、`PLUGIN_API_V1.md` 与契约/归属/重复操作/兼容性测试。
+
+### 当前边界
+
+- v1 是第一方 API，不是第三方代码或 UI 沙箱；市场、远程包、签名分发和动态原生扩展仍未开放。
+- 中立学习卡只解决格式与来源；真正跨 Activity 导入仍需未来宿主确认流程。
+- 插件升级不会删除原有数据，但用户需要在 `/plugins` 审核更新并重新确认能力。
+
+### 下一步
+
+- Phase 6.1：建立独立 GameSession 与普通对话/正式记忆的隔离，再实现角色扮演和 AI 跑团。
+
 ## Phase 7.4 — 解题插件 MVP
 
 **Commit**: `same delivery commit`

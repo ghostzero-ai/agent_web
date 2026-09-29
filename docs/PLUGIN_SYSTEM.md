@@ -1,6 +1,6 @@
 # 第一方插件系统
 
-Phase 7.1–7.4 已建立最小插件发现、生命周期、受控能力和两个真实学习活动。当前进入 Plugin API v1 复盘，不是开放第三方生态。
+Phase 7.1–7.5 已完成最小插件发现、生命周期、受控能力和两个真实学习活动，宿主 Plugin API 已冻结为 `1.0.0`。这仍是第一方扩展边界，不是开放第三方生态。
 
 ## 当前数据流
 
@@ -14,7 +14,7 @@ Phase 7.1–7.4 已建立最小插件发现、生命周期、受控能力和两�
   → Web / Capacitor /plugins
   → 用户逐项授权
   → Capability Gateway 检查版本、上下文和配额
-  → 已注册的宿主 Adapter
+  → 已注册的宿主 Adapter / Model Operation / Activity
 ```
 
 Manifest 是随应用构建的只读声明。数据库保存启停、授权、配额、隔离数据和审计，但不保存插件代码；修改数据库不能注入新的插件或注册新的 Adapter。
@@ -26,13 +26,13 @@ Manifest 是随应用构建的只读声明。数据库保存启停、授权、�
 | `study.memorization` | 背书训练 | 可用：导入、校对、复述、评分、间隔复习、任务草稿 | Phase 7.3 ✅ |
 | `study.problem-solving` | 解题训练 | 可用：文字/图片、四种策略、错因、工具证据、复习卡与任务草稿 | Phase 7.4 ✅ |
 
-启用插件不会自动授予任何能力。背书训练可从 `/plugins` 进入 `/study/memorization`，解题训练可进入 `/study/problem-solving`。解题插件从基础版升级为 `0.2.0`，既有安装必须审核更新并重新确认旧授权。
+启用插件不会自动授予任何能力。背书训练可从 `/plugins` 进入 `/study/memorization`，解题训练可进入 `/study/problem-solving`。两个插件均已升级为 `1.0.0`；既有安装必须审核更新并重新确认旧授权，原有隔离数据不会删除。
 
 ## 兼容规则
 
 - Manifest Schema：`1`。
-- 当前宿主 Plugin API：实验版 `0.1.0`。
-- 第一方插件声明半开范围，例如 `>=0.1.0 <0.2.0`。
+- 当前宿主 Plugin API：稳定版 `1.0.0`。
+- 第一方插件声明半开范围 `>=1.0.0 <2.0.0`。
 - 宿主版本不在范围内时，插件保持可发现但有效停用；启用请求返回稳定的 `PLUGIN_INCOMPATIBLE`。
 - API 范围、Manifest 结构或重复 ID 无效时只隔离该项，不阻塞 Chat、Task、Inbox 或其他插件。
 
@@ -49,7 +49,9 @@ Capability Gateway 的每次调用依次检查：
 5. 当日用量没有超过能力目录中的固定上限。
 6. 宿主已注册对应的结构化 Adapter。
 
-插件不能取得 PostgreSQL 连接、任意 SQL、模型密钥、网络客户端或核心 Repository。当前注册三个宿主 Adapter：隔离 JSON 存储、仅接受已登记用途与严格结构的模型生成，以及只返回待确认提醒的任务草稿。模型 Adapter 当前只开放背书评价、解题反馈和解题复习卡三类用途；任务草稿只开放背书复习与错题复习。没有面向浏览器的通用能力执行 API。
+插件不能取得 PostgreSQL 连接、任意 SQL、模型密钥、网络客户端或核心 Repository。v1 注册三个宿主 Adapter：隔离 JSON 存储、注册操作式模型生成，以及只返回待确认提醒的任务草稿。模型信封固定为 `{ operation, input }`，每个操作绑定唯一插件和严格 Schema；新增第一方操作不修改 Gateway。任务草稿使用稳定的 review intent 与 Activity ID，并校验调用插件是否拥有该 Activity。没有面向浏览器的通用能力执行 API。
+
+共享 v1 Schema、兼容规则和示例见 `docs/PLUGIN_API_V1.md`。
 
 ## 背书活动数据流
 
@@ -72,6 +74,13 @@ Capability Gateway 的每次调用依次检查：
 ```
 
 图片最长边会在客户端压到 1600 像素，处理后上限 4 MB；数据库只保存图片元数据和模型提取后的题意。模型 Adapter 只接受四种策略，基础算术以宿主解析器为独立证据，其他题型必须显示未做确定性工具验证。
+
+## 学习卡与 Activity Registry
+
+- 学习卡通过带 `schemaVersion` 和来源插件/Activity/记录 ID 的中立草稿 Schema 表达。
+- 中立 Schema 不授予跨插件存储权限；插件仍不能读取另一插件的数据。未来导入必须由宿主与用户显式确认。
+- Activity 入口由预编译 Registry 登记归属、路由、按钮和 Web/Android 平台，不再在插件页按插件 ID 写死。
+- 当前同包 React UI 仍不是第三方沙箱。动态 UI、签名包和安装后新增原生能力不属于 v1。
 
 ## 隔离存储与配额
 

@@ -1,4 +1,4 @@
-import { z, ZodError } from "zod";
+import { ZodError } from "zod";
 import { getDatabase } from "@/lib/db/client";
 import {
   pluginCapabilityIdSchema,
@@ -19,52 +19,13 @@ import {
   createControlledModelCapabilityAdapter,
   createTaskDraftCapabilityAdapter,
 } from "@/lib/plugins/hostCapabilityAdapters";
+import {
+  pluginExecutionContextSchema,
+  pluginStorageRequestSchema,
+  type PluginExecutionContext,
+} from "@/lib/plugins/pluginApiV1";
 
-const executionContextSchema = z
-  .object({
-    execution: z.enum(["foreground", "background"]),
-    runId: z.string().trim().min(1).max(120).nullable(),
-    userInitiated: z.boolean(),
-  })
-  .strict()
-  .superRefine((value, context) => {
-    if (value.execution === "background" && !value.runId) {
-      context.addIssue({
-        code: "custom",
-        path: ["runId"],
-        message: "Background capability calls require a run id.",
-      });
-    }
-    if (value.execution === "foreground" && !value.userInitiated) {
-      context.addIssue({
-        code: "custom",
-        path: ["userInitiated"],
-        message: "Foreground capability calls must follow a user action.",
-      });
-    }
-  });
-
-const storageRequestSchema = z.discriminatedUnion("operation", [
-  z.object({ operation: z.literal("get"), key: z.string() }).strict(),
-  z.object({
-    operation: z.literal("list"),
-    prefix: z.string().default(""),
-    limit: z.number().int().min(1).max(100).default(50),
-  }).strict(),
-  z.object({
-    operation: z.literal("set"),
-    key: z.string(),
-    value: z.unknown(),
-    expectedVersion: z.number().int().min(0),
-  }).strict(),
-  z.object({
-    operation: z.literal("delete"),
-    key: z.string(),
-    expectedVersion: z.number().int().min(1),
-  }).strict(),
-]);
-
-export type PluginExecutionContext = z.infer<typeof executionContextSchema>;
+export type { PluginExecutionContext } from "@/lib/plugins/pluginApiV1";
 
 type PreparedCapabilityCall = {
   operation: string;
@@ -74,7 +35,7 @@ type PreparedCapabilityCall = {
 
 export interface PluginCapabilityAdapter {
   readonly capabilityId: PluginCapabilityId;
-  prepare(input: unknown): PreparedCapabilityCall;
+  prepare(input: unknown, context: { pluginId: string }): PreparedCapabilityCall;
   execute(input: {
     pluginId: string;
     prepared: PreparedCapabilityCall;
@@ -142,7 +103,7 @@ export class PluginCapabilityGateway {
     let units = 0;
     let auditId: string | null = null;
     try {
-      const context = executionContextSchema.parse(input.context);
+      const context = pluginExecutionContextSchema.parse(input.context);
       execution = context.execution;
       runId = context.runId;
       const capabilityId = pluginCapabilityIdSchema.parse(input.capabilityId);
@@ -155,7 +116,7 @@ export class PluginCapabilityGateway {
       }
       let prepared: PreparedCapabilityCall;
       try {
-        prepared = adapter.prepare(input.payload);
+        prepared = adapter.prepare(input.payload, { pluginId: input.pluginId });
       } catch (error) {
         throw new PluginCapabilityGatewayError(
           "CAPABILITY_INPUT_INVALID",
@@ -274,11 +235,11 @@ export function createPluginStorageCapabilityAdapter(
   return {
     capabilityId: "storage.read-write",
     prepare(input) {
-      const request = storageRequestSchema.parse(input);
+      const request = pluginStorageRequestSchema.parse(input);
       return { operation: `storage.${request.operation}`, units: 1, input: request };
     },
     async execute({ pluginId, prepared, now }) {
-      const request = storageRequestSchema.parse(prepared.input);
+      const request = pluginStorageRequestSchema.parse(prepared.input);
       switch (request.operation) {
         case "get":
           return storage.get(pluginId, request.key);

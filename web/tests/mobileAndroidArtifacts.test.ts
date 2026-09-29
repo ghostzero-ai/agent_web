@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { FIRST_PARTY_PLUGIN_ACTIVITIES } from "@/lib/plugins/activityRegistry";
 
 const webRoot = process.cwd();
 const projectRoot = path.resolve(webRoot, "..");
@@ -67,6 +68,10 @@ describe("Capacitor Android project artifacts", () => {
       "gradlew.bat assembleDebug",
     );
     expect(mobileApp).toContain('"/reading": lazy');
+    for (const activity of FIRST_PARTY_PLUGIN_ACTIVITIES) {
+      if (!activity.platforms.includes("android")) continue;
+      expect(mobileApp).toContain(`"${activity.route}": lazy`);
+    }
   });
 
   it("does not commit generated APKs, local SDK paths, or injected server URLs", async () => {

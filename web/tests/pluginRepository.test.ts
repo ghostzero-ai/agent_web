@@ -63,7 +63,7 @@ describe("PluginRepository", () => {
     expect(enabled.installation).toMatchObject({
       status: "enabled",
       enabled: true,
-      installedVersion: "0.1.0",
+      installedVersion: "1.0.0",
       version: 1,
     });
 
@@ -90,7 +90,7 @@ describe("PluginRepository", () => {
     const database = drizzle(pglite, { schema });
     const repository = createPluginRepository(
       database,
-      new PluginRegistry(FIRST_PARTY_PLUGIN_MANIFESTS, "1.0.0"),
+      new PluginRegistry(FIRST_PARTY_PLUGIN_MANIFESTS, "2.0.0"),
     );
     await expect(repository.setEnabled({
       pluginId: "study.memorization",

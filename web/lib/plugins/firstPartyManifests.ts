@@ -1,3 +1,5 @@
+import { FIRST_PARTY_PLUGIN_API_RANGE } from "@/lib/plugins/pluginApiV1";
+
 export const FIRST_PARTY_PLUGIN_MANIFESTS: readonly unknown[] = [
   {
     schemaVersion: "1",
@@ -5,8 +7,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS: readonly unknown[] = [
     name: "背书训练",
     description:
       "把学习材料拆成可校对的知识单元，进行复述评分、薄弱点记录和间隔复习。",
-    version: "0.1.0",
-    pluginApiVersion: ">=0.1.0 <0.2.0",
+    version: "1.0.0",
+    pluginApiVersion: FIRST_PARTY_PLUGIN_API_RANGE,
     kind: "activity",
     source: "first-party",
     availability: "available",
@@ -28,8 +30,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS: readonly unknown[] = [
     name: "解题训练",
     description:
       "支持文字/图片题目、提示、逐步引导、答案检查、错因记录和复习卡。",
-    version: "0.2.0",
-    pluginApiVersion: ">=0.1.0 <0.2.0",
+    version: "1.0.0",
+    pluginApiVersion: FIRST_PARTY_PLUGIN_API_RANGE,
     kind: "activity",
     source: "first-party",
     availability: "available",

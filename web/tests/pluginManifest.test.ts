@@ -39,7 +39,10 @@ describe("plugin manifest", () => {
 
   it("fails closed when the host API is outside the declared range", () => {
     const manifest = pluginManifestSchema.parse(FIRST_PARTY_PLUGIN_MANIFESTS[0]);
-    expect(checkPluginCompatibility(manifest, "1.0.0")).toMatchObject({
+    expect(checkPluginCompatibility(manifest, "0.9.0")).toMatchObject({
+      compatible: false,
+    });
+    expect(checkPluginCompatibility(manifest, "2.0.0")).toMatchObject({
       compatible: false,
     });
   });
