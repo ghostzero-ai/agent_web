@@ -8,19 +8,24 @@ import type {
 } from "@/lib/game/contracts";
 import {
   gameCharacters,
+  gameEvents,
   gameSessions,
   gameTurns,
   users,
   type GameCharacterRecord,
+  type GameEventRecord,
   type GameSessionRecord,
   type GameTurnRecord,
 } from "@/lib/db/schema";
+import type { GameDiceRoll } from "@/lib/game/dice";
+import type { GameState, GameStatePatch } from "@/lib/game/state";
 import * as schema from "@/lib/db/schema";
 import { LOCAL_USER_ID } from "@/lib/repositories/conversationRepository";
 
 export type GameSessionDetail = GameSessionRecord & {
   characters: GameCharacterRecord[];
   turns: GameTurnRecord[];
+  events: GameEventRecord[];
 };
 
 export type CreateGameSessionInput = {
@@ -62,6 +67,9 @@ export type AppendGameTurnInput = {
   playerContent: string;
   assistantContent: string;
   model: string;
+  statePatch: GameStatePatch;
+  stateSnapshot: GameState;
+  diceRolls: GameDiceRoll[];
   expectedVersion: number;
   now: Date;
 };
@@ -154,7 +162,12 @@ export class GameSessionRepository<
       .from(gameTurns)
       .where(eq(gameTurns.sessionId, id))
       .orderBy(asc(gameTurns.createdAt), asc(gameTurns.id));
-    return { ...session, characters, turns };
+    const events = await this.database
+      .select()
+      .from(gameEvents)
+      .where(eq(gameEvents.sessionId, id))
+      .orderBy(asc(gameEvents.createdAt), asc(gameEvents.sequence), asc(gameEvents.id));
+    return { ...session, characters, turns, events };
   }
 
   async create(input: CreateGameSessionInput): Promise<GameSessionDetail> {
@@ -471,9 +484,23 @@ export class GameSessionRepository<
           playerContent: input.playerContent,
           assistantContent: input.assistantContent,
           model: input.model,
+          statePatch: input.statePatch,
+          stateSnapshot: input.stateSnapshot,
           createdAt: input.now,
         })
         .returning({ id: gameTurns.id });
+      if (input.diceRolls.length > 0) {
+        await transaction.insert(gameEvents).values(
+          input.diceRolls.map((payload, sequence) => ({
+            sessionId,
+            turnId: turn.id,
+            kind: "dice_roll" as const,
+            sequence,
+            payload,
+            createdAt: input.now,
+          })),
+        );
+      }
       await transaction
         .update(gameSessions)
         .set({

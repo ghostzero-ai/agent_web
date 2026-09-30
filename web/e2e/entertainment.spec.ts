@@ -8,6 +8,7 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
   let status: "setup" | "active" | "paused" = "setup";
   let activeLeafTurnId: string | null = null;
   const turns: Array<Record<string, unknown>> = [];
+  const events: Array<Record<string, unknown>> = [];
   const detail = () => ({
     id: sessionId,
     userId: "00000000-0000-4000-8000-000000000001",
@@ -38,6 +39,7 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
       updatedAt: "2026-09-30T03:00:00.000Z",
     }],
     turns,
+    events,
   });
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -100,6 +102,12 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
       content: "我把旧信放在吧台上。",
       parentTurnId: null,
       expectedVersion: version,
+      diceRequests: [{
+        count: 1,
+        sides: 20,
+        modifier: 2,
+        purpose: "调查火漆",
+      }],
     });
     activeLeafTurnId = "33333333-3333-4333-8333-333333333333";
     turns.push({
@@ -109,6 +117,33 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
       playerContent: input.content,
       assistantContent: "老板停下擦杯子的动作，目光落在旧信的火漆上。",
       model: "test-model",
+      statePatch: { scene: "酒馆吧台", adjustInventory: { 线索: 1 } },
+      stateSnapshot: {
+        scene: "酒馆吧台",
+        objectives: ["查明寄信人"],
+        flags: {},
+        resources: {},
+        inventory: { 线索: 1 },
+      },
+      createdAt: "2026-09-30T05:00:00.000Z",
+    });
+    events.push({
+      id: "44444444-4444-4444-8444-444444444444",
+      sessionId,
+      turnId: activeLeafTurnId,
+      kind: "dice_roll",
+      sequence: 0,
+      payload: {
+        count: 1,
+        sides: 20,
+        modifier: 2,
+        purpose: "调查火漆",
+        notation: "1d20+2",
+        seed: "e2e-seed",
+        algorithm: "fnv1a-mulberry32-v1",
+        results: [15],
+        total: 17,
+      },
       createdAt: "2026-09-30T05:00:00.000Z",
     });
     version += 1;
@@ -158,9 +193,17 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
   await page.getByRole("button", { name: "开始故事" }).click();
   await expect(page.getByText("进行中 · 0 个回合节点")).toBeVisible();
   await page.getByLabel("你的行动或台词").fill("我把旧信放在吧台上。");
+  await page.getByLabel("本回合使用服务端可信骰子").check();
+  await page.getByLabel("修正值").fill("2");
+  await page.getByLabel("用途").fill("调查火漆");
   await page.getByRole("button", { name: "发送并继续" }).click();
   await expect(page.getByText("老板停下擦杯子的动作，目光落在旧信的火漆上。")).toBeVisible();
+  await expect(page.getByText("可信骰子 · 调查火漆")).toBeVisible();
+  await expect(page.getByText("1d20+2 → [15] = 17")).toBeVisible();
   await expect(page.getByText("当前剧情线 · 当前叶子")).toBeVisible();
+  await page.getByText("所选分支的结构化状态").click();
+  await expect(page.getByText("场景：酒馆吧台")).toBeVisible();
+  await expect(page.getByText("物品：线索 × 1")).toBeVisible();
   await page.getByRole("button", { name: "暂停" }).click();
   await expect(page.getByText("已暂停 · 1 个回合节点")).toBeVisible();
 

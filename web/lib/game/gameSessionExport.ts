@@ -12,7 +12,19 @@ function markdown(session: GameSessionDetail, exportedAt: Date): string {
   const activeIds = new Set(
     gameTurnPath(session.turns, session.activeLeafTurnId).map((turn) => turn.id),
   );
-  const sections = session.turns.map((turn, index) => [
+  const eventsByTurn = new Map<string, typeof session.events>();
+  for (const event of session.events) {
+    const events = eventsByTurn.get(event.turnId) ?? [];
+    events.push(event);
+    eventsByTurn.set(event.turnId, events);
+  }
+  const sections = session.turns.map((turn, index) => {
+    const dice = (eventsByTurn.get(turn.id) ?? []).map((event) => [
+      `- ${event.payload.purpose}：${event.payload.notation} → [${event.payload.results.join(", ")}] = ${event.payload.total}`,
+      `  - seed：\`${event.payload.seed}\``,
+      `  - algorithm：\`${event.payload.algorithm}\``,
+    ].join("\n"));
+    return [
     `## 回合 ${index + 1}${activeIds.has(turn.id) ? " · 当前剧情线" : " · 历史分支"}`,
     "",
     `- 回合 ID：\`${turn.id}\``,
@@ -27,7 +39,24 @@ function markdown(session: GameSessionDetail, exportedAt: Date): string {
     "### AI",
     "",
     turn.assistantContent,
-  ].join("\n"));
+    "",
+    "### 可信骰子",
+    "",
+    dice.length > 0 ? dice.join("\n") : "- 本回合未掷骰。",
+    "",
+    "### 状态补丁",
+    "",
+    "```json",
+    JSON.stringify(turn.statePatch, null, 2),
+    "```",
+    "",
+    "### 回合后状态快照",
+    "",
+    "```json",
+    JSON.stringify(turn.stateSnapshot, null, 2),
+    "```",
+  ].join("\n");
+  });
 
   return [
     `# ${session.title}`,
@@ -57,7 +86,7 @@ export function exportGameSessionArtifact(
     return {
       filename: `${base}.json`,
       mediaType: "application/json",
-      content: JSON.stringify({ schemaVersion: 1, exportedAt, session }, null, 2),
+      content: JSON.stringify({ schemaVersion: 2, exportedAt, session }, null, 2),
       directory: "game-exports",
       shareTitle: "分享游戏记录",
       shareText: "独立 GameSession 的虚构世界、角色卡与完整分支记录。",

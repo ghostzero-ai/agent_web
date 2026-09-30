@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { gameDiceRequestSchema } from "@/lib/game/dice";
 
 export const GAME_SESSION_KINDS = [
   "roleplay",
@@ -93,6 +94,7 @@ export const createGameTurnSchema = z
     content: z.string().trim().min(1).max(8_000),
     parentTurnId: z.uuid().nullable(),
     expectedVersion: z.number().int().positive(),
+    diceRequests: z.array(gameDiceRequestSchema).max(5).default([]),
   })
   .strict();
 

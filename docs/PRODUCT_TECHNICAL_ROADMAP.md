@@ -1985,7 +1985,7 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
 
-当前优先级遵循产品主线指导。Core 3.1–3.5、Phase 4.1–4.4、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1–6.2 已完成；Mobile M1.3 只处理阻断使用的问题。Phase 5.6 延后为发布前安全封版，当前下一步是 Phase 6.3：为独立 GameSession 加入可复现 Dice Tool 与受 Schema 校验的状态补丁。
+当前优先级遵循产品主线指导。Core 3.1–3.5、Phase 4.1–4.4、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1–6.3 已完成；Mobile M1.3 只处理阻断使用的问题。Phase 5.6 延后为发布前安全封版，当前下一步是 Phase 6.4：复用可信 Dice 事件和分支状态快照，完成角色、场景、物品、规则检定与检查点恢复闭环。
 7. 完成新闻、书籍与 Reflection 的最小闭环后，实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
 8. 背书与解题已验证 Capability Gateway 并冻结 Plugin API 1.0.0；后续新 Activity 只增加注册操作，不回退到直接依赖核心内部实现。
 9. 独立 GameSession 已建立；后续角色扮演与 AI 跑团必须继续使用该边界，禁止把虚构状态混入普通长期记忆；娱乐规则包用于继续验证 v1 的兼容扩展能力。

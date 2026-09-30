@@ -47,6 +47,14 @@ const character = {
   boundaries: ["不出现血腥细节"],
 };
 
+const state = {
+  scene: "雾港：酒馆",
+  objectives: [] as string[],
+  flags: {},
+  resources: {},
+  inventory: {},
+};
+
 describe("GameSessionRepository", () => {
   let pglite: PGlite;
   let repository: ReturnType<typeof createGameSessionRepository>;
@@ -194,6 +202,9 @@ describe("GameSessionRepository", () => {
       playerContent: "推开酒馆的门。",
       assistantContent: "门铃在雾里轻响。",
       model: "test-model",
+      statePatch: {},
+      stateSnapshot: state,
+      diceRolls: [],
       expectedVersion: 2,
       now,
     });
@@ -206,12 +217,32 @@ describe("GameSessionRepository", () => {
       playerContent: "先询问老板。",
       assistantContent: "老板擦着杯子抬起头。",
       model: "test-model",
+      statePatch: { adjustInventory: { 旧信: 1 } },
+      stateSnapshot: { ...state, inventory: { 旧信: 1 } },
+      diceRolls: [{
+        count: 1,
+        sides: 20,
+        modifier: 1,
+        purpose: "调查检定",
+        notation: "1d20+1",
+        seed: "repository-test",
+        algorithm: "fnv1a-mulberry32-v1",
+        results: [12],
+        total: 13,
+      }],
       expectedVersion: 3,
       now,
     });
     const branchTurn = branch.turns.find((turn) => turn.playerContent === "先询问老板。");
     expect(branchTurn?.parentTurnId).toBe(first.turns[0].id);
     expect(branch.activeLeafTurnId).toBe(branchTurn?.id);
+    expect(branchTurn?.stateSnapshot.inventory).toEqual({ 旧信: 1 });
+    expect(branch.events).toHaveLength(1);
+    expect(branch.events[0]).toMatchObject({
+      turnId: branchTurn?.id,
+      kind: "dice_roll",
+      payload: { seed: "repository-test", total: 13 },
+    });
 
     const paused = await repository.updateStatus(created.id, {
       status: "paused",
@@ -224,6 +255,9 @@ describe("GameSessionRepository", () => {
       playerContent: "继续。",
       assistantContent: "不应写入。",
       model: "test-model",
+      statePatch: {},
+      stateSnapshot: state,
+      diceRolls: [],
       expectedVersion: 5,
       now,
     })).rejects.toMatchObject({ code: "GAME_SESSION_INVALID_STATUS" });

@@ -10,6 +10,7 @@ import {
 } from "@/lib/game/gameNarrativeGenerator";
 import { exportGameSessionArtifact } from "@/lib/game/gameSessionExport";
 import { createGameTurnService, type GameTurnService } from "@/lib/game/gameTurnService";
+import { GameStateValidationError } from "@/lib/game/state";
 import {
   createGameSessionRepository,
   GameSessionRepositoryError,
@@ -83,6 +84,7 @@ function errorStatus(error: unknown): number {
     ) return 422;
     return 502;
   }
+  if (error instanceof GameStateValidationError) return 502;
   return 500;
 }
 
@@ -100,6 +102,14 @@ function publicError(error: unknown) {
   }
   if (error instanceof GameNarrativeGenerationError) {
     return { code: error.code, message: error.message, retryable: error.retryable };
+  }
+  if (error instanceof GameStateValidationError) {
+    return {
+      code: error.code,
+      message: error.message,
+      retryable: error.code === "GAME_OUTPUT_INVALID",
+      details: error.details,
+    };
   }
   return {
     code: "INTERNAL_ERROR",

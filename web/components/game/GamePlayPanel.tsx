@@ -10,6 +10,8 @@ import {
   type GameSessionDetail,
   type GameTurn,
 } from "@/lib/api/gameSessionClient";
+import { GAME_DICE_SIDES, type GameDiceRequest } from "@/lib/game/dice";
+import type { GameState } from "@/lib/game/state";
 import { getFileExportAdapter } from "@/lib/platform/fileExport";
 
 type Props = {
@@ -68,12 +70,36 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
     ? branchSelection.parentTurnId
     : activeLeafTurnId;
   const [busy, setBusy] = useState(false);
+  const [useDice, setUseDice] = useState(false);
+  const [diceCount, setDiceCount] = useState(1);
+  const [diceSides, setDiceSides] = useState<(typeof GAME_DICE_SIDES)[number]>(20);
+  const [diceModifier, setDiceModifier] = useState(0);
+  const [dicePurpose, setDicePurpose] = useState("行动检定");
   const [exporting, setExporting] = useState<"json" | "markdown" | null>(null);
   const byId = useMemo(() => new Map(turns.map((turn) => [turn.id, turn])), [turns]);
   const currentPath = useMemo(
     () => activePath(turns, activeLeafTurnId),
     [turns, activeLeafTurnId],
   );
+  const eventsByTurn = useMemo(() => {
+    const result = new Map<string, NonNullable<GameSessionDetail["events"]>>();
+    for (const item of detail.events ?? []) {
+      const items = result.get(item.turnId) ?? [];
+      items.push(item);
+      result.set(item.turnId, items);
+    }
+    return result;
+  }, [detail.events]);
+  const selectedState = useMemo<GameState>(() => {
+    const parent = parentTurnId ? byId.get(parentTurnId) : null;
+    return parent?.stateSnapshot ?? {
+      scene: `${detail.worldName}：${detail.worldPremise}`.slice(0, 1_000),
+      objectives: [],
+      flags: {},
+      resources: {},
+      inventory: {},
+    };
+  }, [byId, detail.worldName, detail.worldPremise, parentTurnId]);
 
   const recoverConflict = async (error: unknown) => {
     if (!error || typeof error !== "object" || !("code" in error)) return;
@@ -104,15 +130,25 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
     onError(null);
     onNotice("AI 正在续写所选剧情线，请稍候…");
     try {
+      const diceRequests: GameDiceRequest[] = useDice
+        ? [{
+            count: diceCount,
+            sides: diceSides,
+            modifier: diceModifier,
+            purpose: dicePurpose.trim(),
+          }]
+        : [];
       const next = await createGameTurn(
         detail.id,
         content.trim(),
         parentTurnId,
         detail.version,
+        diceRequests,
       );
       onChange(next);
       setContent("");
       setBranchSelection(null);
+      setUseDice(false);
       onNotice(parentTurnId === activeLeafTurnId
         ? "新回合已保存。"
         : "新分支已创建并切换为当前剧情线。");
@@ -181,6 +217,16 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
                   <button type="button" onClick={() => setBranchSelection({ sessionId: detail.id, parentTurnId: turn.id })} disabled={busy || detail.status !== "active"} className="font-medium text-violet-700 disabled:opacity-40 dark:text-violet-300">{selected ? "已选为续写起点" : "从此处分支"}</button>
                 </div>
                 <div className="mt-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm dark:bg-zinc-900"><span className="mr-2 font-semibold">你</span>{turn.playerContent}</div>
+                {(eventsByTurn.get(turn.id) ?? []).map((gameEvent) => (
+                  <div key={gameEvent.id} className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                    <span className="font-semibold">可信骰子 · {gameEvent.payload.purpose}</span>
+                    <span className="ml-2">{gameEvent.payload.notation} → [{gameEvent.payload.results.join(", ")}] = {gameEvent.payload.total}</span>
+                    <details className="mt-1 text-[11px] opacity-70">
+                      <summary className="cursor-pointer">复现信息</summary>
+                      <div className="mt-1 break-all">seed: {gameEvent.payload.seed} · {gameEvent.payload.algorithm}</div>
+                    </details>
+                  </div>
+                ))}
                 <div className="mt-3 text-sm leading-7"><MarkdownMessage content={turn.assistantContent} /></div>
                 <p className="mt-3 text-[11px] text-zinc-400">模型：{turn.model}</p>
               </article>
@@ -191,6 +237,16 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
 
       {detail.status === "active" && (
         <form onSubmit={submitTurn} className="space-y-3 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+          <details className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/60">
+            <summary className="cursor-pointer font-medium">所选分支的结构化状态</summary>
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+              <p className="sm:col-span-2"><span className="font-semibold">场景：</span>{selectedState.scene || "未记录"}</p>
+              <p><span className="font-semibold">目标：</span>{selectedState.objectives.join("、") || "无"}</p>
+              <p><span className="font-semibold">物品：</span>{Object.entries(selectedState.inventory).map(([key, value]) => `${key} × ${value}`).join("、") || "无"}</p>
+              <p><span className="font-semibold">资源：</span>{Object.entries(selectedState.resources).map(([key, value]) => `${key}: ${value}`).join("、") || "无"}</p>
+              <p><span className="font-semibold">标记：</span>{Object.entries(selectedState.flags).map(([key, value]) => `${key}: ${String(value)}`).join("、") || "无"}</p>
+            </div>
+          </details>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <label htmlFor="game-turn-content" className="text-sm font-semibold">你的行动或台词</label>
             <div className="flex items-center gap-3 text-xs text-zinc-500">
@@ -199,7 +255,33 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
             </div>
           </div>
           <textarea id="game-turn-content" required maxLength={8_000} rows={4} value={content} onChange={(event) => setContent(event.target.value)} className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-3 text-sm outline-none focus:border-violet-500 dark:border-zinc-700 dark:bg-zinc-950" placeholder="例如：我把旧信放在吧台上，问老板是否认识落款的人。" />
-          <button type="submit" disabled={busy || !content.trim()} className="rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50">{busy ? "AI 正在续写…" : parentTurnId === activeLeafTurnId ? "发送并继续" : "创建新分支"}</button>
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900 dark:bg-amber-950/20">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={useDice} onChange={(event) => setUseDice(event.target.checked)} />
+              本回合使用服务端可信骰子
+            </label>
+            {useDice && (
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <label className="text-xs">数量
+                  <select value={diceCount} onChange={(event) => setDiceCount(Number(event.target.value))} className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-2 py-2 dark:border-amber-800 dark:bg-zinc-950">
+                    {[1, 2, 3, 4, 5, 6, 8, 10, 20].map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs">面数
+                  <select value={diceSides} onChange={(event) => setDiceSides(Number(event.target.value) as (typeof GAME_DICE_SIDES)[number])} className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-2 py-2 dark:border-amber-800 dark:bg-zinc-950">
+                    {GAME_DICE_SIDES.map((value) => <option key={value} value={value}>d{value}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs">修正值
+                  <input type="number" min={-100} max={100} value={diceModifier} onChange={(event) => setDiceModifier(Number(event.target.value))} className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-2 py-2 dark:border-amber-800 dark:bg-zinc-950" />
+                </label>
+                <label className="text-xs">用途
+                  <input required={useDice} maxLength={120} value={dicePurpose} onChange={(event) => setDicePurpose(event.target.value)} className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-2 py-2 dark:border-amber-800 dark:bg-zinc-950" />
+                </label>
+              </div>
+            )}
+          </div>
+          <button type="submit" disabled={busy || !content.trim() || (useDice && !dicePurpose.trim())} className="rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50">{busy ? "AI 正在续写…" : parentTurnId === activeLeafTurnId ? "发送并继续" : "创建新分支"}</button>
         </form>
       )}
     </section>

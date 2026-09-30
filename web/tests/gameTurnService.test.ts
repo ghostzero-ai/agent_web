@@ -11,6 +11,13 @@ const rootId = "22222222-2222-4222-8222-222222222222";
 const leftId = "33333333-3333-4333-8333-333333333333";
 const rightId = "44444444-4444-4444-8444-444444444444";
 const createdAt = new Date("2026-09-30T03:00:00.000Z");
+const baseState = {
+  scene: "雾港：雨夜",
+  objectives: [] as string[],
+  flags: {},
+  resources: {},
+  inventory: {},
+};
 
 const detail: GameSessionDetail = {
   id: sessionId,
@@ -41,10 +48,11 @@ const detail: GameSessionDetail = {
     createdAt,
     updatedAt: createdAt,
   }],
+  events: [],
   turns: [
-    { id: rootId, sessionId, parentTurnId: null, playerContent: "进城", assistantContent: "雾门开启", model: "m", createdAt },
-    { id: leftId, sessionId, parentTurnId: rootId, playerContent: "去码头", assistantContent: "船笛响起", model: "m", createdAt },
-    { id: rightId, sessionId, parentTurnId: rootId, playerContent: "去酒馆", assistantContent: "门铃轻响", model: "m", createdAt },
+    { id: rootId, sessionId, parentTurnId: null, playerContent: "进城", assistantContent: "雾门开启", model: "m", statePatch: {}, stateSnapshot: baseState, createdAt },
+    { id: leftId, sessionId, parentTurnId: rootId, playerContent: "去码头", assistantContent: "船笛响起", model: "m", statePatch: { scene: "码头" }, stateSnapshot: { ...baseState, scene: "码头" }, createdAt },
+    { id: rightId, sessionId, parentTurnId: rootId, playerContent: "去酒馆", assistantContent: "门铃轻响", model: "m", statePatch: { scene: "酒馆" }, stateSnapshot: { ...baseState, scene: "酒馆", inventory: { 旧信: 1 } }, createdAt },
   ],
 };
 
@@ -75,18 +83,23 @@ describe("GameTurnService", () => {
   it("generates and appends a turn with an optimistic version", async () => {
     const appendTurn = vi.fn().mockResolvedValue({ ...detail, version: 6 });
     const generate = vi.fn().mockResolvedValue({
-      content: "老板停下擦杯子的动作。",
+      content: JSON.stringify({
+        narrative: "老板停下擦杯子的动作。",
+        statePatch: { adjustInventory: { 线索纸条: 1 } },
+      }),
       model: "deepseek-test",
     });
     const service = createGameTurnService(
       repository({ appendTurn }),
       { generate },
       () => createdAt,
+      () => "fixed-seed",
     );
     await service.create(sessionId, {
       content: "询问老板",
       parentTurnId: rightId,
       expectedVersion: 5,
+      diceRequests: [{ count: 1, sides: 20, modifier: 2, purpose: "说服检定" }],
     });
     expect(generate).toHaveBeenCalledOnce();
     expect(appendTurn).toHaveBeenCalledWith(sessionId, {
@@ -94,6 +107,13 @@ describe("GameTurnService", () => {
       playerContent: "询问老板",
       assistantContent: "老板停下擦杯子的动作。",
       model: "deepseek-test",
+      statePatch: { adjustInventory: { 线索纸条: 1 } },
+      stateSnapshot: { ...baseState, scene: "酒馆", inventory: { 旧信: 1, 线索纸条: 1 } },
+      diceRolls: [expect.objectContaining({
+        notation: "1d20+2",
+        seed: "fixed-seed",
+        purpose: "说服检定",
+      })],
       expectedVersion: 5,
       now: createdAt,
     });
@@ -109,8 +129,29 @@ describe("GameTurnService", () => {
       content: "继续",
       parentTurnId: rightId,
       expectedVersion: 5,
+      diceRequests: [],
     })).rejects.toMatchObject({ code: "GAME_SESSION_INVALID_STATUS" });
     expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid model patch without persisting a partial turn", async () => {
+    const appendTurn = vi.fn();
+    const service = createGameTurnService(repository({ appendTurn }), {
+      generate: vi.fn().mockResolvedValue({
+        content: JSON.stringify({
+          narrative: "你失去了并不存在的钥匙。",
+          statePatch: { adjustInventory: { 钥匙: -1 } },
+        }),
+        model: "deepseek-test",
+      }),
+    });
+    await expect(service.create(sessionId, {
+      content: "使用钥匙",
+      parentTurnId: rightId,
+      expectedVersion: 5,
+      diceRequests: [],
+    })).rejects.toMatchObject({ code: "GAME_STATE_INVALID" });
+    expect(appendTurn).not.toHaveBeenCalled();
   });
 
   it("keeps recent branch context when old turns exceed the prompt budget", () => {
@@ -123,6 +164,8 @@ describe("GameTurnService", () => {
       playerContent: `玩家${index}-${"甲".repeat(8_000)}`,
       assistantContent: `叙事${index}-${"乙".repeat(8_000)}`,
       model: "m",
+      statePatch: {},
+      stateSnapshot: baseState,
       createdAt,
     }));
     const messages = gamePromptMessages(

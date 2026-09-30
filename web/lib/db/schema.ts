@@ -16,6 +16,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { ResponseVerification } from "@/lib/ai/messages";
+import type { GameDiceRoll } from "@/lib/game/dice";
+import type { GameState, GameStatePatch } from "@/lib/game/state";
 
 export const conversationMode = pgEnum("conversation_mode", CORE_MODE_IDS);
 
@@ -719,6 +721,14 @@ export const gameTurns = pgTable(
     playerContent: text("player_content").notNull(),
     assistantContent: text("assistant_content").notNull(),
     model: text("model").notNull(),
+    statePatch: jsonb("state_patch")
+      .$type<GameStatePatch>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    stateSnapshot: jsonb("state_snapshot")
+      .$type<GameState>()
+      .notNull()
+      .default(sql`'{"scene":"","objectives":[],"flags":{},"resources":{},"inventory":{}}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -726,6 +736,7 @@ export const gameTurns = pgTable(
   (table) => [
     index("game_turns_session_created_idx").on(table.sessionId, table.createdAt),
     index("game_turns_parent_idx").on(table.parentTurnId),
+    uniqueIndex("game_turns_id_session_unique").on(table.id, table.sessionId),
     check(
       "game_turns_player_content_length",
       sql`length(btrim(${table.playerContent})) BETWEEN 1 AND 8000`,
@@ -738,6 +749,34 @@ export const gameTurns = pgTable(
       "game_turns_model_length",
       sql`length(btrim(${table.model})) BETWEEN 1 AND 200`,
     ),
+  ],
+);
+
+export const gameEvents = pgTable(
+  "game_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => gameSessions.id, { onDelete: "cascade" }),
+    turnId: uuid("turn_id").notNull(),
+    kind: text("kind").$type<"dice_roll">().notNull(),
+    sequence: integer("sequence").notNull(),
+    payload: jsonb("payload").$type<GameDiceRoll>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("game_events_session_created_idx").on(table.sessionId, table.createdAt),
+    uniqueIndex("game_events_turn_sequence_unique").on(table.turnId, table.sequence),
+    foreignKey({
+      columns: [table.turnId, table.sessionId],
+      foreignColumns: [gameTurns.id, gameTurns.sessionId],
+      name: "game_events_turn_session_fk",
+    }).onDelete("cascade"),
+    check("game_events_kind_supported", sql`${table.kind} = 'dice_roll'`),
+    check("game_events_sequence_nonnegative", sql`${table.sequence} >= 0`),
   ],
 );
 
@@ -1413,6 +1452,7 @@ export type PluginCapabilityAuditRecord = typeof pluginCapabilityAudit.$inferSel
 export type GameSessionRecord = typeof gameSessions.$inferSelect;
 export type GameCharacterRecord = typeof gameCharacters.$inferSelect;
 export type GameTurnRecord = typeof gameTurns.$inferSelect;
+export type GameEventRecord = typeof gameEvents.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type MemoryCandidateRecord = typeof memoryCandidates.$inferSelect;

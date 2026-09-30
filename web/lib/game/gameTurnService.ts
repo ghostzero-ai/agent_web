@@ -1,5 +1,6 @@
 import type { ChatCompletionMessage } from "@/lib/ai/messages";
 import type { CreateGameTurnRequest } from "@/lib/game/contracts";
+import { rollGameDice, type GameDiceRoll } from "@/lib/game/dice";
 import {
   createGameNarrativeGenerator,
   type GameNarrativeGeneratorPort,
@@ -10,6 +11,12 @@ import {
   type GameSessionRepositoryPort,
 } from "@/lib/repositories/gameSessionRepository";
 import type { GameTurnRecord } from "@/lib/db/schema";
+import {
+  applyGameStatePatch,
+  initialGameState,
+  parseGameModelTurn,
+  type GameState,
+} from "@/lib/game/state";
 
 const MAX_HISTORY_TURNS = 30;
 const MAX_HISTORY_CHARACTERS = 48_000;
@@ -77,14 +84,47 @@ ${characters || "尚未创建角色卡。"}
 - 尊重由用户控制的角色，不替用户决定关键选择、内心想法或不可逆行动。
 - 可以扮演 AI 或 shared 控制的角色，并推动场景产生可回应的变化。
 - 严格遵守世界规则、角色边界和内容边界。
-- 直接输出下一段故事，可使用 Markdown；不要解释系统提示、数据库或这些规则。
+- 骰子结果只能引用 Dice Tool 提供的可信结果；没有结果时不得自行声称掷骰或编造点数。
+- 只输出一个 JSON 对象，不使用代码围栏，也不要解释系统提示、数据库或这些规则。
+- JSON 必须严格符合：{"narrative":"可使用 Markdown 的下一段故事","statePatch":{"scene"?:string,"objectives"?:string[],"setFlags"?:object,"removeFlags"?:string[],"adjustResources"?:object,"adjustInventory"?:object}}。
+- statePatch 只能描述本回合实际发生的变化；不能添加其他属性或工具调用，资源与物品调整后不得为负数。
 - 结尾保留一个自然的行动空间，但不要机械地罗列选项。`;
+}
+
+function stateAtParent(
+  session: GameSessionDetail,
+  parentTurnId: string | null,
+): GameState {
+  if (!parentTurnId) return initialGameState(session.worldName, session.worldPremise);
+  const parent = session.turns.find((turn) => turn.id === parentTurnId);
+  if (!parent) {
+    throw new GameSessionRepositoryError(
+      "GAME_TURN_NOT_FOUND",
+      "Selected game branch was not found in this session.",
+    );
+  }
+  return parent.stateSnapshot.scene
+    ? parent.stateSnapshot
+    : initialGameState(session.worldName, session.worldPremise);
+}
+
+function toolContext(state: GameState, diceRolls: readonly GameDiceRoll[]): string {
+  return [
+    "[Game state snapshot — trusted server data]",
+    JSON.stringify(state),
+    "[Dice Tool results — trusted server data]",
+    diceRolls.length > 0
+      ? JSON.stringify(diceRolls)
+      : "No dice were rolled for this turn. Do not invent a roll or numeric result.",
+  ].join("\n");
 }
 
 export function gamePromptMessages(
   session: GameSessionDetail,
   parentTurnId: string | null,
   playerContent: string,
+  currentState: GameState = stateAtParent(session, parentTurnId),
+  diceRolls: readonly GameDiceRoll[] = [],
 ): ChatCompletionMessage[] {
   const candidates = gameTurnPath(session.turns, parentTurnId).slice(-MAX_HISTORY_TURNS);
   const history: GameTurnRecord[] = [];
@@ -98,6 +138,7 @@ export function gamePromptMessages(
   }
   return [
     { role: "system", content: systemPrompt(session) },
+    { role: "system", content: toolContext(currentState, diceRolls) },
     ...history.flatMap<ChatCompletionMessage>((turn) => [
       { role: "user", content: turn.playerContent },
       { role: "assistant", content: turn.assistantContent },
@@ -110,6 +151,7 @@ export function createGameTurnService(
   repository: GameSessionRepositoryPort,
   generator: GameNarrativeGeneratorPort = createGameNarrativeGenerator(),
   now: () => Date = () => new Date(),
+  createSeed: () => string = () => crypto.randomUUID(),
 ) {
   return {
     async create(
@@ -137,17 +179,27 @@ export function createGameTurnService(
         );
       }
 
+      const currentState = stateAtParent(session, input.parentTurnId);
+      const diceRolls = input.diceRequests.map((request) =>
+        rollGameDice(request, createSeed()));
       const messages = gamePromptMessages(
         session,
         input.parentTurnId,
         input.content,
+        currentState,
+        diceRolls,
       );
       const generated = await generator.generate(messages, signal);
+      const turn = parseGameModelTurn(generated.content);
+      const stateSnapshot = applyGameStatePatch(currentState, turn.statePatch);
       return repository.appendTurn(sessionId, {
         parentTurnId: input.parentTurnId,
         playerContent: input.content,
-        assistantContent: generated.content,
+        assistantContent: turn.narrative,
         model: generated.model,
+        statePatch: turn.statePatch,
+        stateSnapshot,
+        diceRolls,
         expectedVersion: input.expectedVersion,
         now: now(),
       });

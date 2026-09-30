@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(25);
+      expect(migrations).toHaveLength(26);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -67,6 +67,7 @@ describe("database migrations", () => {
         "conversation_imports",
         "conversations",
         "game_characters",
+        "game_events",
         "game_sessions",
         "game_turns",
         "inbox_items",
@@ -154,6 +155,14 @@ describe("database migrations", () => {
         `UPDATE game_sessions SET active_leaf_turn_id = $1 WHERE id = $2`,
         [gameTurn.rows[0].id, gameSession.rows[0].id],
       );
+      const event = await pglite.query<{ kind: string; payload: unknown }>(
+        `INSERT INTO game_events (
+           session_id, turn_id, kind, sequence, payload
+         ) VALUES ($1, $2, 'dice_roll', 0, '{"seed":"migration-test","total":11}')
+         RETURNING kind, payload`,
+        [gameSession.rows[0].id, gameTurn.rows[0].id],
+      );
+      expect(event.rows[0]).toMatchObject({ kind: "dice_roll" });
       await expect(
         pglite.query(
           `INSERT INTO game_characters (
@@ -519,6 +528,14 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[25].id,
+      );
+      const gameEventsAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public' AND tablename = 'game_events'
+      `);
+      expect(gameEventsAfterRollback.rows).toEqual([]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[24].id,
       );
       const gameTurnsAfterRollback = await pglite.query<{ tablename: string }>(`
@@ -803,6 +820,7 @@ describe("database migrations", () => {
         migrations[22].id,
         migrations[23].id,
         migrations[24].id,
+        migrations[25].id,
       ]);
     },
     15_000,
@@ -854,6 +872,7 @@ describe("database migrations", () => {
       migrations[22].id,
       migrations[23].id,
       migrations[24].id,
+      migrations[25].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,
