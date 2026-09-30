@@ -5,17 +5,21 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
   const characterId = "22222222-2222-4222-8222-222222222222";
   let version = 1;
   let tone = "悬疑、克制";
+  let status: "setup" | "active" | "paused" = "setup";
+  let activeLeafTurnId: string | null = null;
+  const turns: Array<Record<string, unknown>> = [];
   const detail = () => ({
     id: sessionId,
     userId: "00000000-0000-4000-8000-000000000001",
     title: "雾港来信",
     kind: "roleplay",
-    status: "setup",
+    status,
     worldName: "雾港",
     worldPremise: "一座只在雨夜出现的港口。",
     worldTone: tone,
     worldRules: ["线索不会凭空消失"],
     safetyBoundaries: ["不把虚构当作现实"],
+    activeLeafTurnId,
     version,
     createdAt: "2026-09-30T03:00:00.000Z",
     updatedAt: "2026-09-30T03:00:00.000Z",
@@ -33,6 +37,7 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
       createdAt: "2026-09-30T03:00:00.000Z",
       updatedAt: "2026-09-30T03:00:00.000Z",
     }],
+    turns,
   });
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -78,6 +83,53 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
       body: JSON.stringify({ data: detail() }),
     });
   });
+  await page.route(`**/api/v1/game-sessions/${sessionId}/status`, async (route) => {
+    const input = route.request().postDataJSON();
+    expect(input.expectedVersion).toBe(version);
+    status = input.status;
+    version += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: detail() }),
+    });
+  });
+  await page.route(`**/api/v1/game-sessions/${sessionId}/turns`, async (route) => {
+    const input = route.request().postDataJSON();
+    expect(input).toMatchObject({
+      content: "我把旧信放在吧台上。",
+      parentTurnId: null,
+      expectedVersion: version,
+    });
+    activeLeafTurnId = "33333333-3333-4333-8333-333333333333";
+    turns.push({
+      id: activeLeafTurnId,
+      sessionId,
+      parentTurnId: null,
+      playerContent: input.content,
+      assistantContent: "老板停下擦杯子的动作，目光落在旧信的火漆上。",
+      model: "test-model",
+      createdAt: "2026-09-30T05:00:00.000Z",
+    });
+    version += 1;
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({ data: detail() }),
+    });
+  });
+  await page.route(`**/api/v1/game-sessions/${sessionId}/export`, async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ format: "markdown" });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: {
+        filename: "雾港来信-2026-09-30.md",
+        mediaType: "text/markdown",
+        content: "# 雾港来信\n\n老板停下擦杯子的动作。",
+      } }),
+    });
+  });
 
   await page.goto("/entertainment");
   await expect(page.getByRole("heading", { name: "娱乐模式" })).toBeVisible();
@@ -102,4 +154,18 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
   await page.getByRole("button", { name: "保存世界设定" }).click();
   await expect(page.getByRole("status")).toHaveText("世界设定已保存。");
   await expect(page.getByText("设定版本 2")).toBeVisible();
+
+  await page.getByRole("button", { name: "开始故事" }).click();
+  await expect(page.getByText("进行中 · 0 个回合节点")).toBeVisible();
+  await page.getByLabel("你的行动或台词").fill("我把旧信放在吧台上。");
+  await page.getByRole("button", { name: "发送并继续" }).click();
+  await expect(page.getByText("老板停下擦杯子的动作，目光落在旧信的火漆上。")).toBeVisible();
+  await expect(page.getByText("当前剧情线 · 当前叶子")).toBeVisible();
+  await page.getByRole("button", { name: "暂停" }).click();
+  await expect(page.getByText("已暂停 · 1 个回合节点")).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出 Markdown" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("雾港来信-2026-09-30.md");
 });

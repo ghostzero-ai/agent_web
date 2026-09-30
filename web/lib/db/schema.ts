@@ -639,6 +639,10 @@ export const gameSessions = pgTable(
       .$type<string[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
+    // Membership is verified by GameSessionRepository. Keeping this FK-free
+    // avoids a game_sessions/game_turns dependency cycle while parent links
+    // inside the turn tree remain enforced.
+    activeLeafTurnId: uuid("active_leaf_turn_id"),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
@@ -698,6 +702,42 @@ export const gameCharacters = pgTable(
     check("game_characters_description_length", sql`length(btrim(${table.description})) BETWEEN 1 AND 2000`),
     check("game_characters_personality_length", sql`length(${table.personality}) <= 1200`),
     check("game_characters_version_positive", sql`${table.version} > 0`),
+  ],
+);
+
+export const gameTurns = pgTable(
+  "game_turns",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => gameSessions.id, { onDelete: "cascade" }),
+    parentTurnId: uuid("parent_turn_id").references(
+      (): AnyPgColumn => gameTurns.id,
+      { onDelete: "set null" },
+    ),
+    playerContent: text("player_content").notNull(),
+    assistantContent: text("assistant_content").notNull(),
+    model: text("model").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("game_turns_session_created_idx").on(table.sessionId, table.createdAt),
+    index("game_turns_parent_idx").on(table.parentTurnId),
+    check(
+      "game_turns_player_content_length",
+      sql`length(btrim(${table.playerContent})) BETWEEN 1 AND 8000`,
+    ),
+    check(
+      "game_turns_assistant_content_length",
+      sql`length(btrim(${table.assistantContent})) BETWEEN 1 AND 100000`,
+    ),
+    check(
+      "game_turns_model_length",
+      sql`length(btrim(${table.model})) BETWEEN 1 AND 200`,
+    ),
   ],
 );
 
@@ -1372,6 +1412,7 @@ export type PluginQuotaUsageRecord = typeof pluginQuotaUsage.$inferSelect;
 export type PluginCapabilityAuditRecord = typeof pluginCapabilityAudit.$inferSelect;
 export type GameSessionRecord = typeof gameSessions.$inferSelect;
 export type GameCharacterRecord = typeof gameCharacters.$inferSelect;
+export type GameTurnRecord = typeof gameTurns.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type MemoryCandidateRecord = typeof memoryCandidates.$inferSelect;

@@ -3,20 +3,24 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type {
   GameCharacterInput,
   GameSessionKind,
+  GameSessionStatus,
   GameWorldInput,
 } from "@/lib/game/contracts";
 import {
   gameCharacters,
   gameSessions,
+  gameTurns,
   users,
   type GameCharacterRecord,
   type GameSessionRecord,
+  type GameTurnRecord,
 } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
 import { LOCAL_USER_ID } from "@/lib/repositories/conversationRepository";
 
 export type GameSessionDetail = GameSessionRecord & {
   characters: GameCharacterRecord[];
+  turns: GameTurnRecord[];
 };
 
 export type CreateGameSessionInput = {
@@ -47,13 +51,30 @@ export type DeleteGameCharacterInput = {
   now: Date;
 };
 
+export type UpdateGameSessionStatusInput = {
+  status: Extract<GameSessionStatus, "active" | "paused">;
+  expectedVersion: number;
+  now: Date;
+};
+
+export type AppendGameTurnInput = {
+  parentTurnId: string | null;
+  playerContent: string;
+  assistantContent: string;
+  model: string;
+  expectedVersion: number;
+  now: Date;
+};
+
 export class GameSessionRepositoryError extends Error {
   constructor(
     readonly code:
       | "GAME_SESSION_NOT_FOUND"
       | "GAME_CHARACTER_NOT_FOUND"
+      | "GAME_TURN_NOT_FOUND"
       | "GAME_SESSION_VERSION_CONFLICT"
-      | "GAME_CHARACTER_VERSION_CONFLICT",
+      | "GAME_CHARACTER_VERSION_CONFLICT"
+      | "GAME_SESSION_INVALID_STATUS",
     message: string,
   ) {
     super(message);
@@ -80,6 +101,14 @@ export interface GameSessionRepositoryPort {
     sessionId: string,
     characterId: string,
     input: DeleteGameCharacterInput,
+  ): Promise<GameSessionDetail>;
+  updateStatus(
+    sessionId: string,
+    input: UpdateGameSessionStatusInput,
+  ): Promise<GameSessionDetail>;
+  appendTurn(
+    sessionId: string,
+    input: AppendGameTurnInput,
   ): Promise<GameSessionDetail>;
 }
 
@@ -120,7 +149,12 @@ export class GameSessionRepository<
       .from(gameCharacters)
       .where(eq(gameCharacters.sessionId, id))
       .orderBy(asc(gameCharacters.createdAt), asc(gameCharacters.id));
-    return { ...session, characters };
+    const turns = await this.database
+      .select()
+      .from(gameTurns)
+      .where(eq(gameTurns.sessionId, id))
+      .orderBy(asc(gameTurns.createdAt), asc(gameTurns.id));
+    return { ...session, characters, turns };
   }
 
   async create(input: CreateGameSessionInput): Promise<GameSessionDetail> {
@@ -331,6 +365,119 @@ export class GameSessionRepository<
       await transaction
         .update(gameSessions)
         .set({
+          version: sql`${gameSessions.version} + 1`,
+          updatedAt: input.now,
+        })
+        .where(eq(gameSessions.id, sessionId));
+    });
+    return this.requireDetail(sessionId);
+  }
+
+  async updateStatus(
+    sessionId: string,
+    input: UpdateGameSessionStatusInput,
+  ): Promise<GameSessionDetail> {
+    await this.ensureLocalUser();
+    await this.database.transaction(async (transaction) => {
+      const [session] = await transaction
+        .select({
+          status: gameSessions.status,
+          version: gameSessions.version,
+        })
+        .from(gameSessions)
+        .where(
+          and(
+            eq(gameSessions.id, sessionId),
+            eq(gameSessions.userId, LOCAL_USER_ID),
+          ),
+        )
+        .for("update")
+        .limit(1);
+      this.assertSessionVersion(session?.version, input.expectedVersion);
+
+      const allowed = input.status === "active"
+        ? session?.status === "setup" || session?.status === "paused"
+        : session?.status === "active";
+      if (!allowed) {
+        throw new GameSessionRepositoryError(
+          "GAME_SESSION_INVALID_STATUS",
+          `Game session cannot change from ${session?.status} to ${input.status}.`,
+        );
+      }
+      await transaction
+        .update(gameSessions)
+        .set({
+          status: input.status,
+          version: sql`${gameSessions.version} + 1`,
+          updatedAt: input.now,
+        })
+        .where(eq(gameSessions.id, sessionId));
+    });
+    return this.requireDetail(sessionId);
+  }
+
+  async appendTurn(
+    sessionId: string,
+    input: AppendGameTurnInput,
+  ): Promise<GameSessionDetail> {
+    await this.ensureLocalUser();
+    await this.database.transaction(async (transaction) => {
+      const [session] = await transaction
+        .select({
+          status: gameSessions.status,
+          version: gameSessions.version,
+        })
+        .from(gameSessions)
+        .where(
+          and(
+            eq(gameSessions.id, sessionId),
+            eq(gameSessions.userId, LOCAL_USER_ID),
+          ),
+        )
+        .for("update")
+        .limit(1);
+      this.assertSessionVersion(session?.version, input.expectedVersion);
+      if (session?.status !== "active") {
+        throw new GameSessionRepositoryError(
+          "GAME_SESSION_INVALID_STATUS",
+          "Game session must be active before adding a turn.",
+        );
+      }
+
+      if (input.parentTurnId) {
+        const [parent] = await transaction
+          .select({ id: gameTurns.id })
+          .from(gameTurns)
+          .where(
+            and(
+              eq(gameTurns.id, input.parentTurnId),
+              eq(gameTurns.sessionId, sessionId),
+            ),
+          )
+          .limit(1);
+        if (!parent) {
+          throw new GameSessionRepositoryError(
+            "GAME_TURN_NOT_FOUND",
+            "Parent game turn was not found in this session.",
+          );
+        }
+      }
+
+      const [turn] = await transaction
+        .insert(gameTurns)
+        .values({
+          sessionId,
+          parentTurnId: input.parentTurnId,
+          playerContent: input.playerContent,
+          assistantContent: input.assistantContent,
+          model: input.model,
+          createdAt: input.now,
+        })
+        .returning({ id: gameTurns.id });
+      await transaction
+        .update(gameSessions)
+        .set({
+          activeLeafTurnId: turn.id,
           version: sql`${gameSessions.version} + 1`,
           updatedAt: input.now,
         })

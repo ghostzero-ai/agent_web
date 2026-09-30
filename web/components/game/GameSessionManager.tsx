@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { GamePlayPanel } from "@/components/game/GamePlayPanel";
 import {
   createGameCharacter,
   createGameSession,
@@ -306,9 +307,9 @@ export function GameSessionManager() {
         <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 dark:border-violet-900 dark:from-violet-950/40 dark:to-zinc-950">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">Entertainment · Phase 6.1</p>
-              <h2 className="mt-1 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">独立的虚构世界与角色卡</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-300">这里保存的世界、角色和边界属于 GameSession，不会进入普通对话或长期记忆。当前只建立设定；正式游玩将在 Phase 6.2 开放。</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">Entertainment · Phase 6.2</p>
+              <h2 className="mt-1 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">可分支的角色扮演世界</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-300">世界、角色和剧情回合属于独立 GameSession，不会进入普通对话或长期记忆。可暂停、继续、从任意回合创建分支并导出完整记录。</p>
             </div>
             <span className="rounded-full border border-violet-300 bg-white/80 px-3 py-1 text-xs font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200">独立存储</span>
           </div>
@@ -321,11 +322,17 @@ export function GameSessionManager() {
           <CreateSessionForm busy={busy} onSubmit={create} />
         ) : detail ? (
           <>
+            <GamePlayPanel
+              detail={detail}
+              onChange={installDetail}
+              onError={setError}
+              onNotice={setNotice}
+            />
             <form onSubmit={saveWorld} className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 dark:border-zinc-800 dark:bg-zinc-950">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold">世界设定</h3>
-                  <p className="text-xs text-zinc-500">设定版本 {detail.version} · 状态：准备中</p>
+                  <p className="text-xs text-zinc-500">设定版本 {detail.version} · 状态：{detail.status === "active" ? "进行中" : detail.status === "paused" ? "已暂停" : detail.status === "archived" ? "已归档" : "准备中"}</p>
                 </div>
                 <button type="button" onClick={() => void removeSession()} disabled={busy} className="text-xs font-medium text-red-600 disabled:opacity-50">删除会话</button>
               </div>

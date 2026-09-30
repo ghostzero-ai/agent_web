@@ -86,4 +86,4 @@ npm run eval:core
 
 ## 6. 当前主线
 
-Phase 4.1–4.4、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1 已完成。GameSession、角色卡和世界设定已与普通 Conversation、Message、MemoryCandidate 和 Memory 隔离，并在 Web/APK 提供共用管理页。当前进入 Phase 6.2：在独立数据边界内实现角色扮演回合、暂停/继续、树形分支与导出；Phase 5.6 继续保留为主要功能完成后的发布前安全封版。
+Phase 4.1–4.4、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1–6.2 已完成。GameSession 现已在独立数据边界内提供世界、角色卡、模型回合、暂停/继续、树形分支与跨端导出。当前进入 Phase 6.3：实现可复现 Dice Tool 与受 Schema 校验的结构化状态补丁；Phase 5.6 继续保留为主要功能完成后的发布前安全封版。

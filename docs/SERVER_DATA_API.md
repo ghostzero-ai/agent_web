@@ -62,6 +62,9 @@ X-Request-Id: <uuid>
 | `GET` / `PATCH` / `DELETE` | `/api/v1/game-sessions/:id` | 读取、更新或删除世界设定，写入使用 Session 版本锁 |
 | `POST` | `/api/v1/game-sessions/:id/characters` | 添加角色卡并推进 Session 版本 |
 | `PATCH` / `DELETE` | `/api/v1/game-sessions/:id/characters/:characterId` | 以 Session + Character 双版本锁更新或删除角色卡 |
+| `PATCH` | `/api/v1/game-sessions/:id/status` | 使用 Session 版本锁开始、暂停或继续游戏 |
+| `POST` | `/api/v1/game-sessions/:id/turns` | 从指定父回合调用服务端模型并原子保存新回合 |
+| `POST` | `/api/v1/game-sessions/:id/export` | 返回 Web/APK 文件 Adapter 可用的完整分支 JSON/Markdown Artifact |
 
 Persona Profile 只接受名称、可选用户称呼，以及 `warmth`、`humor`、`directness`、`verbosity`、`initiative` 五个 0–100 整数。API 不接受自定义 Prompt 或硬边界文本；`initiative` 只表示当前对话中的引导强度，不代表后台主动联系。
 
@@ -71,7 +74,7 @@ Proactivity 默认关闭，仅支持 `goal_followup` 与 `checkin` 两类明确�
 
 插件端点只管理随应用发布的第一方清单，不接受上传 URL、压缩包、代码或自定义 Manifest。Manifest 声明、插件启用和用户授权是三个独立状态；授权请求只接受 `expectedVersion`，且插件必须兼容、已启用、安装版本与当前 Manifest 一致。插件升级会使旧授权失效，等待重新审核。Capability Gateway 没有浏览器通用调用端点：只有服务端第一方活动能请求已注册 Adapter。Phase 7.5 已冻结 Plugin API 1.0.0：模型使用插件绑定的注册操作，任务能力只返回待确认草稿，跨插件学习卡只交换带来源的中立 Schema；这些宿主内部契约不会额外暴露通用浏览器执行 API。
 
-GameSession 端点只管理虚构世界与角色卡，不调用模型，也不创建普通 Conversation、Message、MemoryCandidate 或 Memory。世界规则与边界、角色目标与边界均使用受限数组；角色变更会推进 Session 版本，避免多端静默覆盖。完整边界见 `docs/GAME_SESSIONS.md`。
+GameSession 端点管理独立的虚构世界、角色卡与剧情回合树，不创建普通 Conversation、Message、MemoryCandidate 或 Memory。回合端点使用服务端凭据调用模型，Prompt 只装配所选分支的祖先路径；模型成功后再次以 Session 版本锁原子写入回合和活动叶子。世界规则与边界、角色目标与边界均使用受限数组。完整边界见 `docs/GAME_SESSIONS.md`。
 
 ### 创建会话
 

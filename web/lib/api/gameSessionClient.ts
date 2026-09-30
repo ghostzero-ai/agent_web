@@ -4,8 +4,10 @@ import type {
   GameCharacterInput,
   GameSessionKind,
   GameSessionStatus,
+  GameSessionExportFormat,
   GameWorldInput,
 } from "@/lib/game/contracts";
+import type { PromptExportArtifact } from "@/lib/platform/capabilities";
 
 export type GameSessionSummary = {
   id: string;
@@ -18,9 +20,20 @@ export type GameSessionSummary = {
   worldTone: string;
   worldRules: string[];
   safetyBoundaries: string[];
+  activeLeafTurnId: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type GameTurn = {
+  id: string;
+  sessionId: string;
+  parentTurnId: string | null;
+  playerContent: string;
+  assistantContent: string;
+  model: string;
+  createdAt: string;
 };
 
 export type GameCharacter = {
@@ -40,6 +53,7 @@ export type GameCharacter = {
 
 export type GameSessionDetail = GameSessionSummary & {
   characters: GameCharacter[];
+  turns: GameTurn[];
 };
 
 export class GameSessionClientError extends Error {
@@ -154,4 +168,37 @@ export function deleteGameCharacter(
       body: JSON.stringify({ expectedSessionVersion, expectedCharacterVersion }),
     },
   );
+}
+
+export function updateGameSessionStatus(
+  sessionId: string,
+  status: "active" | "paused",
+  expectedVersion: number,
+): Promise<GameSessionDetail> {
+  return request(`/api/v1/game-sessions/${encodeURIComponent(sessionId)}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, expectedVersion }),
+  });
+}
+
+export function createGameTurn(
+  sessionId: string,
+  content: string,
+  parentTurnId: string | null,
+  expectedVersion: number,
+): Promise<GameSessionDetail> {
+  return request(`/api/v1/game-sessions/${encodeURIComponent(sessionId)}/turns`, {
+    method: "POST",
+    body: JSON.stringify({ content, parentTurnId, expectedVersion }),
+  });
+}
+
+export function exportGameSession(
+  sessionId: string,
+  format: GameSessionExportFormat,
+): Promise<PromptExportArtifact> {
+  return request(`/api/v1/game-sessions/${encodeURIComponent(sessionId)}/export`, {
+    method: "POST",
+    body: JSON.stringify({ format }),
+  });
 }

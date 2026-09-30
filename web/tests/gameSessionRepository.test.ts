@@ -78,6 +78,7 @@ describe("GameSessionRepository", () => {
       version: 1,
     });
     expect(created.characters).toHaveLength(1);
+    expect(created.turns).toEqual([]);
     expect(created.characters[0]).toMatchObject({ name: "林舟", version: 1 });
 
     const [conversationCount] = await drizzle(pglite, { schema })
@@ -170,5 +171,61 @@ describe("GameSessionRepository", () => {
       "SELECT count(*)::int AS value FROM game_characters",
     );
     expect(result.rows[0].value).toBe(0);
+  });
+
+  it("persists active roleplay turns as a branchable tree and versions status", async () => {
+    const now = new Date("2026-09-30T03:00:00.000Z");
+    const created = await repository.create({
+      title: "雾港来信",
+      kind: "roleplay",
+      world,
+      initialCharacter: character,
+      now,
+    });
+    const active = await repository.updateStatus(created.id, {
+      status: "active",
+      expectedVersion: 1,
+      now,
+    });
+    expect(active).toMatchObject({ status: "active", version: 2 });
+
+    const first = await repository.appendTurn(created.id, {
+      parentTurnId: null,
+      playerContent: "推开酒馆的门。",
+      assistantContent: "门铃在雾里轻响。",
+      model: "test-model",
+      expectedVersion: 2,
+      now,
+    });
+    expect(first.turns).toHaveLength(1);
+    expect(first.activeLeafTurnId).toBe(first.turns[0].id);
+    expect(first.version).toBe(3);
+
+    const branch = await repository.appendTurn(created.id, {
+      parentTurnId: first.turns[0].id,
+      playerContent: "先询问老板。",
+      assistantContent: "老板擦着杯子抬起头。",
+      model: "test-model",
+      expectedVersion: 3,
+      now,
+    });
+    const branchTurn = branch.turns.find((turn) => turn.playerContent === "先询问老板。");
+    expect(branchTurn?.parentTurnId).toBe(first.turns[0].id);
+    expect(branch.activeLeafTurnId).toBe(branchTurn?.id);
+
+    const paused = await repository.updateStatus(created.id, {
+      status: "paused",
+      expectedVersion: 4,
+      now,
+    });
+    expect(paused).toMatchObject({ status: "paused", version: 5 });
+    await expect(repository.appendTurn(created.id, {
+      parentTurnId: paused.activeLeafTurnId,
+      playerContent: "继续。",
+      assistantContent: "不应写入。",
+      model: "test-model",
+      expectedVersion: 5,
+      now,
+    })).rejects.toMatchObject({ code: "GAME_SESSION_INVALID_STATUS" });
   });
 });

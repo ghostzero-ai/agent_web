@@ -81,7 +81,33 @@ export const deleteGameCharacterSchema = z
   })
   .strict();
 
+export const updateGameSessionStatusSchema = z
+  .object({
+    status: z.enum(["active", "paused"]),
+    expectedVersion: z.number().int().positive(),
+  })
+  .strict();
+
+export const createGameTurnSchema = z
+  .object({
+    content: z.string().trim().min(1).max(8_000),
+    parentTurnId: z.uuid().nullable(),
+    expectedVersion: z.number().int().positive(),
+  })
+  .strict();
+
+export const exportGameSessionSchema = z
+  .object({ format: z.enum(["json", "markdown"]) })
+  .strict();
+
 export type GameWorldInput = z.infer<typeof gameWorldInputSchema>;
 export type GameCharacterInput = z.infer<typeof gameCharacterInputSchema>;
 export type CreateGameSessionRequest = z.infer<typeof createGameSessionSchema>;
 export type UpdateGameSessionRequest = z.infer<typeof updateGameSessionSchema>;
+export type UpdateGameSessionStatusRequest = z.infer<
+  typeof updateGameSessionStatusSchema
+>;
+export type CreateGameTurnRequest = z.infer<typeof createGameTurnSchema>;
+export type GameSessionExportFormat = z.infer<
+  typeof exportGameSessionSchema
+>["format"];

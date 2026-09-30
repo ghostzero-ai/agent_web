@@ -15,6 +15,8 @@ function repository(
     createCharacter: vi.fn(),
     updateCharacter: vi.fn(),
     deleteCharacter: vi.fn(),
+    updateStatus: vi.fn(),
+    appendTurn: vi.fn(),
     ...overrides,
   };
 }

@@ -4,6 +4,28 @@
 
 ---
 
+## Phase 6.2 — 可分支角色扮演 MVP
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增独立 `game_turns` 与 `game_sessions.active_leaf_turn_id`；玩家输入、AI 叙事、模型和父回合形成可追溯剧情树。
+- 新增服务端娱乐 Prompt 装配与模型生成器，只读取所选父节点的祖先路径，并注入世界规则、角色控制语义与内容边界。
+- 新增开始、暂停、继续和回合 API；模型成功后在事务中复核状态与 Session 版本，再原子写入回合并切换活动叶子。
+- `/entertainment` Web/APK 共用页面新增回合树、当前剧情线标记、任意节点/故事开头分支、Markdown/公式渲染和生成等待状态。
+- 新增包含全部分支的 JSON/Markdown 导出，Web 下载与 APK Filesystem + Share 复用既有跨端 Adapter。
+- 新增可回滚迁移 `0024_game_roleplay_turns`、ADR-060，以及 Repository、Prompt 路径、API、导出、迁移和移动端 E2E 测试。
+
+### 当前边界
+
+- Phase 6.2 不包含骰子、结构化场景/物品状态、检定和检查点；这些能力不以自由文本伪装实现。
+- 回合在模型完整返回后原子保存，当前不逐 Token 展示；模型失败不会留下持久半回合。
+
+### 下一步
+
+- Phase 6.3：实现可复现 Dice Tool 与受 Schema 校验的状态补丁。
+
 ## Phase 6.1 — GameSession、角色卡与世界设定
 
 **Commit**: `same delivery commit`

@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(24);
+      expect(migrations).toHaveLength(25);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -68,6 +68,7 @@ describe("database migrations", () => {
         "conversations",
         "game_characters",
         "game_sessions",
+        "game_turns",
         "inbox_items",
         "memory_candidates",
         "memory_items",
@@ -141,6 +142,17 @@ describe("database migrations", () => {
            session_id, name, role, controller, description
          ) VALUES ($1, 'Lin', 'Investigator', 'user', 'Looking for the sender')`,
         [gameSession.rows[0].id],
+      );
+      const gameTurn = await pglite.query<{ id: string }>(
+        `INSERT INTO game_turns (
+           session_id, player_content, assistant_content, model
+         ) VALUES ($1, 'Enter the harbor', 'The fog parts.', 'test-model')
+         RETURNING id`,
+        [gameSession.rows[0].id],
+      );
+      await pglite.query(
+        `UPDATE game_sessions SET active_leaf_turn_id = $1 WHERE id = $2`,
+        [gameTurn.rows[0].id, gameSession.rows[0].id],
       );
       await expect(
         pglite.query(
@@ -507,6 +519,14 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[24].id,
+      );
+      const gameTurnsAfterRollback = await pglite.query<{ tablename: string }>(`
+        SELECT tablename FROM pg_tables
+        WHERE schemaname = 'public' AND tablename = 'game_turns'
+      `);
+      expect(gameTurnsAfterRollback.rows).toEqual([]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[23].id,
       );
       const gameTablesAfterRollback = await pglite.query<{ tablename: string }>(`
@@ -782,6 +802,7 @@ describe("database migrations", () => {
         migrations[21].id,
         migrations[22].id,
         migrations[23].id,
+        migrations[24].id,
       ]);
     },
     15_000,
@@ -832,6 +853,7 @@ describe("database migrations", () => {
       migrations[21].id,
       migrations[22].id,
       migrations[23].id,
+      migrations[24].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,
