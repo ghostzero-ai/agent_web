@@ -45,14 +45,20 @@ const character = {
   personality: "谨慎但好奇",
   goals: ["查明寄信人"],
   boundaries: ["不出现血腥细节"],
+  attributes: { 力量: 2, 意志: 3 },
+  maxHealth: 12,
 };
 
 const state = {
   scene: "雾港：酒馆",
+  sceneFacts: [] as string[],
+  sceneExits: [] as string[],
   objectives: [] as string[],
   flags: {},
   resources: {},
   inventory: {},
+  characters: {},
+  items: {},
 };
 
 describe("GameSessionRepository", () => {
@@ -87,7 +93,12 @@ describe("GameSessionRepository", () => {
     });
     expect(created.characters).toHaveLength(1);
     expect(created.turns).toEqual([]);
-    expect(created.characters[0]).toMatchObject({ name: "林舟", version: 1 });
+    expect(created.characters[0]).toMatchObject({
+      name: "林舟",
+      attributes: { 力量: 2, 意志: 3 },
+      maxHealth: 12,
+      version: 1,
+    });
 
     const [conversationCount] = await drizzle(pglite, { schema })
       .select({ value: count() })
@@ -204,7 +215,7 @@ describe("GameSessionRepository", () => {
       model: "test-model",
       statePatch: {},
       stateSnapshot: state,
-      diceRolls: [],
+      events: [],
       expectedVersion: 2,
       now,
     });
@@ -212,25 +223,53 @@ describe("GameSessionRepository", () => {
     expect(first.activeLeafTurnId).toBe(first.turns[0].id);
     expect(first.version).toBe(3);
 
+    const withCheckpoint = await repository.createCheckpoint(created.id, {
+      name: "进入酒馆后",
+      note: "保留初始线索",
+      expectedVersion: 3,
+      now,
+    });
+    expect(withCheckpoint).toMatchObject({ version: 4 });
+    expect(withCheckpoint.checkpoints[0]).toMatchObject({
+      name: "进入酒馆后",
+      turnId: first.turns[0].id,
+      stateSnapshot: expect.objectContaining({ scene: "雾港：酒馆" }),
+    });
+    const checkpointId = withCheckpoint.checkpoints[0].id;
+
     const branch = await repository.appendTurn(created.id, {
       parentTurnId: first.turns[0].id,
       playerContent: "先询问老板。",
       assistantContent: "老板擦着杯子抬起头。",
       model: "test-model",
-      statePatch: { adjustInventory: { 旧信: 1 } },
-      stateSnapshot: { ...state, inventory: { 旧信: 1 } },
-      diceRolls: [{
-        count: 1,
-        sides: 20,
-        modifier: 1,
-        purpose: "调查检定",
-        notation: "1d20+1",
-        seed: "repository-test",
-        algorithm: "fnv1a-mulberry32-v1",
-        results: [12],
-        total: 13,
+      statePatch: {
+        adjustInventory: { 旧信: 1 },
+        upsertItems: {
+          旧信: { name: "旧信", description: "来自雾港的信。", holderCharacterId: null, tags: ["线索"] },
+        },
+      },
+      stateSnapshot: {
+        ...state,
+        inventory: { 旧信: 1 },
+        items: {
+          旧信: { name: "旧信", description: "来自雾港的信。", holderCharacterId: null, tags: ["线索"] },
+        },
+      },
+      events: [{
+        kind: "dice_roll",
+        payload: {
+          count: 1,
+          sides: 20,
+          modifier: 1,
+          purpose: "调查检定",
+          notation: "1d20+1",
+          seed: "repository-test",
+          algorithm: "fnv1a-mulberry32-v1",
+          results: [12],
+          total: 13,
+        },
       }],
-      expectedVersion: 3,
+      expectedVersion: 4,
       now,
     });
     const branchTurn = branch.turns.find((turn) => turn.playerContent === "先询问老板。");
@@ -244,12 +283,30 @@ describe("GameSessionRepository", () => {
       payload: { seed: "repository-test", total: 13 },
     });
 
-    const paused = await repository.updateStatus(created.id, {
-      status: "paused",
-      expectedVersion: 4,
+    const restored = await repository.restoreCheckpoint(created.id, checkpointId, {
+      expectedVersion: 5,
       now,
     });
-    expect(paused).toMatchObject({ status: "paused", version: 5 });
+    expect(restored).toMatchObject({
+      version: 6,
+      activeLeafTurnId: first.turns[0].id,
+    });
+    expect(restored.turns).toHaveLength(2);
+    expect(restored.turns.some((turn) => turn.id === branchTurn?.id)).toBe(true);
+
+    const withoutCheckpoint = await repository.deleteCheckpoint(created.id, checkpointId, {
+      expectedVersion: 6,
+      now,
+    });
+    expect(withoutCheckpoint.version).toBe(7);
+    expect(withoutCheckpoint.checkpoints).toEqual([]);
+
+    const paused = await repository.updateStatus(created.id, {
+      status: "paused",
+      expectedVersion: 7,
+      now,
+    });
+    expect(paused).toMatchObject({ status: "paused", version: 8 });
     await expect(repository.appendTurn(created.id, {
       parentTurnId: paused.activeLeafTurnId,
       playerContent: "继续。",
@@ -257,8 +314,8 @@ describe("GameSessionRepository", () => {
       model: "test-model",
       statePatch: {},
       stateSnapshot: state,
-      diceRolls: [],
-      expectedVersion: 5,
+      events: [],
+      expectedVersion: 8,
       now,
     })).rejects.toMatchObject({ code: "GAME_SESSION_INVALID_STATUS" });
   });

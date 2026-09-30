@@ -1,10 +1,13 @@
 import { z, ZodError, type ZodType } from "zod";
 import { getDatabase } from "@/lib/db/client";
 import {
+  createGameCheckpointSchema,
   createGameTurnSchema,
   exportGameSessionSchema,
+  mutateGameCheckpointSchema,
   updateGameSessionStatusSchema,
 } from "@/lib/game/contracts";
+import { GameRuleCheckError } from "@/lib/game/checks";
 import {
   GameNarrativeGenerationError,
 } from "@/lib/game/gameNarrativeGenerator";
@@ -85,6 +88,7 @@ function errorStatus(error: unknown): number {
     return 502;
   }
   if (error instanceof GameStateValidationError) return 502;
+  if (error instanceof GameRuleCheckError) return 422;
   return 500;
 }
 
@@ -110,6 +114,9 @@ function publicError(error: unknown) {
       retryable: error.code === "GAME_OUTPUT_INVALID",
       details: error.details,
     };
+  }
+  if (error instanceof GameRuleCheckError) {
+    return { code: error.code, message: error.message, retryable: false };
   }
   return {
     code: "INTERNAL_ERROR",
@@ -152,6 +159,47 @@ export function createGamePlayApi(
         { data: await turnService.create(parseId(id), input, request.signal) },
         201,
       );
+    }),
+    createCheckpoint: (id: string, request: Request) => handle(async (requestId) => {
+      const input = await parseBody(request, createGameCheckpointSchema);
+      return response(
+        requestId,
+        {
+          data: await repository.createCheckpoint(parseId(id), {
+            ...input,
+            now: now(),
+          }),
+        },
+        201,
+      );
+    }),
+    restoreCheckpoint: (
+      id: string,
+      checkpointId: string,
+      request: Request,
+    ) => handle(async (requestId) => {
+      const input = await parseBody(request, mutateGameCheckpointSchema);
+      return response(requestId, {
+        data: await repository.restoreCheckpoint(
+          parseId(id),
+          parseId(checkpointId),
+          { ...input, now: now() },
+        ),
+      });
+    }),
+    deleteCheckpoint: (
+      id: string,
+      checkpointId: string,
+      request: Request,
+    ) => handle(async (requestId) => {
+      const input = await parseBody(request, mutateGameCheckpointSchema);
+      return response(requestId, {
+        data: await repository.deleteCheckpoint(
+          parseId(id),
+          parseId(checkpointId),
+          { ...input, now: now() },
+        ),
+      });
     }),
     export: (id: string, request: Request) => handle(async (requestId) => {
       const input = await parseBody(request, exportGameSessionSchema);

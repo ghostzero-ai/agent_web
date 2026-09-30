@@ -7,8 +7,13 @@ import type {
   GameSessionExportFormat,
   GameWorldInput,
 } from "@/lib/game/contracts";
+import type { GameRuleCheck, GameRuleCheckRequest } from "@/lib/game/checks";
 import type { GameDiceRequest, GameDiceRoll } from "@/lib/game/dice";
-import type { GameState, GameStatePatch } from "@/lib/game/state";
+import type {
+  GameCharacterAttributes,
+  GameState,
+  GameStatePatch,
+} from "@/lib/game/state";
 import type { PromptExportArtifact } from "@/lib/platform/capabilities";
 
 export type GameSessionSummary = {
@@ -40,15 +45,18 @@ export type GameTurn = {
   createdAt: string;
 };
 
-export type GameEvent = {
+type GameEventBase = {
   id: string;
   sessionId: string;
   turnId: string;
-  kind: "dice_roll";
   sequence: number;
-  payload: GameDiceRoll;
   createdAt: string;
 };
+
+export type GameEvent = GameEventBase & (
+  | { kind: "dice_roll"; payload: GameDiceRoll }
+  | { kind: "rule_check"; payload: GameRuleCheck }
+);
 
 export type GameCharacter = {
   id: string;
@@ -60,15 +68,28 @@ export type GameCharacter = {
   personality: string;
   goals: string[];
   boundaries: string[];
+  attributes: GameCharacterAttributes;
+  maxHealth: number;
   version: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type GameCheckpoint = {
+  id: string;
+  sessionId: string;
+  turnId: string;
+  name: string;
+  note: string;
+  stateSnapshot: GameState;
+  createdAt: string;
 };
 
 export type GameSessionDetail = GameSessionSummary & {
   characters: GameCharacter[];
   turns: GameTurn[];
   events: GameEvent[];
+  checkpoints: GameCheckpoint[];
 };
 
 export class GameSessionClientError extends Error {
@@ -202,11 +223,52 @@ export function createGameTurn(
   parentTurnId: string | null,
   expectedVersion: number,
   diceRequests: GameDiceRequest[] = [],
+  checkRequest: GameRuleCheckRequest | null = null,
 ): Promise<GameSessionDetail> {
   return request(`/api/v1/game-sessions/${encodeURIComponent(sessionId)}/turns`, {
     method: "POST",
-    body: JSON.stringify({ content, parentTurnId, expectedVersion, diceRequests }),
+    body: JSON.stringify({
+      content,
+      parentTurnId,
+      expectedVersion,
+      diceRequests,
+      checkRequest,
+    }),
   });
+}
+
+export function createGameCheckpoint(
+  sessionId: string,
+  name: string,
+  note: string,
+  expectedVersion: number,
+): Promise<GameSessionDetail> {
+  return request(`/api/v1/game-sessions/${encodeURIComponent(sessionId)}/checkpoints`, {
+    method: "POST",
+    body: JSON.stringify({ name, note, expectedVersion }),
+  });
+}
+
+export function restoreGameCheckpoint(
+  sessionId: string,
+  checkpointId: string,
+  expectedVersion: number,
+): Promise<GameSessionDetail> {
+  return request(
+    `/api/v1/game-sessions/${encodeURIComponent(sessionId)}/checkpoints/${encodeURIComponent(checkpointId)}/restore`,
+    { method: "POST", body: JSON.stringify({ expectedVersion }) },
+  );
+}
+
+export function deleteGameCheckpoint(
+  sessionId: string,
+  checkpointId: string,
+  expectedVersion: number,
+): Promise<GameSessionDetail> {
+  return request(
+    `/api/v1/game-sessions/${encodeURIComponent(sessionId)}/checkpoints/${encodeURIComponent(checkpointId)}`,
+    { method: "DELETE", body: JSON.stringify({ expectedVersion }) },
+  );
 }
 
 export function exportGameSession(

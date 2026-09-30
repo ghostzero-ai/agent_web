@@ -60,7 +60,7 @@ Database
 * Phase 3：模式、Prompt、专业回答、搜索、引用与轻量质量评测（已完成）
 * Mobile Track：Capacitor Android 与 HarmonyOS 演进
 
-Phase 4 主动内容闭环、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1–6.2 已完成：可信记忆、Persona、设备语音、有约束的主动问候和 Plugin API 1.0.0 已经落地。娱乐模式现有独立的 GameSession、角色卡和可分支模型回合，支持暂停/继续与跨端导出，不会污染普通对话或长期记忆；下一步进入 Phase 6.3 Dice Tool 与结构化状态补丁。Phase 5.6 安全评测保留为发布前封版。
+Phase 4 主动内容闭环、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1–6.4 已完成：可信记忆、Persona、设备语音、有约束的主动问候和 Plugin API 1.0.0 已经落地。娱乐模式已有独立 GameSession、可分支模型回合、结构化角色/场景/物品、可复现骰子、服务端规则检定、命名检查点与跨端导出，不会污染普通对话或长期记忆；下一步进入 Phase 6.5 娱乐 Activity 扩展点。Phase 5.6 安全评测保留为发布前封版。
 
 当前优先级、修订后的交付顺序与防偏移规则见 `docs/PRODUCT_MAINLINE_GUIDE.md`。运行 `npm run eval:core` 可查看模式边界、专业回答与总回归分数；该分数只表示确定性契约没有回归，不代表模型事实正确率。
 

@@ -9,6 +9,7 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
   let activeLeafTurnId: string | null = null;
   const turns: Array<Record<string, unknown>> = [];
   const events: Array<Record<string, unknown>> = [];
+  const checkpoints: Array<Record<string, unknown>> = [];
   const detail = () => ({
     id: sessionId,
     userId: "00000000-0000-4000-8000-000000000001",
@@ -34,12 +35,15 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
       personality: "谨慎但好奇",
       goals: ["查明寄信人"],
       boundaries: [],
+      attributes: { 意志: 3 },
+      maxHealth: 12,
       version: 1,
       createdAt: "2026-09-30T03:00:00.000Z",
       updatedAt: "2026-09-30T03:00:00.000Z",
     }],
     turns,
     events,
+    checkpoints,
   });
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -66,6 +70,8 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
         name: "林舟",
         role: "调查员",
         controller: "user",
+        attributes: { 意志: 3 },
+        maxHealth: 12,
       },
     });
     await route.fulfill({
@@ -102,12 +108,15 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
       content: "我把旧信放在吧台上。",
       parentTurnId: null,
       expectedVersion: version,
-      diceRequests: [{
+      diceRequests: [],
+      checkRequest: {
+        characterId,
+        attribute: "意志",
+        difficulty: 12,
         count: 1,
         sides: 20,
-        modifier: 2,
-        purpose: "调查火漆",
-      }],
+        purpose: "辨认火漆",
+      },
     });
     activeLeafTurnId = "33333333-3333-4333-8333-333333333333";
     turns.push({
@@ -117,13 +126,29 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
       playerContent: input.content,
       assistantContent: "老板停下擦杯子的动作，目光落在旧信的火漆上。",
       model: "test-model",
-      statePatch: { scene: "酒馆吧台", adjustInventory: { 线索: 1 } },
+      statePatch: {
+        scene: "酒馆吧台",
+        sceneFacts: ["老板认出了火漆"],
+        sceneExits: ["通往钟楼的石阶"],
+        adjustInventory: { 线索: 1 },
+        upsertItems: {
+          线索: { name: "火漆线索", description: "旧信上的印记。", holderCharacterId: characterId, tags: ["线索"] },
+        },
+      },
       stateSnapshot: {
         scene: "酒馆吧台",
+        sceneFacts: ["老板认出了火漆"],
+        sceneExits: ["通往钟楼的石阶"],
         objectives: ["查明寄信人"],
         flags: {},
         resources: {},
         inventory: { 线索: 1 },
+        characters: {
+          [characterId]: { name: "林舟", health: 12, maxHealth: 12, attributes: { 意志: 3 }, conditions: [] },
+        },
+        items: {
+          线索: { name: "火漆线索", description: "旧信上的印记。", holderCharacterId: characterId, tags: ["线索"] },
+        },
       },
       createdAt: "2026-09-30T05:00:00.000Z",
     });
@@ -131,20 +156,52 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
       id: "44444444-4444-4444-8444-444444444444",
       sessionId,
       turnId: activeLeafTurnId,
-      kind: "dice_roll",
+      kind: "rule_check",
       sequence: 0,
       payload: {
+        characterId,
+        characterName: "林舟",
+        attribute: "意志",
+        difficulty: 12,
         count: 1,
         sides: 20,
-        modifier: 2,
-        purpose: "调查火漆",
-        notation: "1d20+2",
-        seed: "e2e-seed",
-        algorithm: "fnv1a-mulberry32-v1",
-        results: [15],
-        total: 17,
+        modifier: 3,
+        purpose: "辨认火漆",
+        dice: {
+          count: 1,
+          sides: 20,
+          modifier: 3,
+          purpose: "辨认火漆",
+          notation: "1d20+3",
+          seed: "e2e-seed",
+          algorithm: "fnv1a-mulberry32-v1",
+          results: [15],
+          total: 18,
+        },
+        total: 18,
+        margin: 6,
+        outcome: "success",
       },
       createdAt: "2026-09-30T05:00:00.000Z",
+    });
+    version += 1;
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({ data: detail() }),
+    });
+  });
+  await page.route(`**/api/v1/game-sessions/${sessionId}/checkpoints`, async (route) => {
+    const input = route.request().postDataJSON();
+    expect(input).toEqual({ name: "进入钟楼前", note: "保留酒馆线索", expectedVersion: version });
+    checkpoints.unshift({
+      id: "55555555-5555-4555-8555-555555555555",
+      sessionId,
+      turnId: activeLeafTurnId,
+      name: input.name,
+      note: input.note,
+      stateSnapshot: turns[0].stateSnapshot,
+      createdAt: "2026-09-30T05:01:00.000Z",
     });
     version += 1;
     await route.fulfill({
@@ -181,6 +238,8 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
   await page.getByLabel("角色简介").fill("收到一封来自雾港的旧信。");
   await page.getByLabel("性格与表达").fill("谨慎但好奇");
   await page.getByLabel("角色目标").fill("查明寄信人");
+  await page.getByLabel("数值属性").fill("意志: 3");
+  await page.getByLabel("生命上限").fill("12");
   await page.getByRole("button", { name: "创建独立游戏会话" }).click();
 
   await expect(page.getByRole("status")).toContainText("虚构内容不会进入普通记忆");
@@ -193,17 +252,22 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
   await page.getByRole("button", { name: "开始故事" }).click();
   await expect(page.getByText("进行中 · 0 个回合节点")).toBeVisible();
   await page.getByLabel("你的行动或台词").fill("我把旧信放在吧台上。");
-  await page.getByLabel("本回合使用服务端可信骰子").check();
-  await page.getByLabel("修正值").fill("2");
-  await page.getByLabel("用途").fill("调查火漆");
+  await page.getByLabel("本回合执行角色规则检定").check();
+  await page.getByLabel("难度").fill("12");
+  await page.getByLabel("用途").fill("辨认火漆");
   await page.getByRole("button", { name: "发送并继续" }).click();
   await expect(page.getByText("老板停下擦杯子的动作，目光落在旧信的火漆上。")).toBeVisible();
-  await expect(page.getByText("可信骰子 · 调查火漆")).toBeVisible();
-  await expect(page.getByText("1d20+2 → [15] = 17")).toBeVisible();
+  await expect(page.getByText("规则检定 · 林舟 / 意志")).toBeVisible();
+  await expect(page.getByText("1d20+3 → [15] = 18 / 难度 12 · 成功")).toBeVisible();
   await expect(page.getByText("当前剧情线 · 当前叶子")).toBeVisible();
   await page.getByText("所选分支的结构化状态").click();
   await expect(page.getByText("场景：酒馆吧台")).toBeVisible();
-  await expect(page.getByText("物品：线索 × 1")).toBeVisible();
+  await expect(page.getByText("物品：火漆线索 × 1")).toBeVisible();
+  await expect(page.getByText("场景事实：老板认出了火漆")).toBeVisible();
+  await page.getByLabel("检查点名称").fill("进入钟楼前");
+  await page.getByLabel("备注").fill("保留酒馆线索");
+  await page.getByRole("button", { name: "保存检查点" }).click();
+  await expect(page.getByText("进入钟楼前 · 当前位置")).toBeVisible();
   await page.getByRole("button", { name: "暂停" }).click();
   await expect(page.getByText("已暂停 · 1 个回合节点")).toBeVisible();
 

@@ -7,9 +7,11 @@ import {
   exportGameSession,
   getGameSession,
   updateGameSessionStatus,
+  type GameEvent,
   type GameSessionDetail,
   type GameTurn,
 } from "@/lib/api/gameSessionClient";
+import type { GameRuleCheckRequest } from "@/lib/game/checks";
 import { GAME_DICE_SIDES, type GameDiceRequest } from "@/lib/game/dice";
 import type { GameState } from "@/lib/game/state";
 import { getFileExportAdapter } from "@/lib/platform/fileExport";
@@ -27,6 +29,40 @@ const STATUS_LABELS = {
   paused: "已暂停",
   archived: "已归档",
 } as const;
+
+const OUTCOME_LABELS = {
+  "critical-success": "大成功",
+  success: "成功",
+  failure: "失败",
+  "critical-failure": "大失败",
+} as const;
+
+function GameEventCard({ event }: { event: GameEvent }) {
+  if (event.kind === "rule_check") {
+    const check = event.payload;
+    return (
+      <div className="mt-3 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-950 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-100">
+        <span className="font-semibold">规则检定 · {check.characterName} / {check.attribute}</span>
+        <span className="ml-2">{check.dice.notation} → [{check.dice.results.join(", ")}] = {check.total} / 难度 {check.difficulty} · {OUTCOME_LABELS[check.outcome]}</span>
+        <details className="mt-1 text-[11px] opacity-70">
+          <summary className="cursor-pointer">复现信息</summary>
+          <div className="mt-1 break-all">seed: {check.dice.seed} · {check.dice.algorithm} · 差值 {check.margin}</div>
+        </details>
+      </div>
+    );
+  }
+  const roll = event.payload;
+  return (
+    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+      <span className="font-semibold">可信骰子 · {roll.purpose}</span>
+      <span className="ml-2">{roll.notation} → [{roll.results.join(", ")}] = {roll.total}</span>
+      <details className="mt-1 text-[11px] opacity-70">
+        <summary className="cursor-pointer">复现信息</summary>
+        <div className="mt-1 break-all">seed: {roll.seed} · {roll.algorithm}</div>
+      </details>
+    </div>
+  );
+}
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "游戏操作失败，请稍后重试。";
@@ -71,10 +107,15 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
     : activeLeafTurnId;
   const [busy, setBusy] = useState(false);
   const [useDice, setUseDice] = useState(false);
+  const [useCheck, setUseCheck] = useState(false);
   const [diceCount, setDiceCount] = useState(1);
   const [diceSides, setDiceSides] = useState<(typeof GAME_DICE_SIDES)[number]>(20);
   const [diceModifier, setDiceModifier] = useState(0);
   const [dicePurpose, setDicePurpose] = useState("行动检定");
+  const [checkCharacterId, setCheckCharacterId] = useState("");
+  const [checkAttribute, setCheckAttribute] = useState("");
+  const [checkDifficulty, setCheckDifficulty] = useState(10);
+  const [checkPurpose, setCheckPurpose] = useState("规则检定");
   const [exporting, setExporting] = useState<"json" | "markdown" | null>(null);
   const byId = useMemo(() => new Map(turns.map((turn) => [turn.id, turn])), [turns]);
   const currentPath = useMemo(
@@ -94,12 +135,34 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
     const parent = parentTurnId ? byId.get(parentTurnId) : null;
     return parent?.stateSnapshot ?? {
       scene: `${detail.worldName}：${detail.worldPremise}`.slice(0, 1_000),
+      sceneFacts: [],
+      sceneExits: [],
       objectives: [],
       flags: {},
       resources: {},
       inventory: {},
+      characters: Object.fromEntries(detail.characters.map((character) => [
+        character.id,
+        {
+          name: character.name,
+          health: character.maxHealth,
+          maxHealth: character.maxHealth,
+          attributes: character.attributes,
+          conditions: [],
+        },
+      ])),
+      items: {},
     };
-  }, [byId, detail.worldName, detail.worldPremise, parentTurnId]);
+  }, [byId, detail.characters, detail.worldName, detail.worldPremise, parentTurnId]);
+  const checkCharacters = Object.entries(selectedState.characters);
+  const resolvedCheckCharacterId = checkCharacters.some(([id]) => id === checkCharacterId)
+    ? checkCharacterId
+    : checkCharacters[0]?.[0] ?? "";
+  const resolvedCheckCharacter = selectedState.characters[resolvedCheckCharacterId];
+  const checkAttributes = Object.keys(resolvedCheckCharacter?.attributes ?? {});
+  const resolvedCheckAttribute = checkAttributes.includes(checkAttribute)
+    ? checkAttribute
+    : checkAttributes[0] ?? "";
 
   const recoverConflict = async (error: unknown) => {
     if (!error || typeof error !== "object" || !("code" in error)) return;
@@ -138,17 +201,29 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
             purpose: dicePurpose.trim(),
           }]
         : [];
+      const checkRequest: GameRuleCheckRequest | null = useCheck
+        ? {
+            characterId: resolvedCheckCharacterId,
+            attribute: resolvedCheckAttribute,
+            difficulty: checkDifficulty,
+            count: diceCount,
+            sides: diceSides,
+            purpose: checkPurpose.trim(),
+          }
+        : null;
       const next = await createGameTurn(
         detail.id,
         content.trim(),
         parentTurnId,
         detail.version,
         diceRequests,
+        checkRequest,
       );
       onChange(next);
       setContent("");
       setBranchSelection(null);
       setUseDice(false);
+      setUseCheck(false);
       onNotice(parentTurnId === activeLeafTurnId
         ? "新回合已保存。"
         : "新分支已创建并切换为当前剧情线。");
@@ -218,14 +293,7 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
                 </div>
                 <div className="mt-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm dark:bg-zinc-900"><span className="mr-2 font-semibold">你</span>{turn.playerContent}</div>
                 {(eventsByTurn.get(turn.id) ?? []).map((gameEvent) => (
-                  <div key={gameEvent.id} className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-                    <span className="font-semibold">可信骰子 · {gameEvent.payload.purpose}</span>
-                    <span className="ml-2">{gameEvent.payload.notation} → [{gameEvent.payload.results.join(", ")}] = {gameEvent.payload.total}</span>
-                    <details className="mt-1 text-[11px] opacity-70">
-                      <summary className="cursor-pointer">复现信息</summary>
-                      <div className="mt-1 break-all">seed: {gameEvent.payload.seed} · {gameEvent.payload.algorithm}</div>
-                    </details>
-                  </div>
+                  <GameEventCard key={gameEvent.id} event={gameEvent} />
                 ))}
                 <div className="mt-3 text-sm leading-7"><MarkdownMessage content={turn.assistantContent} /></div>
                 <p className="mt-3 text-[11px] text-zinc-400">模型：{turn.model}</p>
@@ -241,10 +309,15 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
             <summary className="cursor-pointer font-medium">所选分支的结构化状态</summary>
             <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
               <p className="sm:col-span-2"><span className="font-semibold">场景：</span>{selectedState.scene || "未记录"}</p>
+              <p><span className="font-semibold">场景事实：</span>{selectedState.sceneFacts.join("、") || "无"}</p>
+              <p><span className="font-semibold">可用出口：</span>{selectedState.sceneExits.join("、") || "无"}</p>
               <p><span className="font-semibold">目标：</span>{selectedState.objectives.join("、") || "无"}</p>
-              <p><span className="font-semibold">物品：</span>{Object.entries(selectedState.inventory).map(([key, value]) => `${key} × ${value}`).join("、") || "无"}</p>
+              <p><span className="font-semibold">物品：</span>{Object.entries(selectedState.inventory).map(([key, value]) => `${selectedState.items[key]?.name ?? key} × ${value}`).join("、") || "无"}</p>
               <p><span className="font-semibold">资源：</span>{Object.entries(selectedState.resources).map(([key, value]) => `${key}: ${value}`).join("、") || "无"}</p>
               <p><span className="font-semibold">标记：</span>{Object.entries(selectedState.flags).map(([key, value]) => `${key}: ${String(value)}`).join("、") || "无"}</p>
+              <div className="space-y-1 sm:col-span-2"><span className="font-semibold">角色状态：</span>{Object.entries(selectedState.characters).map(([id, character]) => (
+                <p key={id} className="ml-2">{character.name} · 生命 {character.health}/{character.maxHealth} · {Object.entries(character.attributes).map(([key, value]) => `${key} ${value >= 0 ? "+" : ""}${value}`).join("、") || "无数值属性"}{character.conditions.length > 0 ? ` · 状态：${character.conditions.join("、")}` : ""}</p>
+              ))}</div>
             </div>
           </details>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -257,7 +330,10 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
           <textarea id="game-turn-content" required maxLength={8_000} rows={4} value={content} onChange={(event) => setContent(event.target.value)} className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-3 text-sm outline-none focus:border-violet-500 dark:border-zinc-700 dark:bg-zinc-950" placeholder="例如：我把旧信放在吧台上，问老板是否认识落款的人。" />
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900 dark:bg-amber-950/20">
             <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={useDice} onChange={(event) => setUseDice(event.target.checked)} />
+              <input type="checkbox" checked={useDice} onChange={(event) => {
+                setUseDice(event.target.checked);
+                if (event.target.checked) setUseCheck(false);
+              }} />
               本回合使用服务端可信骰子
             </label>
             {useDice && (
@@ -280,8 +356,49 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
                 </label>
               </div>
             )}
+            <label className="mt-3 flex cursor-pointer items-center gap-2 border-t border-amber-200 pt-3 text-sm font-medium dark:border-amber-900">
+              <input type="checkbox" checked={useCheck} onChange={(event) => {
+                setUseCheck(event.target.checked);
+                if (event.target.checked) setUseDice(false);
+              }} />
+              本回合执行角色规则检定
+            </label>
+            {useCheck && (
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <label className="text-xs">角色
+                  <select value={resolvedCheckCharacterId} onChange={(event) => {
+                    setCheckCharacterId(event.target.value);
+                    setCheckAttribute("");
+                  }} className="mt-1 w-full rounded-lg border border-cyan-300 bg-white px-2 py-2 dark:border-cyan-800 dark:bg-zinc-950">
+                    {checkCharacters.map(([id, character]) => <option key={id} value={id}>{character.name}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs">属性
+                  <select value={resolvedCheckAttribute} onChange={(event) => setCheckAttribute(event.target.value)} className="mt-1 w-full rounded-lg border border-cyan-300 bg-white px-2 py-2 dark:border-cyan-800 dark:bg-zinc-950">
+                    {checkAttributes.map((attribute) => <option key={attribute} value={attribute}>{attribute}（{resolvedCheckCharacter?.attributes[attribute] ?? 0}）</option>)}
+                  </select>
+                </label>
+                <label className="text-xs">难度
+                  <input type="number" min={-100} max={200} value={checkDifficulty} onChange={(event) => setCheckDifficulty(Number(event.target.value))} className="mt-1 w-full rounded-lg border border-cyan-300 bg-white px-2 py-2 dark:border-cyan-800 dark:bg-zinc-950" />
+                </label>
+                <label className="text-xs">数量
+                  <select value={diceCount} onChange={(event) => setDiceCount(Number(event.target.value))} className="mt-1 w-full rounded-lg border border-cyan-300 bg-white px-2 py-2 dark:border-cyan-800 dark:bg-zinc-950">
+                    {[1, 2, 3, 4, 5, 6, 8, 10, 20].map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs">面数
+                  <select value={diceSides} onChange={(event) => setDiceSides(Number(event.target.value) as (typeof GAME_DICE_SIDES)[number])} className="mt-1 w-full rounded-lg border border-cyan-300 bg-white px-2 py-2 dark:border-cyan-800 dark:bg-zinc-950">
+                    {GAME_DICE_SIDES.map((value) => <option key={value} value={value}>d{value}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs">用途
+                  <input required={useCheck} maxLength={120} value={checkPurpose} onChange={(event) => setCheckPurpose(event.target.value)} className="mt-1 w-full rounded-lg border border-cyan-300 bg-white px-2 py-2 dark:border-cyan-800 dark:bg-zinc-950" />
+                </label>
+                {(!resolvedCheckCharacterId || !resolvedCheckAttribute) && <p className="col-span-2 text-xs text-red-600 sm:col-span-3">请先在角色卡中配置至少一个数值属性。</p>}
+              </div>
+            )}
           </div>
-          <button type="submit" disabled={busy || !content.trim() || (useDice && !dicePurpose.trim())} className="rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50">{busy ? "AI 正在续写…" : parentTurnId === activeLeafTurnId ? "发送并继续" : "创建新分支"}</button>
+          <button type="submit" disabled={busy || !content.trim() || (useDice && !dicePurpose.trim()) || (useCheck && (!resolvedCheckCharacterId || !resolvedCheckAttribute || !checkPurpose.trim()))} className="rounded-xl bg-violet-700 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50">{busy ? "AI 正在续写…" : parentTurnId === activeLeafTurnId ? "发送并继续" : "创建新分支"}</button>
         </form>
       )}
     </section>

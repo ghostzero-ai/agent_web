@@ -7,18 +7,25 @@ import type {
   GameWorldInput,
 } from "@/lib/game/contracts";
 import {
+  gameCheckpoints,
   gameCharacters,
   gameEvents,
   gameSessions,
   gameTurns,
   users,
   type GameCharacterRecord,
+  type GameCheckpointRecord,
   type GameEventRecord,
   type GameSessionRecord,
   type GameTurnRecord,
 } from "@/lib/db/schema";
+import type { GameRuleCheck } from "@/lib/game/checks";
 import type { GameDiceRoll } from "@/lib/game/dice";
-import type { GameState, GameStatePatch } from "@/lib/game/state";
+import {
+  normalizeGameState,
+  type GameState,
+  type GameStatePatch,
+} from "@/lib/game/state";
 import * as schema from "@/lib/db/schema";
 import { LOCAL_USER_ID } from "@/lib/repositories/conversationRepository";
 
@@ -26,6 +33,7 @@ export type GameSessionDetail = GameSessionRecord & {
   characters: GameCharacterRecord[];
   turns: GameTurnRecord[];
   events: GameEventRecord[];
+  checkpoints: GameCheckpointRecord[];
 };
 
 export type CreateGameSessionInput = {
@@ -69,7 +77,22 @@ export type AppendGameTurnInput = {
   model: string;
   statePatch: GameStatePatch;
   stateSnapshot: GameState;
-  diceRolls: GameDiceRoll[];
+  events: Array<
+    | { kind: "dice_roll"; payload: GameDiceRoll }
+    | { kind: "rule_check"; payload: GameRuleCheck }
+  >;
+  expectedVersion: number;
+  now: Date;
+};
+
+export type CreateGameCheckpointInput = {
+  name: string;
+  note: string;
+  expectedVersion: number;
+  now: Date;
+};
+
+export type MutateGameCheckpointInput = {
   expectedVersion: number;
   now: Date;
 };
@@ -80,6 +103,7 @@ export class GameSessionRepositoryError extends Error {
       | "GAME_SESSION_NOT_FOUND"
       | "GAME_CHARACTER_NOT_FOUND"
       | "GAME_TURN_NOT_FOUND"
+      | "GAME_CHECKPOINT_NOT_FOUND"
       | "GAME_SESSION_VERSION_CONFLICT"
       | "GAME_CHARACTER_VERSION_CONFLICT"
       | "GAME_SESSION_INVALID_STATUS",
@@ -117,6 +141,20 @@ export interface GameSessionRepositoryPort {
   appendTurn(
     sessionId: string,
     input: AppendGameTurnInput,
+  ): Promise<GameSessionDetail>;
+  createCheckpoint(
+    sessionId: string,
+    input: CreateGameCheckpointInput,
+  ): Promise<GameSessionDetail>;
+  restoreCheckpoint(
+    sessionId: string,
+    checkpointId: string,
+    input: MutateGameCheckpointInput,
+  ): Promise<GameSessionDetail>;
+  deleteCheckpoint(
+    sessionId: string,
+    checkpointId: string,
+    input: MutateGameCheckpointInput,
   ): Promise<GameSessionDetail>;
 }
 
@@ -157,7 +195,7 @@ export class GameSessionRepository<
       .from(gameCharacters)
       .where(eq(gameCharacters.sessionId, id))
       .orderBy(asc(gameCharacters.createdAt), asc(gameCharacters.id));
-    const turns = await this.database
+    const storedTurns = await this.database
       .select()
       .from(gameTurns)
       .where(eq(gameTurns.sessionId, id))
@@ -167,7 +205,23 @@ export class GameSessionRepository<
       .from(gameEvents)
       .where(eq(gameEvents.sessionId, id))
       .orderBy(asc(gameEvents.createdAt), asc(gameEvents.sequence), asc(gameEvents.id));
-    return { ...session, characters, turns, events };
+    const storedCheckpoints = await this.database
+      .select()
+      .from(gameCheckpoints)
+      .where(eq(gameCheckpoints.sessionId, id))
+      .orderBy(desc(gameCheckpoints.createdAt), desc(gameCheckpoints.id));
+    // Phase 6.3 snapshots predate structured scenes, items and runtime
+    // characters. Normalize at the repository boundary so old campaigns stay
+    // playable without rewriting their immutable historical rows.
+    const turns = storedTurns.map((turn) => ({
+      ...turn,
+      stateSnapshot: normalizeGameState(turn.stateSnapshot, characters),
+    }));
+    const checkpoints = storedCheckpoints.map((checkpoint) => ({
+      ...checkpoint,
+      stateSnapshot: normalizeGameState(checkpoint.stateSnapshot, characters),
+    }));
+    return { ...session, characters, turns, events, checkpoints };
   }
 
   async create(input: CreateGameSessionInput): Promise<GameSessionDetail> {
@@ -273,6 +327,8 @@ export class GameSessionRepository<
         personality: input.personality,
         goals: input.goals,
         boundaries: input.boundaries,
+        attributes: input.attributes,
+        maxHealth: input.maxHealth,
         createdAt: input.now,
         updatedAt: input.now,
       });
@@ -328,6 +384,8 @@ export class GameSessionRepository<
           personality: input.personality,
           goals: input.goals,
           boundaries: input.boundaries,
+          attributes: input.attributes,
+          maxHealth: input.maxHealth,
           version: sql`${gameCharacters.version} + 1`,
           updatedAt: input.now,
         })
@@ -489,14 +547,14 @@ export class GameSessionRepository<
           createdAt: input.now,
         })
         .returning({ id: gameTurns.id });
-      if (input.diceRolls.length > 0) {
+      if (input.events.length > 0) {
         await transaction.insert(gameEvents).values(
-          input.diceRolls.map((payload, sequence) => ({
+          input.events.map((event, sequence) => ({
             sessionId,
             turnId: turn.id,
-            kind: "dice_roll" as const,
+            kind: event.kind,
             sequence,
-            payload,
+            payload: event.payload,
             createdAt: input.now,
           })),
         );
@@ -505,6 +563,148 @@ export class GameSessionRepository<
         .update(gameSessions)
         .set({
           activeLeafTurnId: turn.id,
+          version: sql`${gameSessions.version} + 1`,
+          updatedAt: input.now,
+        })
+        .where(eq(gameSessions.id, sessionId));
+    });
+    return this.requireDetail(sessionId);
+  }
+
+  async createCheckpoint(
+    sessionId: string,
+    input: CreateGameCheckpointInput,
+  ): Promise<GameSessionDetail> {
+    await this.ensureLocalUser();
+    await this.database.transaction(async (transaction) => {
+      const [session] = await transaction
+        .select({
+          version: gameSessions.version,
+          activeLeafTurnId: gameSessions.activeLeafTurnId,
+        })
+        .from(gameSessions)
+        .where(and(
+          eq(gameSessions.id, sessionId),
+          eq(gameSessions.userId, LOCAL_USER_ID),
+        ))
+        .for("update")
+        .limit(1);
+      this.assertSessionVersion(session?.version, input.expectedVersion);
+      if (!session?.activeLeafTurnId) {
+        throw new GameSessionRepositoryError(
+          "GAME_SESSION_INVALID_STATUS",
+          "A game must have at least one completed turn before creating a checkpoint.",
+        );
+      }
+      const [turn] = await transaction
+        .select({ stateSnapshot: gameTurns.stateSnapshot })
+        .from(gameTurns)
+        .where(and(
+          eq(gameTurns.id, session.activeLeafTurnId),
+          eq(gameTurns.sessionId, sessionId),
+        ))
+        .limit(1);
+      if (!turn) {
+        throw new GameSessionRepositoryError(
+          "GAME_TURN_NOT_FOUND",
+          "The active game turn was not found in this session.",
+        );
+      }
+      await transaction.insert(gameCheckpoints).values({
+        sessionId,
+        turnId: session.activeLeafTurnId,
+        name: input.name,
+        note: input.note,
+        stateSnapshot: turn.stateSnapshot,
+        createdAt: input.now,
+      });
+      await transaction
+        .update(gameSessions)
+        .set({
+          version: sql`${gameSessions.version} + 1`,
+          updatedAt: input.now,
+        })
+        .where(eq(gameSessions.id, sessionId));
+    });
+    return this.requireDetail(sessionId);
+  }
+
+  async restoreCheckpoint(
+    sessionId: string,
+    checkpointId: string,
+    input: MutateGameCheckpointInput,
+  ): Promise<GameSessionDetail> {
+    await this.ensureLocalUser();
+    await this.database.transaction(async (transaction) => {
+      const [session] = await transaction
+        .select({ version: gameSessions.version })
+        .from(gameSessions)
+        .where(and(
+          eq(gameSessions.id, sessionId),
+          eq(gameSessions.userId, LOCAL_USER_ID),
+        ))
+        .for("update")
+        .limit(1);
+      this.assertSessionVersion(session?.version, input.expectedVersion);
+      const [checkpoint] = await transaction
+        .select({ turnId: gameCheckpoints.turnId })
+        .from(gameCheckpoints)
+        .where(and(
+          eq(gameCheckpoints.id, checkpointId),
+          eq(gameCheckpoints.sessionId, sessionId),
+        ))
+        .limit(1);
+      if (!checkpoint) {
+        throw new GameSessionRepositoryError(
+          "GAME_CHECKPOINT_NOT_FOUND",
+          "Game checkpoint was not found in this session.",
+        );
+      }
+      await transaction
+        .update(gameSessions)
+        .set({
+          activeLeafTurnId: checkpoint.turnId,
+          version: sql`${gameSessions.version} + 1`,
+          updatedAt: input.now,
+        })
+        .where(eq(gameSessions.id, sessionId));
+    });
+    return this.requireDetail(sessionId);
+  }
+
+  async deleteCheckpoint(
+    sessionId: string,
+    checkpointId: string,
+    input: MutateGameCheckpointInput,
+  ): Promise<GameSessionDetail> {
+    await this.ensureLocalUser();
+    await this.database.transaction(async (transaction) => {
+      const [session] = await transaction
+        .select({ version: gameSessions.version })
+        .from(gameSessions)
+        .where(and(
+          eq(gameSessions.id, sessionId),
+          eq(gameSessions.userId, LOCAL_USER_ID),
+        ))
+        .for("update")
+        .limit(1);
+      this.assertSessionVersion(session?.version, input.expectedVersion);
+      const deleted = await transaction
+        .delete(gameCheckpoints)
+        .where(and(
+          eq(gameCheckpoints.id, checkpointId),
+          eq(gameCheckpoints.sessionId, sessionId),
+        ))
+        .returning({ id: gameCheckpoints.id });
+      if (deleted.length === 0) {
+        throw new GameSessionRepositoryError(
+          "GAME_CHECKPOINT_NOT_FOUND",
+          "Game checkpoint was not found in this session.",
+        );
+      }
+      await transaction
+        .update(gameSessions)
+        .set({
           version: sql`${gameSessions.version} + 1`,
           updatedAt: input.now,
         })

@@ -16,8 +16,13 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { ResponseVerification } from "@/lib/ai/messages";
+import type { GameRuleCheck } from "@/lib/game/checks";
 import type { GameDiceRoll } from "@/lib/game/dice";
-import type { GameState, GameStatePatch } from "@/lib/game/state";
+import type {
+  GameCharacterAttributes,
+  GameState,
+  GameStatePatch,
+} from "@/lib/game/state";
 
 export const conversationMode = pgEnum("conversation_mode", CORE_MODE_IDS);
 
@@ -685,6 +690,11 @@ export const gameCharacters = pgTable(
     personality: text("personality").notNull().default(""),
     goals: jsonb("goals").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     boundaries: jsonb("boundaries").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    attributes: jsonb("attributes")
+      .$type<GameCharacterAttributes>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    maxHealth: integer("max_health").notNull().default(10),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
@@ -703,6 +713,8 @@ export const gameCharacters = pgTable(
     ),
     check("game_characters_description_length", sql`length(btrim(${table.description})) BETWEEN 1 AND 2000`),
     check("game_characters_personality_length", sql`length(${table.personality}) <= 1200`),
+    check("game_characters_attributes_object", sql`jsonb_typeof(${table.attributes}) = 'object'`),
+    check("game_characters_max_health_positive", sql`${table.maxHealth} BETWEEN 1 AND 1000000`),
     check("game_characters_version_positive", sql`${table.version} > 0`),
   ],
 );
@@ -728,7 +740,7 @@ export const gameTurns = pgTable(
     stateSnapshot: jsonb("state_snapshot")
       .$type<GameState>()
       .notNull()
-      .default(sql`'{"scene":"","objectives":[],"flags":{},"resources":{},"inventory":{}}'::jsonb`),
+      .default(sql`'{"scene":"","sceneFacts":[],"sceneExits":[],"objectives":[],"flags":{},"resources":{},"inventory":{},"characters":{},"items":{}}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -760,9 +772,9 @@ export const gameEvents = pgTable(
       .notNull()
       .references(() => gameSessions.id, { onDelete: "cascade" }),
     turnId: uuid("turn_id").notNull(),
-    kind: text("kind").$type<"dice_roll">().notNull(),
+    kind: text("kind").$type<"dice_roll" | "rule_check">().notNull(),
     sequence: integer("sequence").notNull(),
-    payload: jsonb("payload").$type<GameDiceRoll>().notNull(),
+    payload: jsonb("payload").$type<GameDiceRoll | GameRuleCheck>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -775,8 +787,35 @@ export const gameEvents = pgTable(
       foreignColumns: [gameTurns.id, gameTurns.sessionId],
       name: "game_events_turn_session_fk",
     }).onDelete("cascade"),
-    check("game_events_kind_supported", sql`${table.kind} = 'dice_roll'`),
+    check("game_events_kind_supported", sql`${table.kind} IN ('dice_roll', 'rule_check')`),
     check("game_events_sequence_nonnegative", sql`${table.sequence} >= 0`),
+  ],
+);
+
+export const gameCheckpoints = pgTable(
+  "game_checkpoints",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => gameSessions.id, { onDelete: "cascade" }),
+    turnId: uuid("turn_id").notNull(),
+    name: text("name").notNull(),
+    note: text("note").notNull().default(""),
+    stateSnapshot: jsonb("state_snapshot").$type<GameState>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("game_checkpoints_session_created_idx").on(table.sessionId, table.createdAt),
+    foreignKey({
+      columns: [table.turnId, table.sessionId],
+      foreignColumns: [gameTurns.id, gameTurns.sessionId],
+      name: "game_checkpoints_turn_session_fk",
+    }).onDelete("cascade"),
+    check("game_checkpoints_name_length", sql`length(btrim(${table.name})) BETWEEN 1 AND 120`),
+    check("game_checkpoints_note_length", sql`length(${table.note}) <= 500`),
   ],
 );
 
@@ -1453,6 +1492,7 @@ export type GameSessionRecord = typeof gameSessions.$inferSelect;
 export type GameCharacterRecord = typeof gameCharacters.$inferSelect;
 export type GameTurnRecord = typeof gameTurns.$inferSelect;
 export type GameEventRecord = typeof gameEvents.$inferSelect;
+export type GameCheckpointRecord = typeof gameCheckpoints.$inferSelect;
 export type ConversationRecord = typeof conversations.$inferSelect;
 export type MessageRecord = typeof messages.$inferSelect;
 export type MemoryCandidateRecord = typeof memoryCandidates.$inferSelect;

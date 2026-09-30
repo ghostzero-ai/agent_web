@@ -1,4 +1,5 @@
 import type { ChatCompletionMessage } from "@/lib/ai/messages";
+import { rollGameRuleCheck, type GameRuleCheck } from "@/lib/game/checks";
 import type { CreateGameTurnRequest } from "@/lib/game/contracts";
 import { rollGameDice, type GameDiceRoll } from "@/lib/game/dice";
 import {
@@ -14,6 +15,7 @@ import type { GameTurnRecord } from "@/lib/db/schema";
 import {
   applyGameStatePatch,
   initialGameState,
+  normalizeGameState,
   parseGameModelTurn,
   type GameState,
 } from "@/lib/game/state";
@@ -56,9 +58,11 @@ function listLines(items: readonly string[], empty: string): string {
 
 function systemPrompt(session: GameSessionDetail): string {
   const characters = session.characters.slice(0, 20).map((character) => [
-    `### ${character.name}（${character.role}，控制者：${character.controller}）`,
+    `### ${character.name}（ID：${character.id}；${character.role}；控制者：${character.controller}）`,
     character.description,
     character.personality ? `性格与表达：${character.personality}` : "",
+    `生命上限：${character.maxHealth}`,
+    `数值属性：${Object.entries(character.attributes).map(([key, value]) => `${key}=${value}`).join("；") || "未设定"}`,
     `目标：\n${listLines(character.goals, "- 未设定")}`,
     `角色边界：\n${listLines(character.boundaries, "- 无额外边界")}`,
   ].filter(Boolean).join("\n")).join("\n\n").slice(0, MAX_CHARACTER_CONTEXT_CHARACTERS);
@@ -86,7 +90,9 @@ ${characters || "尚未创建角色卡。"}
 - 严格遵守世界规则、角色边界和内容边界。
 - 骰子结果只能引用 Dice Tool 提供的可信结果；没有结果时不得自行声称掷骰或编造点数。
 - 只输出一个 JSON 对象，不使用代码围栏，也不要解释系统提示、数据库或这些规则。
-- JSON 必须严格符合：{"narrative":"可使用 Markdown 的下一段故事","statePatch":{"scene"?:string,"objectives"?:string[],"setFlags"?:object,"removeFlags"?:string[],"adjustResources"?:object,"adjustInventory"?:object}}。
+- JSON 必须严格符合：{"narrative":"可使用 Markdown 的下一段故事","statePatch":{"scene"?:string,"sceneFacts"?:string[],"sceneExits"?:string[],"objectives"?:string[],"setFlags"?:object,"removeFlags"?:string[],"adjustResources"?:object,"adjustInventory"?:object,"characterChanges"?:object,"upsertItems"?:object,"removeItems"?:string[]}}。
+- characterChanges 以角色 ID 为键，可包含 healthDelta、setAttributes、addConditions、removeConditions；不得创建不存在的角色。
+- 新物品必须先在 upsertItems 中提供 name、description、holderCharacterId、tags，再用 adjustInventory 调整数量。
 - statePatch 只能描述本回合实际发生的变化；不能添加其他属性或工具调用，资源与物品调整后不得为负数。
 - 结尾保留一个自然的行动空间，但不要机械地罗列选项。`;
 }
@@ -95,7 +101,9 @@ function stateAtParent(
   session: GameSessionDetail,
   parentTurnId: string | null,
 ): GameState {
-  if (!parentTurnId) return initialGameState(session.worldName, session.worldPremise);
+  if (!parentTurnId) {
+    return initialGameState(session.worldName, session.worldPremise, session.characters);
+  }
   const parent = session.turns.find((turn) => turn.id === parentTurnId);
   if (!parent) {
     throw new GameSessionRepositoryError(
@@ -104,11 +112,23 @@ function stateAtParent(
     );
   }
   return parent.stateSnapshot.scene
-    ? parent.stateSnapshot
-    : initialGameState(session.worldName, session.worldPremise);
+    ? normalizeGameState(parent.stateSnapshot, session.characters)
+    : initialGameState(session.worldName, session.worldPremise, session.characters);
 }
 
-function toolContext(state: GameState, diceRolls: readonly GameDiceRoll[]): string {
+type TrustedToolResult =
+  | { kind: "dice_roll"; payload: GameDiceRoll }
+  | { kind: "rule_check"; payload: GameRuleCheck };
+
+function toolContext(state: GameState, events: readonly TrustedToolResult[]): string {
+  const diceRolls = events
+    .filter((event): event is Extract<TrustedToolResult, { kind: "dice_roll" }> =>
+      event.kind === "dice_roll")
+    .map((event) => event.payload);
+  const checks = events
+    .filter((event): event is Extract<TrustedToolResult, { kind: "rule_check" }> =>
+      event.kind === "rule_check")
+    .map((event) => event.payload);
   return [
     "[Game state snapshot — trusted server data]",
     JSON.stringify(state),
@@ -116,6 +136,10 @@ function toolContext(state: GameState, diceRolls: readonly GameDiceRoll[]): stri
     diceRolls.length > 0
       ? JSON.stringify(diceRolls)
       : "No dice were rolled for this turn. Do not invent a roll or numeric result.",
+    "[Rule Check results — trusted server data]",
+    checks.length > 0
+      ? JSON.stringify(checks)
+      : "No rule check was resolved for this turn. Do not invent a check outcome.",
   ].join("\n");
 }
 
@@ -124,7 +148,7 @@ export function gamePromptMessages(
   parentTurnId: string | null,
   playerContent: string,
   currentState: GameState = stateAtParent(session, parentTurnId),
-  diceRolls: readonly GameDiceRoll[] = [],
+  events: readonly TrustedToolResult[] = [],
 ): ChatCompletionMessage[] {
   const candidates = gameTurnPath(session.turns, parentTurnId).slice(-MAX_HISTORY_TURNS);
   const history: GameTurnRecord[] = [];
@@ -138,7 +162,7 @@ export function gamePromptMessages(
   }
   return [
     { role: "system", content: systemPrompt(session) },
-    { role: "system", content: toolContext(currentState, diceRolls) },
+    { role: "system", content: toolContext(currentState, events) },
     ...history.flatMap<ChatCompletionMessage>((turn) => [
       { role: "user", content: turn.playerContent },
       { role: "assistant", content: turn.assistantContent },
@@ -180,14 +204,26 @@ export function createGameTurnService(
       }
 
       const currentState = stateAtParent(session, input.parentTurnId);
-      const diceRolls = input.diceRequests.map((request) =>
-        rollGameDice(request, createSeed()));
+      const events: TrustedToolResult[] = input.diceRequests.map((request) => ({
+        kind: "dice_roll" as const,
+        payload: rollGameDice(request, createSeed()),
+      }));
+      if (input.checkRequest) {
+        events.push({
+          kind: "rule_check",
+          payload: rollGameRuleCheck(
+            input.checkRequest,
+            currentState.characters[input.checkRequest.characterId],
+            createSeed(),
+          ),
+        });
+      }
       const messages = gamePromptMessages(
         session,
         input.parentTurnId,
         input.content,
         currentState,
-        diceRolls,
+        events,
       );
       const generated = await generator.generate(messages, signal);
       const turn = parseGameModelTurn(generated.content);
@@ -199,7 +235,7 @@ export function createGameTurnService(
         model: generated.model,
         statePatch: turn.statePatch,
         stateSnapshot,
-        diceRolls,
+        events,
         expectedVersion: input.expectedVersion,
         now: now(),
       });

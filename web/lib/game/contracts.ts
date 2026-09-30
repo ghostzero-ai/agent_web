@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { gameRuleCheckRequestSchema } from "@/lib/game/checks";
 import { gameDiceRequestSchema } from "@/lib/game/dice";
+import { gameCharacterAttributesSchema } from "@/lib/game/state";
 
 export const GAME_SESSION_KINDS = [
   "roleplay",
@@ -39,6 +41,8 @@ export const gameCharacterInputSchema = z
     personality: z.string().trim().max(1_200),
     goals: uniqueLines(20),
     boundaries: uniqueLines(20),
+    attributes: gameCharacterAttributesSchema.default({}),
+    maxHealth: z.number().int().min(1).max(1_000_000).default(10),
   })
   .strict();
 
@@ -95,7 +99,20 @@ export const createGameTurnSchema = z
     parentTurnId: z.uuid().nullable(),
     expectedVersion: z.number().int().positive(),
     diceRequests: z.array(gameDiceRequestSchema).max(5).default([]),
+    checkRequest: gameRuleCheckRequestSchema.nullable().default(null),
   })
+  .strict();
+
+export const createGameCheckpointSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    note: z.string().trim().max(500).default(""),
+    expectedVersion: z.number().int().positive(),
+  })
+  .strict();
+
+export const mutateGameCheckpointSchema = z
+  .object({ expectedVersion: z.number().int().positive() })
   .strict();
 
 export const exportGameSessionSchema = z

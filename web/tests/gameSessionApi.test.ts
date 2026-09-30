@@ -17,6 +17,9 @@ function repository(
     deleteCharacter: vi.fn(),
     updateStatus: vi.fn(),
     appendTurn: vi.fn(),
+    createCheckpoint: vi.fn(),
+    restoreCheckpoint: vi.fn(),
+    deleteCheckpoint: vi.fn(),
     ...overrides,
   };
 }
@@ -37,6 +40,8 @@ const character = {
   personality: "谨慎但好奇",
   goals: ["查明寄信人"],
   boundaries: ["不出现血腥细节"],
+  attributes: { 力量: 2, 意志: 3 },
+  maxHealth: 12,
 };
 
 const createInput = {

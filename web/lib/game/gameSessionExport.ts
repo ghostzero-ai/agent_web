@@ -19,11 +19,23 @@ function markdown(session: GameSessionDetail, exportedAt: Date): string {
     eventsByTurn.set(event.turnId, events);
   }
   const sections = session.turns.map((turn, index) => {
-    const dice = (eventsByTurn.get(turn.id) ?? []).map((event) => [
-      `- ${event.payload.purpose}：${event.payload.notation} → [${event.payload.results.join(", ")}] = ${event.payload.total}`,
-      `  - seed：\`${event.payload.seed}\``,
-      `  - algorithm：\`${event.payload.algorithm}\``,
-    ].join("\n"));
+    const toolEvents = (eventsByTurn.get(turn.id) ?? []).map((event) => {
+      if (event.kind === "rule_check" && "dice" in event.payload) {
+        const check = event.payload;
+        return [
+          `- 规则检定 · ${check.characterName} / ${check.attribute}：${check.dice.notation} → [${check.dice.results.join(", ")}] = ${check.total}，难度 ${check.difficulty}，结果 ${check.outcome}`,
+          `  - seed：\`${check.dice.seed}\``,
+          `  - algorithm：\`${check.dice.algorithm}\``,
+        ].join("\n");
+      }
+      const roll = event.payload;
+      if (!("notation" in roll)) return "- 未知工具事件";
+      return [
+        `- 可信骰子 · ${roll.purpose}：${roll.notation} → [${roll.results.join(", ")}] = ${roll.total}`,
+        `  - seed：\`${roll.seed}\``,
+        `  - algorithm：\`${roll.algorithm}\``,
+      ].join("\n");
+    });
     return [
     `## 回合 ${index + 1}${activeIds.has(turn.id) ? " · 当前剧情线" : " · 历史分支"}`,
     "",
@@ -40,9 +52,9 @@ function markdown(session: GameSessionDetail, exportedAt: Date): string {
     "",
     turn.assistantContent,
     "",
-    "### 可信骰子",
+    "### 可信工具事件",
     "",
-    dice.length > 0 ? dice.join("\n") : "- 本回合未掷骰。",
+    toolEvents.length > 0 ? toolEvents.join("\n") : "- 本回合没有骰子或规则检定。",
     "",
     "### 状态补丁",
     "",
@@ -72,6 +84,14 @@ function markdown(session: GameSessionDetail, exportedAt: Date): string {
     "",
     session.worldPremise,
     "",
+    "## 检查点",
+    "",
+    ...(session.checkpoints.length > 0
+      ? session.checkpoints.flatMap((checkpoint) => [
+          `- ${checkpoint.name} · 回合 \`${checkpoint.turnId}\`${checkpoint.note ? ` · ${checkpoint.note}` : ""}`,
+        ])
+      : ["- 无检查点。"]),
+    "",
     ...sections,
   ].join("\n");
 }
@@ -86,7 +106,7 @@ export function exportGameSessionArtifact(
     return {
       filename: `${base}.json`,
       mediaType: "application/json",
-      content: JSON.stringify({ schemaVersion: 2, exportedAt, session }, null, 2),
+      content: JSON.stringify({ schemaVersion: 3, exportedAt, session }, null, 2),
       directory: "game-exports",
       shareTitle: "分享游戏记录",
       shareText: "独立 GameSession 的虚构世界、角色卡与完整分支记录。",

@@ -7,7 +7,8 @@ function repository(overrides: Partial<GameSessionRepositoryPort> = {}): GameSes
   return {
     list: vi.fn(), create: vi.fn(), get: vi.fn(), update: vi.fn(), delete: vi.fn(),
     createCharacter: vi.fn(), updateCharacter: vi.fn(), deleteCharacter: vi.fn(),
-    updateStatus: vi.fn(), appendTurn: vi.fn(), ...overrides,
+    updateStatus: vi.fn(), appendTurn: vi.fn(), createCheckpoint: vi.fn(),
+    restoreCheckpoint: vi.fn(), deleteCheckpoint: vi.fn(), ...overrides,
   };
 }
 
@@ -68,5 +69,41 @@ describe("GamePlay API", () => {
     expect(await response.json()).toMatchObject({
       error: { code: "MODEL_CONFIGURATION_ERROR", retryable: false },
     });
+  });
+
+  it("creates, restores and deletes named checkpoints through versioned operations", async () => {
+    const createCheckpoint = vi.fn().mockResolvedValue({ version: 6 });
+    const restoreCheckpoint = vi.fn().mockResolvedValue({ version: 7 });
+    const deleteCheckpoint = vi.fn().mockResolvedValue({ version: 8 });
+    const api = createGamePlayApi(repository({
+      createCheckpoint,
+      restoreCheckpoint,
+      deleteCheckpoint,
+    }), { create: vi.fn() }, () => new Date("2026-09-30T08:00:00.000Z"));
+    const id = crypto.randomUUID();
+    const checkpointId = crypto.randomUUID();
+
+    expect((await api.createCheckpoint(id, request({
+      name: "进入钟楼前",
+      note: "保留酒馆线索",
+      expectedVersion: 5,
+    }))).status).toBe(201);
+    expect((await api.restoreCheckpoint(id, checkpointId, request({
+      expectedVersion: 6,
+    }))).status).toBe(200);
+    expect((await api.deleteCheckpoint(id, checkpointId, request({
+      expectedVersion: 7,
+    }))).status).toBe(200);
+    expect(createCheckpoint).toHaveBeenCalledWith(id, expect.objectContaining({
+      name: "进入钟楼前",
+      note: "保留酒馆线索",
+      expectedVersion: 5,
+    }));
+    expect(restoreCheckpoint).toHaveBeenCalledWith(id, checkpointId, expect.objectContaining({
+      expectedVersion: 6,
+    }));
+    expect(deleteCheckpoint).toHaveBeenCalledWith(id, checkpointId, expect.objectContaining({
+      expectedVersion: 7,
+    }));
   });
 });

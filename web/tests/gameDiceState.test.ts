@@ -1,17 +1,38 @@
 import { describe, expect, it } from "vitest";
+import { rollGameRuleCheck } from "@/lib/game/checks";
 import { rollGameDice } from "@/lib/game/dice";
 import {
   applyGameStatePatch,
+  normalizeGameState,
   parseGameModelTurn,
   type GameState,
 } from "@/lib/game/state";
 
 const state: GameState = {
   scene: "雾港酒馆",
+  sceneFacts: ["雨一直在下"],
+  sceneExits: ["通往钟楼的石阶"],
   objectives: ["找到寄信人"],
   flags: { metKeeper: true },
   resources: { 体力: 3 },
   inventory: { 旧信: 1 },
+  characters: {
+    "11111111-1111-4111-8111-111111111111": {
+      name: "林舟",
+      health: 10,
+      maxHealth: 10,
+      attributes: { 意志: 3 },
+      conditions: [],
+    },
+  },
+  items: {
+    旧信: {
+      name: "旧信",
+      description: "被雨水打湿的信。",
+      holderCharacterId: null,
+      tags: ["线索"],
+    },
+  },
 };
 
 describe("Phase 6.3 dice and structured state", () => {
@@ -37,13 +58,33 @@ describe("Phase 6.3 dice and structured state", () => {
       removeFlags: ["metKeeper"],
       adjustResources: { 体力: -1 },
       adjustInventory: { 旧信: -1, 铜钥匙: 1 },
+      upsertItems: {
+        铜钥匙: {
+          name: "铜钥匙",
+          description: "钟楼侧门钥匙。",
+          holderCharacterId: null,
+          tags: ["钥匙"],
+        },
+      },
     });
     expect(next).toEqual({
       scene: "雾港钟楼",
+      sceneFacts: ["雨一直在下"],
+      sceneExits: ["通往钟楼的石阶"],
       objectives: ["找到寄信人"],
       flags: { doorUnlocked: true },
       resources: { 体力: 2 },
       inventory: { 铜钥匙: 1 },
+      characters: state.characters,
+      items: {
+        旧信: state.items.旧信,
+        铜钥匙: {
+          name: "铜钥匙",
+          description: "钟楼侧门钥匙。",
+          holderCharacterId: null,
+          tags: ["钥匙"],
+        },
+      },
     });
     expect(state.inventory).toEqual({ 旧信: 1 });
   });
@@ -67,5 +108,65 @@ describe("Phase 6.3 dice and structured state", () => {
       narrative: "雨声停了一瞬。",
       statePatch: { adjustResources: { 体力: -1 } },
     });
+  });
+
+  it("derives a deterministic rule check from the branch character attribute", () => {
+    const request = {
+      characterId: "11111111-1111-4111-8111-111111111111",
+      attribute: "意志",
+      difficulty: 12,
+      count: 1,
+      sides: 20 as const,
+      purpose: "抵抗低语",
+    };
+    const first = rollGameRuleCheck(request, state.characters[request.characterId], "check-seed");
+    const replay = rollGameRuleCheck(request, state.characters[request.characterId], "check-seed");
+    expect(replay).toEqual(first);
+    expect(first).toMatchObject({
+      characterName: "林舟",
+      modifier: 3,
+      difficulty: 12,
+      total: first.dice.results[0] + 3,
+    });
+    expect(["critical-success", "success", "failure", "critical-failure"]).toContain(first.outcome);
+  });
+
+  it("upgrades Phase 6.3 snapshots without rewriting their historical rows", () => {
+    const legacy = {
+      scene: "旧码头",
+      objectives: ["找到船长"],
+      flags: {},
+      resources: {},
+      inventory: { 船票: 1 },
+    };
+    expect(normalizeGameState(legacy, [{
+      id: "22222222-2222-4222-8222-222222222222",
+      name: "阿岚",
+      maxHealth: 8,
+      attributes: { 敏捷: 2 },
+    }])).toMatchObject({
+      sceneFacts: [],
+      sceneExits: [],
+      items: { 船票: { name: "船票" } },
+      characters: {
+        "22222222-2222-4222-8222-222222222222": {
+          name: "阿岚",
+          health: 8,
+          attributes: { 敏捷: 2 },
+        },
+      },
+    });
+  });
+
+  it("does not inject a later character into an existing Phase 6.4 branch", () => {
+    const laterCharacter = {
+      id: "33333333-3333-4333-8333-333333333333",
+      name: "后来者",
+      maxHealth: 10,
+      attributes: { 力量: 1 },
+    };
+    const normalized = normalizeGameState(state, [laterCharacter]);
+    expect(normalized.characters[laterCharacter.id]).toBeUndefined();
+    expect(normalized.characters["11111111-1111-4111-8111-111111111111"]?.name).toBe("林舟");
   });
 });

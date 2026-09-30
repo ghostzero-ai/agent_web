@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(26);
+      expect(migrations).toHaveLength(27);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -67,6 +67,7 @@ describe("database migrations", () => {
         "conversation_imports",
         "conversations",
         "game_characters",
+        "game_checkpoints",
         "game_events",
         "game_sessions",
         "game_turns",
@@ -138,12 +139,14 @@ describe("database migrations", () => {
         [userResult.rows[0].id],
       );
       expect(gameSession.rows[0].version).toBe(1);
-      await pglite.query(
+      const gameCharacter = await pglite.query<{ attributes: Record<string, number>; max_health: number }>(
         `INSERT INTO game_characters (
-           session_id, name, role, controller, description
-         ) VALUES ($1, 'Lin', 'Investigator', 'user', 'Looking for the sender')`,
+           session_id, name, role, controller, description, attributes, max_health
+         ) VALUES ($1, 'Lin', 'Investigator', 'user', 'Looking for the sender', '{"will":3}', 12)
+         RETURNING attributes, max_health`,
         [gameSession.rows[0].id],
       );
+      expect(gameCharacter.rows[0]).toEqual({ attributes: { will: 3 }, max_health: 12 });
       const gameTurn = await pglite.query<{ id: string }>(
         `INSERT INTO game_turns (
            session_id, player_content, assistant_content, model
@@ -163,6 +166,22 @@ describe("database migrations", () => {
         [gameSession.rows[0].id, gameTurn.rows[0].id],
       );
       expect(event.rows[0]).toMatchObject({ kind: "dice_roll" });
+      const ruleCheck = await pglite.query<{ kind: string }>(
+        `INSERT INTO game_events (
+           session_id, turn_id, kind, sequence, payload
+         ) VALUES ($1, $2, 'rule_check', 1, '{"attribute":"will","total":14}')
+         RETURNING kind`,
+        [gameSession.rows[0].id, gameTurn.rows[0].id],
+      );
+      expect(ruleCheck.rows[0].kind).toBe("rule_check");
+      const checkpoint = await pglite.query<{ name: string }>(
+        `INSERT INTO game_checkpoints (
+           session_id, turn_id, name, note, state_snapshot
+         ) VALUES ($1, $2, 'Before tower', 'Keep harbor branch', '{}')
+         RETURNING name`,
+        [gameSession.rows[0].id, gameTurn.rows[0].id],
+      );
+      expect(checkpoint.rows[0].name).toBe("Before tower");
       await expect(
         pglite.query(
           `INSERT INTO game_characters (
@@ -528,6 +547,18 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[26].id,
+      );
+      const phase64AfterRollback = await pglite.query<{ name: string }>(`
+        SELECT tablename AS name FROM pg_tables
+        WHERE schemaname = 'public' AND tablename = 'game_checkpoints'
+        UNION ALL
+        SELECT column_name AS name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'game_characters'
+          AND column_name IN ('attributes', 'max_health')
+      `);
+      expect(phase64AfterRollback.rows).toEqual([]);
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[25].id,
       );
       const gameEventsAfterRollback = await pglite.query<{ tablename: string }>(`
@@ -821,6 +852,7 @@ describe("database migrations", () => {
         migrations[23].id,
         migrations[24].id,
         migrations[25].id,
+        migrations[26].id,
       ]);
     },
     15_000,
@@ -873,6 +905,7 @@ describe("database migrations", () => {
       migrations[23].id,
       migrations[24].id,
       migrations[25].id,
+      migrations[26].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,

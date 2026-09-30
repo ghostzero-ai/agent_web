@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { GamePlayPanel } from "@/components/game/GamePlayPanel";
+import { GameCheckpointPanel } from "@/components/game/GameCheckpointPanel";
 import {
   createGameCharacter,
   createGameSession,
@@ -40,6 +41,8 @@ type CharacterFormState = {
   personality: string;
   goals: string;
   boundaries: string;
+  attributes: string;
+  maxHealth: number;
 };
 
 const EMPTY_WORLD: WorldForm = {
@@ -60,6 +63,8 @@ const EMPTY_CHARACTER: CharacterFormState = {
   personality: "",
   goals: "",
   boundaries: "",
+  attributes: "力量: 0\n敏捷: 0\n意志: 0",
+  maxHealth: 10,
 };
 
 const KIND_LABELS: Record<GameSessionKind, string> = {
@@ -83,6 +88,23 @@ function worldInput(form: WorldForm): GameWorldInput {
 }
 
 function characterInput(form: CharacterFormState): GameCharacterInput {
+  const attributes: Record<string, number> = {};
+  for (const [index, line] of uniqueLines(form.attributes).entries()) {
+    const match = line.match(/^([^:：=]+)[:：=]\s*(-?\d+)$/u);
+    if (!match) {
+      throw new Error(`数值属性第 ${index + 1} 行格式无效，请使用“属性: 整数”。`);
+    }
+    const name = match[1].trim();
+    const value = Number(match[2]);
+    if (!/^[\p{L}\p{N}_.-]+$/u.test(name)) {
+      throw new Error(`属性名“${name}”只能包含文字、数字、_、. 或 -。`);
+    }
+    if (name in attributes) throw new Error(`数值属性“${name}”重复。`);
+    if (value < -100 || value > 100) {
+      throw new Error(`数值属性“${name}”必须在 -100 到 100 之间。`);
+    }
+    attributes[name] = value;
+  }
   return {
     name: form.name.trim(),
     role: form.role.trim(),
@@ -91,6 +113,8 @@ function characterInput(form: CharacterFormState): GameCharacterInput {
     personality: form.personality.trim(),
     goals: uniqueLines(form.goals),
     boundaries: uniqueLines(form.boundaries),
+    attributes,
+    maxHealth: form.maxHealth,
   };
 }
 
@@ -116,6 +140,10 @@ function characterForm(character?: GameCharacter): CharacterFormState {
         personality: character.personality,
         goals: character.goals.join("\n"),
         boundaries: character.boundaries.join("\n"),
+        attributes: Object.entries(character.attributes)
+          .map(([name, value]) => `${name}: ${value}`)
+          .join("\n"),
+        maxHealth: character.maxHealth,
       }
     : { ...EMPTY_CHARACTER };
 }
@@ -263,16 +291,18 @@ export function GameSessionManager() {
   const mutateCharacter = async (
     action: () => Promise<GameSessionDetail>,
     message: string,
-  ) => {
+  ): Promise<boolean> => {
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
       installDetail(await action());
       setNotice(message);
+      return true;
     } catch (mutationError) {
       setError(friendlyError(mutationError));
       await recoverConflict(mutationError);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -307,9 +337,9 @@ export function GameSessionManager() {
         <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 dark:border-violet-900 dark:from-violet-950/40 dark:to-zinc-950">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">Entertainment · Phase 6.2</p>
-              <h2 className="mt-1 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">可分支的角色扮演世界</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-300">世界、角色和剧情回合属于独立 GameSession，不会进入普通对话或长期记忆。可暂停、继续、从任意回合创建分支并导出完整记录。</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">Entertainment · Phase 6.4</p>
+              <h2 className="mt-1 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">可检定、可恢复的 AI 跑团世界</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-300">世界、角色、剧情、规则检定和检查点属于独立 GameSession。历史分支不会被删除，也不会进入普通对话或长期记忆。</p>
             </div>
             <span className="rounded-full border border-violet-300 bg-white/80 px-3 py-1 text-xs font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200">独立存储</span>
           </div>
@@ -323,6 +353,12 @@ export function GameSessionManager() {
         ) : detail ? (
           <>
             <GamePlayPanel
+              detail={detail}
+              onChange={installDetail}
+              onError={setError}
+              onNotice={setNotice}
+            />
+            <GameCheckpointPanel
               detail={detail}
               onChange={installDetail}
               onError={setError}
@@ -343,7 +379,7 @@ export function GameSessionManager() {
             <section className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 dark:border-zinc-800 dark:bg-zinc-950">
               <div>
                 <h3 className="text-lg font-semibold">角色卡</h3>
-                <p className="mt-1 text-sm text-zinc-500">控制者决定未来由用户、AI 或双方共同扮演；它不授予任何模型或工具权限。</p>
+                <p className="mt-1 text-sm text-zinc-500">控制者决定未来由用户、AI 或双方共同扮演；它不授予任何模型或工具权限。首回合后角色数值已进入分支快照，修改角色卡不会追溯改写已有分支；从故事开头重新分支时会使用最新角色卡。</p>
               </div>
               {detail.characters.map((character) => (
                 <CharacterEditor
@@ -442,16 +478,16 @@ function WorldFields(props: { value: WorldForm; onChange: (value: WorldForm) => 
 function CharacterEditor(props: {
   character?: GameCharacter;
   busy: boolean;
-  onSave: (form: CharacterFormState) => Promise<void>;
-  onDelete?: () => Promise<void>;
+  onSave: (form: CharacterFormState) => Promise<boolean>;
+  onDelete?: () => Promise<unknown>;
 }) {
   const [form, setForm] = useState(() => characterForm(props.character));
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        void props.onSave(form).then(() => {
-          if (!props.character) setForm({ ...EMPTY_CHARACTER });
+        void props.onSave(form).then((saved) => {
+          if (saved && !props.character) setForm({ ...EMPTY_CHARACTER });
         });
       }}
       className="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40"
@@ -479,6 +515,10 @@ function CharacterFields(props: { value: CharacterFormState; onChange: (value: C
       <div className="grid gap-4 sm:grid-cols-2">
         <LinesField label="角色目标" hint="每行一个目标" value={props.value.goals} onChange={(value) => set("goals", value)} />
         <LinesField label="角色边界" hint="每行一条角色专属边界" value={props.value.boundaries} onChange={(value) => set("boundaries", value)} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">
+        <Field label="数值属性"><textarea required rows={3} value={props.value.attributes} onChange={(event) => set("attributes", event.target.value)} className={inputClass} placeholder="每行一个，例如：力量: 2" /><span className="mt-1 block text-xs font-normal text-zinc-500">格式为“属性: 整数”，最多 20 项，范围 -100～100。</span></Field>
+        <Field label="生命上限"><input required type="number" min={1} max={1_000_000} value={props.value.maxHealth} onChange={(event) => set("maxHealth", Number(event.target.value))} className={inputClass} /></Field>
       </div>
     </div>
   );

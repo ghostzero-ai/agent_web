@@ -10,13 +10,28 @@ const sessionId = "11111111-1111-4111-8111-111111111111";
 const rootId = "22222222-2222-4222-8222-222222222222";
 const leftId = "33333333-3333-4333-8333-333333333333";
 const rightId = "44444444-4444-4444-8444-444444444444";
+const characterId = "55555555-5555-4555-8555-555555555555";
 const createdAt = new Date("2026-09-30T03:00:00.000Z");
 const baseState = {
   scene: "雾港：雨夜",
+  sceneFacts: [] as string[],
+  sceneExits: [] as string[],
   objectives: [] as string[],
   flags: {},
   resources: {},
   inventory: {},
+  characters: {
+    [characterId]: {
+      name: "林舟",
+      health: 12,
+      maxHealth: 12,
+      attributes: { 意志: 3 },
+      conditions: [] as string[],
+    },
+  },
+  items: {
+    旧信: { name: "旧信", description: "来自雾港的信。", holderCharacterId: null, tags: ["线索"] },
+  },
 };
 
 const detail: GameSessionDetail = {
@@ -35,7 +50,7 @@ const detail: GameSessionDetail = {
   createdAt,
   updatedAt: createdAt,
   characters: [{
-    id: "55555555-5555-4555-8555-555555555555",
+    id: characterId,
     sessionId,
     name: "林舟",
     role: "调查员",
@@ -44,11 +59,14 @@ const detail: GameSessionDetail = {
     personality: "谨慎",
     goals: ["查明寄信人"],
     boundaries: [],
+    attributes: { 意志: 3 },
+    maxHealth: 12,
     version: 1,
     createdAt,
     updatedAt: createdAt,
   }],
   events: [],
+  checkpoints: [],
   turns: [
     { id: rootId, sessionId, parentTurnId: null, playerContent: "进城", assistantContent: "雾门开启", model: "m", statePatch: {}, stateSnapshot: baseState, createdAt },
     { id: leftId, sessionId, parentTurnId: rootId, playerContent: "去码头", assistantContent: "船笛响起", model: "m", statePatch: { scene: "码头" }, stateSnapshot: { ...baseState, scene: "码头" }, createdAt },
@@ -62,6 +80,7 @@ function repository(overrides: Partial<GameSessionRepositoryPort> = {}): GameSes
     update: vi.fn(), delete: vi.fn(), createCharacter: vi.fn(),
     updateCharacter: vi.fn(), deleteCharacter: vi.fn(), updateStatus: vi.fn(),
     appendTurn: vi.fn().mockResolvedValue({ ...detail, version: 6 }),
+    createCheckpoint: vi.fn(), restoreCheckpoint: vi.fn(), deleteCheckpoint: vi.fn(),
     ...overrides,
   };
 }
@@ -85,7 +104,12 @@ describe("GameTurnService", () => {
     const generate = vi.fn().mockResolvedValue({
       content: JSON.stringify({
         narrative: "老板停下擦杯子的动作。",
-        statePatch: { adjustInventory: { 线索纸条: 1 } },
+        statePatch: {
+          adjustInventory: { 线索纸条: 1 },
+          upsertItems: {
+            线索纸条: { name: "线索纸条", description: "老板递来的纸条。", holderCharacterId: null, tags: ["线索"] },
+          },
+        },
       }),
       model: "deepseek-test",
     });
@@ -100,6 +124,7 @@ describe("GameTurnService", () => {
       parentTurnId: rightId,
       expectedVersion: 5,
       diceRequests: [{ count: 1, sides: 20, modifier: 2, purpose: "说服检定" }],
+      checkRequest: null,
     });
     expect(generate).toHaveBeenCalledOnce();
     expect(appendTurn).toHaveBeenCalledWith(sessionId, {
@@ -107,16 +132,79 @@ describe("GameTurnService", () => {
       playerContent: "询问老板",
       assistantContent: "老板停下擦杯子的动作。",
       model: "deepseek-test",
-      statePatch: { adjustInventory: { 线索纸条: 1 } },
-      stateSnapshot: { ...baseState, scene: "酒馆", inventory: { 旧信: 1, 线索纸条: 1 } },
-      diceRolls: [expect.objectContaining({
-        notation: "1d20+2",
-        seed: "fixed-seed",
-        purpose: "说服检定",
-      })],
+      statePatch: {
+        adjustInventory: { 线索纸条: 1 },
+        upsertItems: {
+          线索纸条: { name: "线索纸条", description: "老板递来的纸条。", holderCharacterId: null, tags: ["线索"] },
+        },
+      },
+      stateSnapshot: {
+        ...baseState,
+        scene: "酒馆",
+        inventory: { 旧信: 1, 线索纸条: 1 },
+        items: {
+          ...baseState.items,
+          线索纸条: { name: "线索纸条", description: "老板递来的纸条。", holderCharacterId: null, tags: ["线索"] },
+        },
+      },
+      events: [{
+        kind: "dice_roll",
+        payload: expect.objectContaining({
+          notation: "1d20+2",
+          seed: "fixed-seed",
+          purpose: "说服检定",
+        }),
+      }],
       expectedVersion: 5,
       now: createdAt,
     });
+  });
+
+  it("resolves a character attribute check on the server before model generation", async () => {
+    const appendTurn = vi.fn().mockResolvedValue({ ...detail, version: 6 });
+    const generate = vi.fn().mockResolvedValue({
+      content: JSON.stringify({ narrative: "低语从雨幕中退去。", statePatch: {} }),
+      model: "deepseek-test",
+    });
+    const service = createGameTurnService(
+      repository({ appendTurn }),
+      { generate },
+      () => createdAt,
+      () => "rule-check-seed",
+    );
+
+    await service.create(sessionId, {
+      content: "集中意志抵抗低语",
+      parentTurnId: rightId,
+      expectedVersion: 5,
+      diceRequests: [],
+      checkRequest: {
+        characterId,
+        attribute: "意志",
+        difficulty: 12,
+        count: 1,
+        sides: 20,
+        purpose: "抵抗低语",
+      },
+    });
+
+    expect(generate).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        role: "system",
+        content: expect.stringContaining("rule-check-seed"),
+      }),
+    ]), undefined);
+    expect(appendTurn).toHaveBeenCalledWith(sessionId, expect.objectContaining({
+      events: [expect.objectContaining({
+        kind: "rule_check",
+        payload: expect.objectContaining({
+          characterName: "林舟",
+          attribute: "意志",
+          modifier: 3,
+          difficulty: 12,
+        }),
+      })],
+    }));
   });
 
   it("rejects paused or stale sessions before spending a model request", async () => {
@@ -130,6 +218,7 @@ describe("GameTurnService", () => {
       parentTurnId: rightId,
       expectedVersion: 5,
       diceRequests: [],
+      checkRequest: null,
     })).rejects.toMatchObject({ code: "GAME_SESSION_INVALID_STATUS" });
     expect(generate).not.toHaveBeenCalled();
   });
@@ -150,6 +239,7 @@ describe("GameTurnService", () => {
       parentTurnId: rightId,
       expectedVersion: 5,
       diceRequests: [],
+      checkRequest: null,
     })).rejects.toMatchObject({ code: "GAME_STATE_INVALID" });
     expect(appendTurn).not.toHaveBeenCalled();
   });
