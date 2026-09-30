@@ -158,9 +158,9 @@ export function PluginManager() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5">
       <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm leading-6 text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-        <h2 className="font-semibold">Plugin API v1 · 两个已验证学习活动</h2>
+        <h2 className="font-semibold">Plugin API v1 · 学习与娱乐活动</h2>
         <p className="mt-1">
-          背书与解题共同验证了 Plugin API 1.0.0；活动入口来自宿主静态 Registry。启用或更新后仍需逐项授权，审计不会保存 Prompt、学习正文、题目图片或 API Key。
+          背书、解题和轻量冒险共享同一插件框架。启用后请授权活动需要的能力；禁用插件会保留已保存的数据。
         </p>
       </section>
 

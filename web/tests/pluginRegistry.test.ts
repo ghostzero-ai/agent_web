@@ -22,7 +22,7 @@ describe("PluginRegistry", () => {
 
   it("keeps incompatible manifests discoverable but marked unavailable", () => {
     const registry = new PluginRegistry(FIRST_PARTY_PLUGIN_MANIFESTS, "2.0.0");
-    expect(registry.list()).toHaveLength(2);
+    expect(registry.list()).toHaveLength(3);
     expect(registry.list().every((plugin) =>
       plugin.compatibility.status === "incompatible",
     )).toBe(true);

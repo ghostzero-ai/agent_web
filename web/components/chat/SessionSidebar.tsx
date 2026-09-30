@@ -127,7 +127,7 @@ export function SessionSidebar({
           href="/plugins"
           className="rounded-lg bg-zinc-100 px-2 py-2.5 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800"
         >
-          学习插件
+          活动插件
         </AppLink>
       </nav>
     </aside>

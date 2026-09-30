@@ -48,7 +48,7 @@ describe("PluginRepository", () => {
       new PluginRegistry(FIRST_PARTY_PLUGIN_MANIFESTS),
     );
     const initial = await repository.list();
-    expect(initial).toHaveLength(2);
+    expect(initial).toHaveLength(3);
     expect(initial.every((plugin) =>
       !plugin.installation.enabled && plugin.installation.version === 0,
     )).toBe(true);

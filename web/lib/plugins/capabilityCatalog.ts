@@ -35,7 +35,7 @@ export const PLUGIN_CAPABILITY_CATALOG: Readonly<
   "storage.read-write": {
     id: "storage.read-write",
     name: "插件隔离存储",
-    description: "读写该插件自己的学习数据，不能访问其他插件或核心数据库。",
+    description: "读写该插件自己的活动数据，不能访问其他插件或核心数据库。",
     risk: "private-storage",
     dailyLimit: 500,
     adapterStatus: "available",

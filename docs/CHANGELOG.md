@@ -4,6 +4,32 @@
 
 ---
 
+## Phase 6.5 — 娱乐 Activity 与首个轻量冒险规则包
+
+**Commit**: `same delivery commit`
+
+### 变更内容
+
+- 新增第一方 `entertainment.quick-adventure`：两个世界模板、三个属性、10 点生命、d20 规则、角色/氛围/内容边界配置。
+- 新增严格规则包描述符和统一草稿 Registry，校验插件版本、Activity 归属和宿主工具/状态契约；Prompt Layer 编译成世界规则，角色配置编译成原有角色卡。
+- 复用冻结 Plugin API 1.0.0 的隔离存储，经 Capability Gateway 保存规则包配置并生成严格游戏草稿；预览不调用模型、不创建 GameSession，无新增能力或数据库迁移。
+- 宿主确认组件在用户再次点击后调用现有 GameSession API，防止重复点击创建；修改配置会撤下旧预览。进入游戏时按明确 Session ID 选择会话，而非依赖列表首项。
+- Web/APK 共用 `/entertainment/quick-adventure`；娱乐页与活动插件页从 Activity Registry 显示入口，配置支持跨端保存和版本冲突提示。
+- 新增 `GAME_RULE_PACKS.md`、ADR-063、真实 SQL/Gateway/回合集成与移动视口 E2E；更新主线与路线图，Phase 6.1–6.5 功能交付齐备。
+
+### 自检与交付
+
+- 全部 406 项单元/集成测试通过；受影响模块复测 8/8；生产服务 Edge E2E 24/24；Core 回归 25/25。
+- ESLint、Drizzle 元数据检查、TypeScript 和 Next.js 生产构建均通过。
+- Docker Web/Worker 更新成功，Web/PostgreSQL 健康；本机规则包页 200、默认停用请求为预期 403。
+- Debug APK 构建及本地 Bundle/无 `server.url`/API Origin 检查通过；产物哈希和真机清单见 `reports/PHASE_6_5_REPORT.md`。
+
+### 当前边界
+
+- 游戏仍由用户显式发起骰子/检定；规则包只引用既有工具和状态契约，不注册任意工具代码、额外状态或第三方动态包。
+- 禁用规则包保留已创建的游戏；规则 ID/版本在草稿来源和世界规则中保留，当前不提供专用来源列或规则包升级迁移。
+- 模型质量、华为通知与真机结果不由确定性测试代替；移动发布与 Phase 5.6 发布前安全封版继续按主线安排。
+
 ## Phase 6.4 — 角色、场景、物品、规则检定与检查点闭环
 
 **Commit**: `same delivery commit`

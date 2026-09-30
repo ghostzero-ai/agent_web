@@ -3,6 +3,9 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { GamePlayPanel } from "@/components/game/GamePlayPanel";
 import { GameCheckpointPanel } from "@/components/game/GameCheckpointPanel";
+import { AppLink } from "@/components/platform/AppLink";
+import { currentAppSearchParams } from "@/lib/platform/appNavigation";
+import { FIRST_PARTY_PLUGIN_ACTIVITIES } from "@/lib/plugins/activityRegistry";
 import {
   createGameCharacter,
   createGameSession,
@@ -189,8 +192,10 @@ export function GameSessionManager() {
       .then(async (loaded) => {
         if (!active) return;
         setSessions(loaded);
-        if (loaded[0]) {
-          const first = await getGameSession(loaded[0].id);
+        const requestedId = currentAppSearchParams().get("session");
+        const selected = loaded.find((session) => session.id === requestedId) ?? loaded[0];
+        if (selected) {
+          const first = await getGameSession(selected.id);
           if (active) {
             setDetail(first);
             setWorld(detailWorld(first));
@@ -316,6 +321,11 @@ export function GameSessionManager() {
     <div className="mx-auto grid w-full max-w-7xl gap-5 lg:grid-cols-[17rem_minmax(0,1fr)]">
       <aside className="h-fit rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <button type="button" onClick={startNew} className="w-full rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-600">+ 新建游戏会话</button>
+        <div className="mt-3 space-y-2 border-b border-zinc-200 pb-3 dark:border-zinc-800">
+          {FIRST_PARTY_PLUGIN_ACTIVITIES.filter((activity) => activity.route.startsWith("/entertainment/")).map((activity) => (
+            <AppLink key={activity.id} href={activity.route} className="block rounded-xl border border-violet-200 px-3 py-2 text-center text-xs font-medium text-violet-700 dark:border-violet-900 dark:text-violet-300">{activity.label}</AppLink>
+          ))}
+        </div>
         <div className="mt-3 space-y-2">
           {sessions.length === 0 ? (
             <p className="px-3 py-8 text-center text-sm text-zinc-500">还没有游戏会话</p>
@@ -337,7 +347,7 @@ export function GameSessionManager() {
         <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 dark:border-violet-900 dark:from-violet-950/40 dark:to-zinc-950">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">Entertainment · Phase 6.4</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">Entertainment</p>
               <h2 className="mt-1 text-2xl font-semibold text-zinc-950 dark:text-zinc-50">可检定、可恢复的 AI 跑团世界</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-300">世界、角色、剧情、规则检定和检查点属于独立 GameSession。历史分支不会被删除，也不会进入普通对话或长期记忆。</p>
             </div>

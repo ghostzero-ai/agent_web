@@ -1766,7 +1766,7 @@ Phase 5.6 的编号保留，但不再作为 Phase 7/Phase 6 的前置条件。�
 | 6.2 ✅ | 角色扮演 MVP | 已完成：服务端模型回合、暂停/继续、父指针剧情树、任意节点分支与 Web/APK JSON/Markdown 导出 |
 | 6.3 | Dice Tool 与结构化状态补丁 | 掷骰可复现，非法状态补丁被拒绝 |
 | 6.4 ✅ | AI 跑团 MVP | 已完成：角色属性/生命、分支运行时状态、结构化场景/物品、服务端规则检定与非破坏性检查点形成完整闭环 |
-| 6.5 | 娱乐 Activity 扩展点 | 新规则包不修改核心 Agent Loop 即可接入 |
+| 6.5 ✅ | 娱乐 Activity 扩展点 | 已完成：首个轻量冒险规则包、描述符/草稿 Registry、隔离配置和 Web/APK 共用 Activity；新规则包不修改核心 Agent/Game Loop 即可接入 |
 
 ### Phase 7：插件验证（3–5 周）
 
@@ -1985,7 +1985,7 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
 
-当前优先级遵循产品主线指导。Core 3.1–3.5、Phase 4.1–4.4、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1–6.4 已完成；Mobile M1.3 只处理阻断使用的问题。Phase 5.6 延后为发布前安全封版，当前下一步是 Phase 6.5：在不修改 GameSession 核心循环的前提下，用 Plugin API v1 接入娱乐 Activity / 规则包。
+当前优先级遵循产品主线指导。Core 3.1–3.5、Phase 4.1–4.4、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1–6.5 已完成。首个娱乐规则包沿用 Plugin API v1，在不修改 GameSession 核心循环的前提下完成配置/草稿/确认流程。下一步评估语音/移动发布需求、完成保留的真机验收，并准备作品集交付；Phase 5.6 仍集中安排在发布前，不横向扩张插件市场或 Agent 框架。
 7. 完成新闻、书籍与 Reflection 的最小闭环后，实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
 8. 背书与解题已验证 Capability Gateway 并冻结 Plugin API 1.0.0；后续新 Activity 只增加注册操作，不回退到直接依赖核心内部实现。
 9. 独立 GameSession 已建立；后续角色扮演与 AI 跑团必须继续使用该边界，禁止把虚构状态混入普通长期记忆；娱乐规则包用于继续验证 v1 的兼容扩展能力。

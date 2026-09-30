@@ -130,7 +130,7 @@ test("discovers and toggles first-party plugin foundations on mobile", async ({
   });
 
   await page.goto("/plugins");
-  await expect(page.getByRole("heading", { name: "学习插件" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "活动插件" })).toBeVisible();
   await expect(page.getByText("Plugin API v1", { exact: false })).toBeVisible();
   await expect(page.getByText("v1.0.0", { exact: true })).toBeVisible();
   await expect(page.getByText("启用本身不会自动授权")).toBeVisible();

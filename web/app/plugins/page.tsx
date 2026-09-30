@@ -8,8 +8,8 @@ export default function PluginsPage() {
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       <header className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 sm:px-6 dark:border-zinc-800 dark:bg-zinc-950">
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold text-zinc-950 dark:text-zinc-50">学习插件</h1>
-          <p className="hidden text-xs text-zinc-500 sm:block">第一方 Manifest、兼容性与启停状态</p>
+          <h1 className="truncate text-lg font-semibold text-zinc-950 dark:text-zinc-50">活动插件</h1>
+          <p className="hidden text-xs text-zinc-500 sm:block">学习与娱乐活动的启用、授权与管理</p>
         </div>
         <nav className="flex shrink-0 gap-3 text-xs font-medium text-zinc-500 sm:gap-4 sm:text-sm">
           <AppLink href="/reflection" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">思考</AppLink>

@@ -5,7 +5,7 @@ const activityDefinitionSchema = z
   .object({
     id: pluginContributionIdSchema,
     pluginId: pluginContributionIdSchema,
-    route: z.string().regex(/^\/study\/[a-z0-9-]+$/),
+    route: z.string().regex(/^\/(?:study|entertainment)\/[a-z0-9-]+$/),
     label: z.string().trim().min(1).max(80),
     platforms: z.array(z.enum(["web", "android"])).min(1),
   })
@@ -27,6 +27,13 @@ export const FIRST_PARTY_PLUGIN_ACTIVITIES: readonly PluginActivityDefinition[] 
       pluginId: "study.problem-solving",
       route: "/study/problem-solving",
       label: "打开解题训练",
+      platforms: ["web", "android"],
+    },
+    {
+      id: "quick-adventure.setup",
+      pluginId: "entertainment.quick-adventure",
+      route: "/entertainment/quick-adventure",
+      label: "打开轻量冒险",
       platforms: ["web", "android"],
     },
   ]);

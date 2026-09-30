@@ -2,6 +2,8 @@
 
 Phase 7.1–7.5 已完成最小插件发现、生命周期、受控能力和两个真实学习活动，宿主 Plugin API 已冻结为 `1.0.0`。这仍是第一方扩展边界，不是开放第三方生态。
 
+Phase 6.5 在同一 v1 契约上加入娱乐规则包 Activity，复用隔离存储与宿主确认流程，没有新增能力或修改核心回合循环。
+
 ## 当前数据流
 
 ```text
@@ -25,8 +27,11 @@ Manifest 是随应用构建的只读声明。数据库保存启停、授权、�
 |---|---|---|---|
 | `study.memorization` | 背书训练 | 可用：导入、校对、复述、评分、间隔复习、任务草稿 | Phase 7.3 ✅ |
 | `study.problem-solving` | 解题训练 | 可用：文字/图片、四种策略、错因、工具证据、复习卡与任务草稿 | Phase 7.4 ✅ |
+| `entertainment.quick-adventure` | 轻量冒险规则包 | 可用：两个世界模板、角色配置、规则预览、显式确认创建 GameSession | Phase 6.5 ✅ |
 
 启用插件不会自动授予任何能力。背书训练可从 `/plugins` 进入 `/study/memorization`，解题训练可进入 `/study/problem-solving`。两个插件均已升级为 `1.0.0`；既有安装必须审核更新并重新确认旧授权，原有隔离数据不会删除。
+
+轻量冒险使用 `/entertainment/quick-adventure`，仅申请 `storage.read-write`。预览不调用模型也不创建游戏；用户确认后由宿主保存独立 GameSession。完整规则包契约与扩展方式见 `docs/GAME_RULE_PACKS.md`。
 
 ## 兼容规则
 

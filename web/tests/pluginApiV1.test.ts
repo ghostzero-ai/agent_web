@@ -84,7 +84,9 @@ describe("Phase 7.5 Plugin API v1 contract", () => {
   });
 
   it("resolves only precompiled activities owned by the declaring plugin", () => {
-    expect(FIRST_PARTY_PLUGIN_ACTIVITIES).toHaveLength(2);
+    expect(FIRST_PARTY_PLUGIN_ACTIVITIES).toHaveLength(3);
+    expect(listPluginActivities("entertainment.quick-adventure", ["quick-adventure.setup"]))
+      .toMatchObject([{ route: "/entertainment/quick-adventure", platforms: ["web", "android"] }]);
     expect(listPluginActivities("study.memorization", ["memorization.review"]))
       .toMatchObject([{ route: "/study/memorization", platforms: ["web", "android"] }]);
     expect(listPluginActivities("study.memorization", ["problem-solving.practice"]))

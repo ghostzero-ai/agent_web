@@ -47,4 +47,23 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS: readonly unknown[] = [
       "task.create-draft",
     ],
   },
+  {
+    schemaVersion: "1",
+    id: "entertainment.quick-adventure",
+    name: "轻量冒险规则包",
+    description:
+      "选择世界与角色专长，预览轻量 d20 冒险设定，确认后创建独立游戏会话。",
+    version: "1.0.0",
+    pluginApiVersion: FIRST_PARTY_PLUGIN_API_RANGE,
+    kind: "activity",
+    source: "first-party",
+    availability: "available",
+    contributions: {
+      skills: [],
+      tools: [],
+      activities: ["quick-adventure.setup"],
+      backgroundJobs: [],
+    },
+    requestedCapabilities: ["storage.read-write"],
+  },
 ] as const;
