@@ -68,6 +68,7 @@ export const modelCallSchema = z.object({
   usage: tokenUsageSchema.nullable(), finishReason: z.string().max(80).nullable(),
   errorCode: z.string().max(80).nullable(),
   price: tokenPriceSchema.nullable(), estimatedCost: z.number().finite().nonnegative().nullable(),
+  requestCharacters: count.optional(), maxOutputTokens: count.optional(),
 }).strict();
 export type ModelCallTelemetry = z.infer<typeof modelCallSchema>;
 

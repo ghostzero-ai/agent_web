@@ -22,6 +22,7 @@ describe("cache-friendly prompt contracts", () => {
     const evidence = first.find((message) => message.source === "web-search")!.content;
     expect(evidence).toContain(source.publishedAt);
     expect(evidence).not.toContain("fetchedAt");
+    expect(evidence).toContain('"retrievedOn":"2026-10-01"');
     expect(evidence).toContain("证据");
   });
 });

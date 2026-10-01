@@ -2,9 +2,11 @@ import type { ChatCompletionMessage } from "@/lib/ai/messages";
 import type { ModelProviderConfig } from "./modelConfig";
 import { fetchWithTransientDnsRetry } from "./providerFetch";
 import { estimateTokenCost, parseTokenUsage, readTokenPrices, type ModelBusiness, type ModelCallTelemetry, type TokenUsage } from "@/lib/ai/modelUsage";
+import { inputTextCharacters, latestRequestText, resolveGenerationBudget, type GenerationBudget } from "./tokenBudget";
 
 export type ModelStreamRequest = {
   business?: ModelBusiness;
+  generationBudget?: GenerationBudget;
   messages: Array<
     | ChatCompletionMessage
     | {
@@ -36,7 +38,9 @@ export class ModelProviderError extends Error {
       | "PROVIDER_MODEL_NOT_FOUND"
       | "PROVIDER_REQUEST_REJECTED"
       | "PROVIDER_UNAVAILABLE"
-      | "PROVIDER_INVALID_RESPONSE",
+      | "PROVIDER_INVALID_RESPONSE"
+      | "PROVIDER_CONTEXT_TOO_LARGE"
+      | "PROVIDER_OUTPUT_TRUNCATED",
     message: string,
     readonly retryable: boolean,
   ) {
@@ -115,12 +119,16 @@ export class OpenAICompatibleProvider implements ModelProvider {
     signal?: AbortSignal,
   ): AsyncIterable<ModelStreamEvent> {
     const started = Date.now();
+    const generationBudget = request.generationBudget ?? resolveGenerationBudget(this.config, request.business ?? "chat", latestRequestText(request.messages));
     const state: { attempts: number; usage: TokenUsage | null; finishReason: string | null } = { attempts: 0, usage: null, finishReason: null };
     let firstTokenMs: number | null = null;
     let status: ModelCallTelemetry["status"] = "cancelled";
     let errorCode: string | null = null;
     try {
-      for await (const event of this.streamRaw(request, signal, state)) {
+      if (inputTextCharacters(request.messages) > generationBudget.inputCharacterLimit) {
+        throw new ModelProviderError("PROVIDER_CONTEXT_TOO_LARGE", "上下文超过本机设定的输入预算，尚未调用模型；请新建对话或调整服务端预算，历史未被删除。", false);
+      }
+      for await (const event of this.streamRaw(request, signal, state, generationBudget)) {
         if (event.type === "delta" && firstTokenMs === null) firstTokenMs = Date.now() - started;
         if (event.type === "done") status = "completed";
         yield event;
@@ -139,6 +147,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
             model: this.config.model, startedAt: new Date(started).toISOString(), status,
             attempts: state.attempts, durationMs: Date.now() - started, firstTokenMs,
             usage: state.usage, finishReason: state.finishReason, errorCode,
+            requestCharacters: inputTextCharacters(request.messages), maxOutputTokens: generationBudget.maxOutputTokens,
             price, estimatedCost: estimateTokenCost(state.usage, price),
           });
         } catch {
@@ -152,6 +161,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
     request: ModelStreamRequest,
     signal: AbortSignal | undefined,
     state: { attempts: number; usage: TokenUsage | null; finishReason: string | null },
+    generationBudget: GenerationBudget,
   ): AsyncIterable<ModelStreamEvent> {
     const observe = (payload: unknown) => {
       const usage = parseTokenUsage(payload);
@@ -160,7 +170,11 @@ export class OpenAICompatibleProvider implements ModelProvider {
       const reason = choices?.[0]?.finish_reason;
       if (typeof reason === "string" && ["stop", "length", "content_filter", "tool_calls", "function_call", "insufficient_system_resource"].includes(reason)) state.finishReason = reason;
     };
-    const completion = (): ModelStreamEvent => ({ type: "done", ...(state.usage ? { usage: state.usage } : {}), ...(state.finishReason ? { finishReason: state.finishReason } : {}) });
+    const completion = (): ModelStreamEvent => {
+      if (state.finishReason === "length") throw new ModelProviderError("PROVIDER_OUTPUT_TRUNCATED", "模型输出达到上限，结果不完整；可提高该功能的输出预算或缩小本次任务。系统未自动重复调用。", false);
+      if (state.finishReason && !["stop"].includes(state.finishReason)) throw new ModelProviderError("PROVIDER_REQUEST_REJECTED", "模型没有返回完整的文本结果。", false);
+      return { type: "done", ...(state.usage ? { usage: state.usage } : {}), ...(state.finishReason ? { finishReason: state.finishReason } : {}) };
+    };
     let response: Response;
     try {
       response = await fetchWithTransientDnsRetry(
@@ -176,6 +190,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
             model: this.config.model,
             messages: request.messages,
             stream: true,
+            ...(generationBudget.tokenParameter && generationBudget.maxOutputTokens ? { [generationBudget.tokenParameter]: generationBudget.maxOutputTokens } : {}),
             // Only the verified official endpoint is opted in automatically.
             ...(new URL(this.config.baseUrl).hostname === "api.deepseek.com" ? { stream_options: { include_usage: true } } : {}),
           }),
@@ -262,9 +277,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
         if (done || sawDone) break;
       }
     } finally {
-      reader.releaseLock();
+      try { await reader.cancel(); } catch { /* Do not mask the original transport error. */ } finally { reader.releaseLock(); }
     }
 
+    if (!sawDone && !state.finishReason) throw new ModelProviderError("PROVIDER_INVALID_RESPONSE", "模型数据流中途结束，未收到完成标记。", false);
     yield completion();
   }
 }

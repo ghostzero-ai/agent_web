@@ -17,6 +17,7 @@ const config = {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 function request(body: unknown, signal?: AbortSignal): Request {
@@ -57,6 +58,19 @@ function createRunRecorder() {
 }
 
 describe("Model API", () => {
+  it("rejects excessive input before search, Run creation or Provider use", async () => {
+    vi.stubEnv("AI_MAX_INPUT_CHARACTERS", "1000");
+    const runs = createRunRecorder();
+    const search = { search: vi.fn() };
+    const createProvider = vi.fn();
+    const api = createModelApi({ getConfig: () => config, getStatus: vi.fn(), runs: runs.repository, search, createProvider });
+    const response = await api.stream(request({ ...validBody, prompt: [{ ...validBody.prompt[0], content: "大".repeat(1001) }], searchMode: "on" }));
+    expect(response.status).toBe(413);
+    expect((await response.json()).error).toMatchObject({ code: "PROVIDER_CONTEXT_TOO_LARGE", retryable: false });
+    expect(search.search).not.toHaveBeenCalled();
+    expect(runs.start).not.toHaveBeenCalled();
+    expect(createProvider).not.toHaveBeenCalled();
+  });
   it("returns a server SSE stream without exposing provider credentials", async () => {
     let receivedSignal: AbortSignal | undefined;
     let receivedRequest: ModelStreamRequest | undefined;

@@ -459,7 +459,7 @@ test("exports the exact latest model Prompt as JSON", async ({ page }) => {
   });
   expect(exported.envelope).toMatchObject({
     schemaVersion: 1,
-    composerVersion: "phase-5.3/v1",
+    composerVersion: "r1/cache-friendly-v1",
   });
   expect(exported.integrity.auditContentHash).toMatch(/^[a-f0-9]{64}$/);
   expect(exported.request.messages.at(-1)).toEqual({

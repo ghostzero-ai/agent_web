@@ -102,7 +102,7 @@ describe("OpenAICompatibleProvider", () => {
     const provider = new OpenAICompatibleProvider({ apiKey: "key", baseUrl: "https://provider.example", model: "mock" }, record);
     await expect((async () => { for await (const event of provider.stream({ messages: [] })) void event; })()).rejects.toMatchObject({ code: "PROVIDER_RATE_LIMITED" });
     expect(record.mock.calls[0][0]).toMatchObject({ status: "failed", errorCode: "PROVIDER_RATE_LIMITED", usage: null });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response('data: {"choices":[{"delta":{"content":"partial"}}]}\n\ndata: [DONE]\n\n', { headers: { "content-type": "text/event-stream" } })));
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response('data: {"choices":[{"delta":{"content":"partial"}}]}\n\ndata: [DONE]\n\n', { headers: { "content-type": "text/event-stream" } }))));
     for await (const event of provider.stream({ messages: [] })) { if (event.type === "delta") break; }
     expect(record.mock.calls[1][0]).toMatchObject({ status: "cancelled", usage: null });
     record.mockRejectedValue(new Error("private database details"));

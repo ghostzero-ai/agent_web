@@ -3,6 +3,7 @@ import {
   type ModelRequestMetadata,
   type PromptMessage,
 } from "@/lib/ai/messages";
+import type { GenerationBudget } from "@/lib/ai/server/tokenBudget";
 
 export const PROMPT_ENVELOPE_SCHEMA_VERSION = 1 as const;
 export const PROMPT_COMPOSER_VERSION = "r1/cache-friendly-v1" as const;
@@ -32,6 +33,8 @@ export type PromptEnvelope = {
     generation: {
       temperature: null;
       tools: [];
+      maxOutputTokens?: number | null;
+      tokenParameter?: GenerationBudget["tokenParameter"];
     };
   };
   promptLayers: Array<
@@ -124,6 +127,7 @@ export async function createPromptEnvelope(input: {
   conversation: PromptEnvelope["conversation"];
   prompt: readonly PromptMessage[];
   provider: Omit<ModelRequestMetadata, "requestId">;
+  generationBudget?: GenerationBudget;
 }): Promise<PromptEnvelope> {
   const promptLayers = input.prompt.map((message, index) => ({
     ...message,
@@ -146,7 +150,7 @@ export async function createPromptEnvelope(input: {
       transport: "openai-compatible-chat-completions" as const,
       stream: true as const,
       messages: toChatCompletionMessages([...input.prompt]),
-      generation: { temperature: null, tools: [] as [] },
+      generation: { temperature: null, tools: [] as [], ...(input.generationBudget ? { maxOutputTokens: input.generationBudget.maxOutputTokens, tokenParameter: input.generationBudget.tokenParameter } : {}) },
     },
     promptLayers,
     context: { truncated: false as const, compressed: false as const, notes: [] as [] },

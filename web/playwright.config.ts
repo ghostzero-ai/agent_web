@@ -22,7 +22,8 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
+  // Production/Docker verification must not spawn or tear down a second server.
+  webServer: process.env.PLAYWRIGHT_EXTERNAL_SERVER === "true" ? undefined : {
     command: `npm run dev -- --hostname 127.0.0.1 --port ${testPort}`,
     url: `${baseURL}/chat`,
     reuseExistingServer: !process.env.CI,

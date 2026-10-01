@@ -77,6 +77,8 @@ const envelopeSchema = z
           .object({
             temperature: z.null(),
             tools: z.tuple([]),
+            maxOutputTokens: z.number().int().positive().nullable().optional(),
+            tokenParameter: z.enum(["max_tokens", "max_completion_tokens"]).nullable().optional(),
           })
           .strict(),
       })

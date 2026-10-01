@@ -3,7 +3,7 @@
 > 文档类型：产品需求文档（PRD）+ 技术设计文档（TDD）+ 分阶段路线图
 > 文档版本：1.5
 > 编写日期：2026-09-02
-> 最近修订：2026-09-30
+> 最近修订：2026-10-01
 > 适用项目：AI Study Companion / Personal AI Agent Web Application
 > 状态：规划基线，后续通过 ADR 与 CHANGELOG 持续修订
 
@@ -1798,9 +1798,9 @@ Phase 5.6 的编号保留，但不再作为 Phase 7/Phase 6 的前置条件。�
 | M2.2 | 服务端 Huawei Provider | 主动聊天、新闻与书籍复用 Inbox + Huawei Push |
 | M3.x | ArkTS + ArkWeb HAP | 替换平台 Adapter，不重写共享服务端和产品逻辑 |
 
-### 收尾优化：R1 Token 成本与 R2 全模式 UI（待开发）
+### 收尾优化：R1 Token 成本（实施中）与 R2 全模式 UI（待开发）
 
-前置收尾任务新增 R1 Token/缓存优化、R2 全模式 UI/导航优化；实际执行顺序以 `PRODUCT_MAINLINE_GUIDE.md` 为准，技术拆分与验收见 `EXPERIENCE_AND_COST_OPTIMIZATION_PLAN.md`。两项目前均为待开发，不代表已有用量仪表、缓存指标或新版 UI。
+前置收尾任务为 R1 Token/缓存优化、R2 全模式 UI/导航优化；实际执行顺序以 `PRODUCT_MAINLINE_GUIDE.md` 为准，技术拆分与验收见 `EXPERIENCE_AND_COST_OPTIMIZATION_PLAN.md`。R1.1/R1.2 与 R1.3 首轮预算已实现，使用记录见 `TOKEN_COST_GUIDE.md`；真实费用/质量对照与长对话摘要仍未完成，R1 未封版，R2 尚未开发。
 
 | 收尾 Sprint | 内容 | 验收 |
 |---|---|---|

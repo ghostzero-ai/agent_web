@@ -14,6 +14,7 @@ import {
   type ModelProvider,
 } from "@/lib/ai/server/modelProvider";
 import { createMeasuredProvider } from "@/lib/ai/server/measuredProvider";
+import { inputTextCharacters, latestRequestText, resolveGenerationBudget, type GenerationBudget } from "@/lib/ai/server/tokenBudget";
 import { getDatabase } from "@/lib/db/client";
 import {
   createPromptRunRepository,
@@ -182,10 +183,15 @@ export function createModelApi(dependencies: ModelApiDependencies) {
       let envelope: Awaited<ReturnType<typeof createPromptEnvelope>>;
       let retrieval: Awaited<ReturnType<typeof retrieveWebEvidence>>["retrieval"];
       let usedMemories: RetrievedMemory[] = [];
+      let generationBudget: GenerationBudget;
 
       try {
         input = await parseRequest(request);
         config = await dependencies.getConfig();
+        generationBudget = resolveGenerationBudget(config, "chat", latestRequestText(input.prompt));
+        if (inputTextCharacters(input.prompt) > generationBudget.inputCharacterLimit) {
+          throw new ModelProviderError("PROVIDER_CONTEXT_TOO_LARGE", "上下文超过本机输入预算，尚未调用模型。请新建对话或调整预算；原历史仍保留。", false);
+        }
         const persona: PersonaProfileValues = dependencies.persona
           ? await dependencies.persona.get()
           : DEFAULT_PERSONA_PROFILE;
@@ -219,6 +225,7 @@ export function createModelApi(dependencies: ModelApiDependencies) {
           trigger: input.trigger,
           conversation: input.conversation,
           prompt: prepared.prompt,
+          generationBudget,
           provider: {
             provider: "openai-compatible",
             baseUrl: config.baseUrl,
@@ -227,6 +234,7 @@ export function createModelApi(dependencies: ModelApiDependencies) {
         });
         await dependencies.runs.start(envelope, usedMemories);
       } catch (error) {
+        if (error instanceof ModelProviderError) return apiError(requestId, 413, error.code, error.message, false);
         if (error instanceof SyntaxError) {
           return apiError(
             requestId,
@@ -303,7 +311,7 @@ export function createModelApi(dependencies: ModelApiDependencies) {
             let sawDone = false;
             let answer = "";
             for await (const event of provider.stream(
-              { messages: envelope.request.messages },
+              { messages: envelope.request.messages, generationBudget },
               abortController.signal,
             )) {
               if (event.type === "delta") {
