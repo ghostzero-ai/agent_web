@@ -5,6 +5,7 @@ import type { PromptEnvelope } from "@/lib/ai/promptEnvelope";
 import type { PromptExportFormat } from "@/lib/ai/promptExport";
 import { exportPromptEnvelope } from "@/lib/api/promptExportClient";
 import { getFileExportAdapter } from "@/lib/platform/fileExport";
+import { Drawer } from "@/components/ui/Drawer";
 
 type PromptExportControlProps = {
   envelope: PromptEnvelope | null;
@@ -72,22 +73,15 @@ export function PromptExportControl({ envelope }: PromptExportControlProps) {
             ? "导出最近一次发送给模型的 Prompt"
             : "当前会话发送一次消息后即可导出 Prompt"
         }
-        className="rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+        aria-label="导出 Prompt"
+        className="rounded-xl border border-[var(--workspace-border)] px-3 py-2 text-xs font-medium text-[var(--workspace-muted)] hover:bg-[var(--workspace-active)] disabled:cursor-not-allowed disabled:opacity-40"
       >
-        导出 Prompt
+        <span className="sm:hidden" aria-hidden="true">↧</span><span className="hidden sm:inline">导出 Prompt</span>
       </button>
 
       {open && envelope && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="关闭 Prompt 导出窗口"
-            className="absolute inset-0 bg-black/55 backdrop-blur-sm"
-            onClick={() => !exporting && setOpen(false)}
-          />
+        <Drawer variant="sheet" id="prompt-export-dialog" label="导出最近一次 Prompt" onClose={() => { if (!exporting) setOpen(false); }}>
           <section
-            role="dialog"
-            aria-modal="true"
             aria-labelledby="prompt-export-title"
             className="relative w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950"
           >
@@ -188,7 +182,7 @@ export function PromptExportControl({ envelope }: PromptExportControlProps) {
               </p>
             )}
           </section>
-        </div>
+        </Drawer>
       )}
     </>
   );

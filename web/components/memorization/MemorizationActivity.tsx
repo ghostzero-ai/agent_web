@@ -1,4 +1,5 @@
 "use client";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 
 import { useEffect, useMemo, useState } from "react";
 import { AppLink } from "@/components/platform/AppLink";
@@ -63,6 +64,7 @@ export function MemorizationActivity() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useNavigationGuard(busy || Boolean(title.trim() || sourceText.trim() || (recitation.trim() && !result)));
 
   const currentUnit = active?.units[unitIndex] ?? null;
   const progress = useMemo(() => {

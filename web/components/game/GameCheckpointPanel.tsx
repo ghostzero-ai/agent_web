@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 import {
   createGameCheckpoint,
   deleteGameCheckpoint,
@@ -24,6 +25,7 @@ export function GameCheckpointPanel({ detail, onChange, onError, onNotice }: Pro
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  useNavigationGuard(busy || Boolean(name.trim() || note.trim()));
 
   const recoverConflict = async (error: unknown) => {
     if (!error || typeof error !== "object" || !("code" in error)) return;

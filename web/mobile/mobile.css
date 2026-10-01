@@ -13,3 +13,7 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
 }
+
+.mobile-host { display: flex; min-height: 100dvh; flex-direction: column; }
+.mobile-host:has(.workspace-chat) { height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); min-height: 0; }
+.mobile-host > .workspace-chat { flex: 1; min-height: 0; height: auto; }

@@ -9,6 +9,7 @@ import {
   type ReadingProfile,
 } from "@/lib/api/readingProfileClient";
 import { appHref } from "@/lib/platform/appNavigation";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 
 type FormState = {
   topics: string;
@@ -68,6 +69,7 @@ export function ReadingProfileManager() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useNavigationGuard(saving || Boolean(profile && form && JSON.stringify(form) !== JSON.stringify(profileForm(profile))));
 
   useEffect(() => {
     let active = true;

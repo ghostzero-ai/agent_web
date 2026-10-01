@@ -9,6 +9,11 @@ import { ModeSelector } from "@/components/chat/ModeSelector";
 import { PromptExportControl } from "@/components/chat/PromptExportControl";
 import { SessionSidebar } from "@/components/chat/SessionSidebar";
 import { AppLink } from "@/components/platform/AppLink";
+import { AppShell } from "@/components/ui/AppShell";
+import { Drawer } from "@/components/ui/Drawer";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
+import { currentAppSearchParams } from "@/lib/platform/appNavigation";
+import { coreModeRegistry, isCoreModeId } from "@/lib/agent/modeRegistry";
 import type { CoreModeId } from "@/lib/agent/modeRegistry";
 import { buildAgentPrompt } from "@/lib/agent/promptBuilder";
 import { applyRetryReply, applySendReply, sendChatMessage } from "@/lib/ai/chatService";
@@ -66,7 +71,8 @@ export default function ChatPage() {
     null,
   );
   const [importing, setImporting] = useState(false);
-  const [input, setInput] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [requestedMode, setRequestedMode] = useState<CoreModeId | null>(null);
   const [searchMode, setSearchMode] = useState<SearchMode>("auto");
   const [updatingModeSessionId, setUpdatingModeSessionId] = useState<
     string | null
@@ -88,7 +94,7 @@ export default function ChatPage() {
     const loaded = await listServerSessions();
     setSessions(loaded);
     setActiveSessionId((current) => {
-      const candidate = preferredId ?? current;
+      const candidate = preferredId ?? current ?? window.sessionStorage.getItem("active-chat-session");
       return candidate && loaded.some((session) => session.id === candidate)
         ? candidate
         : loaded[0]?.id ?? null;
@@ -97,7 +103,13 @@ export default function ChatPage() {
 
   useEffect(() => {
     let disposed = false;
+    const readModeIntent = () => {
+      const requested = currentAppSearchParams().get("mode");
+      setRequestedMode(isCoreModeId(requested) && requested !== "entertainment" ? requested : null);
+    };
+    window.addEventListener("hashchange", readModeIntent);
     const initialize = async () => {
+      readModeIntent();
       clearLegacyBrowserApiConfig();
       const legacy = migrateOnce();
       if (!disposed) setLegacySessions(legacy);
@@ -126,24 +138,11 @@ export default function ChatPage() {
     const activeControllers = controllers.current;
     return () => {
       disposed = true;
+      window.removeEventListener("hashchange", readModeIntent);
       for (const controller of activeControllers.values()) controller.abort();
       activeControllers.clear();
     };
   }, []);
-
-  useEffect(() => {
-    if (!sidebarOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSidebarOpen(false);
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [sidebarOpen]);
 
   const resolvedActiveSessionId =
     activeSessionId && sessions.some((session) => session.id === activeSessionId)
@@ -158,6 +157,15 @@ export default function ChatPage() {
   const loading = resolvedActiveSessionId
     ? runningSessionIds.has(resolvedActiveSessionId)
     : false;
+  const input = resolvedActiveSessionId ? drafts[resolvedActiveSessionId] ?? "" : "";
+  const setInput = (value: string) => {
+    if (resolvedActiveSessionId) setDrafts((current) => ({ ...current, [resolvedActiveSessionId]: value }));
+  };
+  useNavigationGuard(Object.values(drafts).some((draft) => draft.trim().length > 0) || runningSessionIds.size > 0,
+    runningSessionIds.size > 0 ? "有对话正在生成。离开会取消生成，未完成的回答不会保存。" : "有会话草稿尚未发送，离开页面后需要重新输入。");
+  useEffect(() => {
+    if (resolvedActiveSessionId) window.sessionStorage.setItem("active-chat-session", resolvedActiveSessionId);
+  }, [resolvedActiveSessionId]);
 
   const markRunning = (sessionId: string, controller: AbortController) => {
     controllers.current.set(sessionId, controller);
@@ -481,8 +489,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-50 dark:bg-black">
-      <ChatHeader
+    <AppShell route="/chat" title="AI 对话" description="自动 · 专业 · 陪伴 · 反思" chat actions={<ChatHeader
         onOpenSidebar={() => setSidebarOpen(true)}
         sidebarOpen={sidebarOpen}
         actions={
@@ -505,7 +512,14 @@ export default function ChatPage() {
             />
           </div>
         }
-      />
+      />}>
+      <div className="flex min-h-0 flex-1 flex-col">
+
+      {requestedMode && requestedMode !== (activeSession?.mode ?? "auto") && <div className="flex flex-wrap items-center justify-center gap-2 border-b border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
+        <span>你选择了{coreModeRegistry.get(requestedMode).label}入口。切换只改变当前会话后续回答，不会自动生成。</span>
+        <button type="button" disabled={!activeSession || loading || Boolean(updatingModeSessionId)} onClick={() => void handleModeChange(requestedMode).then(() => setRequestedMode(null))} className="rounded-lg border border-current px-3">切换当前会话为{coreModeRegistry.get(requestedMode).label}</button>
+        <button type="button" onClick={() => setRequestedMode(null)} className="px-2 underline">保留原模式</button>
+      </div>}
 
       {legacySessions.length > 0 && (
         <div className="flex flex-wrap items-center justify-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -559,20 +573,7 @@ export default function ChatPage() {
         </div>
 
         {sidebarOpen && (
-          <div className="fixed inset-0 z-50 md:hidden">
-            <button
-              type="button"
-              className="absolute inset-0 bg-black/45 backdrop-blur-[1px]"
-              onClick={() => setSidebarOpen(false)}
-              aria-label="关闭对话列表遮罩"
-            />
-            <div
-              id="mobile-session-drawer"
-              role="dialog"
-              aria-modal="true"
-              aria-label="对话列表"
-              className="relative h-full w-[min(20rem,86vw)] shadow-2xl"
-            >
+          <Drawer id="mobile-session-drawer" label="对话列表" onClose={() => setSidebarOpen(false)}>
               <SessionSidebar
                 sessions={sessions}
                 activeSessionId={resolvedActiveSessionId}
@@ -585,8 +586,7 @@ export default function ChatPage() {
                 mobile
                 onClose={() => setSidebarOpen(false)}
               />
-            </div>
-          </div>
+          </Drawer>
         )}
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -616,6 +616,7 @@ export default function ChatPage() {
           )}
         </main>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }

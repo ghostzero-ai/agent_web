@@ -11,6 +11,7 @@ import {
   type ProactivityReason,
 } from "@/lib/api/proactivityClient";
 import { appHref } from "@/lib/platform/appNavigation";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 
 type FormState = Pick<
   ProactivityPreferences,
@@ -84,6 +85,7 @@ export function ProactivityManager() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useNavigationGuard(busy || Boolean(dashboard && form && JSON.stringify(form) !== JSON.stringify(formFrom(dashboard))));
 
   const applyDashboard = (next: ProactivityDashboard) => {
     setDashboard(next);

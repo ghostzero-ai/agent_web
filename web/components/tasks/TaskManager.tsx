@@ -16,6 +16,7 @@ import { reconcileAndCacheLocalTaskNotifications } from "@/lib/notifications/loc
 import { getCapacitorLocalNotificationAdapter } from "@/lib/platform/capacitorLocalNotifications";
 import { appHref, currentAppSearchParams } from "@/lib/platform/appNavigation";
 import type { TaskSchedule } from "@/lib/tasks/schedule";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 
 type FormState = {
   title: string;
@@ -173,6 +174,8 @@ export function TaskManager() {
   const [nativeNotifications, setNativeNotifications] =
     useState<NativeNotificationState>({ kind: "unsupported" });
   const handledTaskLink = useRef<string | null>(null);
+  const editingTask = tasks.find((task) => task.id === editingId);
+  useNavigationGuard(submitting || busyId !== null || JSON.stringify(form) !== JSON.stringify(editingTask ? formFromTask(editingTask) : EMPTY_FORM));
 
   const syncNativeNotifications = useCallback(async (loaded: TaskRecord[]) => {
     const adapter = getCapacitorLocalNotificationAdapter();

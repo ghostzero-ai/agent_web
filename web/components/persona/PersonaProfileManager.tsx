@@ -7,6 +7,7 @@ import {
   type PersonaProfile,
 } from "@/lib/api/personaProfileClient";
 import { buildPersonaInstruction } from "@/lib/persona/personaProfile";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 
 type FormState = Pick<
   PersonaProfile,
@@ -44,6 +45,7 @@ export function PersonaProfileManager() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useNavigationGuard(saving || Boolean(profile && form && JSON.stringify(form) !== JSON.stringify(profileForm(profile))));
 
   useEffect(() => {
     let active = true;

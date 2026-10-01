@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 import { GamePlayPanel } from "@/components/game/GamePlayPanel";
 import { GameCheckpointPanel } from "@/components/game/GameCheckpointPanel";
 import { AppLink } from "@/components/platform/AppLink";
@@ -168,6 +169,7 @@ export function GameSessionManager() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useNavigationGuard(busy || Boolean(detail && !creating && JSON.stringify(world) !== JSON.stringify(detailWorld(detail))));
 
   const installDetail = (next: GameSessionDetail) => {
     setDetail(next);
@@ -368,12 +370,10 @@ export function GameSessionManager() {
               onError={setError}
               onNotice={setNotice}
             />
-            <GameCheckpointPanel
-              detail={detail}
-              onChange={installDetail}
-              onError={setError}
-              onNotice={setNotice}
-            />
+            <details className="rounded-2xl border border-[var(--workspace-border)] bg-[var(--workspace-surface)] p-4"><summary className="flex items-center font-medium">检查点与恢复</summary><div className="mt-3">
+              <GameCheckpointPanel detail={detail} onChange={installDetail} onError={setError} onNotice={setNotice} />
+            </div></details>
+            <details className="rounded-2xl border border-[var(--workspace-border)] bg-[var(--workspace-surface)] p-4"><summary className="flex items-center font-medium">世界设定与角色卡</summary><div className="mt-3 space-y-5">
             <form onSubmit={saveWorld} className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 dark:border-zinc-800 dark:bg-zinc-950">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -432,6 +432,7 @@ export function GameSessionManager() {
                 />
               </div>
             </section>
+            </div></details>
           </>
         ) : null}
       </main>
@@ -445,6 +446,7 @@ function CreateSessionForm(props: {
 }) {
   const [world, setWorld] = useState<WorldForm>({ ...EMPTY_WORLD });
   const [character, setCharacter] = useState<CharacterFormState>({ ...EMPTY_CHARACTER });
+  useNavigationGuard(props.busy || JSON.stringify(world) !== JSON.stringify(EMPTY_WORLD) || JSON.stringify(character) !== JSON.stringify(EMPTY_CHARACTER));
   return (
     <form
       onSubmit={(event) => {
@@ -492,6 +494,7 @@ function CharacterEditor(props: {
   onDelete?: () => Promise<unknown>;
 }) {
   const [form, setForm] = useState(() => characterForm(props.character));
+  useNavigationGuard(props.busy || JSON.stringify(form) !== JSON.stringify(characterForm(props.character)));
   return (
     <form
       onSubmit={(event) => {

@@ -12,6 +12,7 @@ import {
   SpeechOutputError,
 } from "@/lib/platform/speechOutput";
 import { prepareSpeechText } from "@/lib/speech/speechPolicy";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 
 type FormState = Pick<
   VoiceProfile,
@@ -79,6 +80,7 @@ export function VoiceProfileManager() {
   const [previewing, setPreviewing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useNavigationGuard(saving || Boolean(profile && form && JSON.stringify(form) !== JSON.stringify(profileForm(profile))));
   const adapter = getSpeechOutputAdapter();
 
   const refreshVoices = async () => {

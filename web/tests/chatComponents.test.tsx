@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatErrorBanner } from "@/components/chat/ChatErrorBanner";
 import { ChatHeader } from "@/components/chat/ChatHeader";
+import { AppShell } from "@/components/ui/AppShell";
 import { MessageList } from "@/components/chat/MessageList";
 import { ModeSelector } from "@/components/chat/ModeSelector";
 import {
@@ -18,12 +19,12 @@ const noop = vi.fn();
 describe("chat presentation components", () => {
   it("renders the header and API configuration link", () => {
     const html = renderToStaticMarkup(
-      <ChatHeader onOpenSidebar={noop} sidebarOpen />,
+      <AppShell route="/chat" title="AI 对话" description="对话模式" chat actions={<ChatHeader onOpenSidebar={noop} sidebarOpen />}><div /></AppShell>,
     );
 
     expect(html).toContain("AI 对话");
     expect(html).toContain('href="/api-key"');
-    expect(html).toContain("API 配置");
+    expect(html).toContain("模型服务配置");
     expect(html).toContain("打开对话列表");
     expect(html).toContain("mobile-session-drawer");
     expect(html).toContain('aria-expanded="true"');

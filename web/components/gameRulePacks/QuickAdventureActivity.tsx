@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ZodError } from "zod";
 import { GameSessionDraftConfirmation } from "@/components/game/GameSessionDraftConfirmation";
 import { AppLink } from "@/components/platform/AppLink";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 import {
   GameRulePackClientError,
   getGameRulePackSetup,
@@ -39,6 +40,9 @@ export function QuickAdventureActivity() {
   const [draft, setDraft] = useState<GameSessionDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [savedSetup, setSavedSetup] = useState("");
+  const currentSetup = JSON.stringify({ ...setup, boundaries: boundaryText.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean) });
+  useNavigationGuard(busy || Boolean(ready && savedSetup !== currentSetup));
 
   useEffect(() => {
     let active = true;
@@ -49,6 +53,7 @@ export function QuickAdventureActivity() {
           ? { ...DEFAULT_QUICK_ADVENTURE_SETUP }
           : quickAdventureSetupSchema.parse(result.setup);
         setSetup(loaded);
+        setSavedSetup(JSON.stringify(loaded));
         setBoundaryText(loaded.boundaries.join("\n"));
         setStorageVersion(result.storageVersion);
         setReady(true);
@@ -84,6 +89,7 @@ export function QuickAdventureActivity() {
       });
       const result = await prepareGameRulePackDraft(QUICK_ADVENTURE_RULE_PACK_ID, normalized, storageVersion);
       setStorageVersion(result.storageVersion);
+      setSavedSetup(JSON.stringify(normalized));
       setDraft(result.draft);
     } catch (previewError) {
       setError(friendlyError(previewError));

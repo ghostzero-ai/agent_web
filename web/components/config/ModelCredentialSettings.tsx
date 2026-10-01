@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { ModelUsagePanel } from "./ModelUsagePanel";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 import {
   deleteModelCredential,
   getModelCredentialStatus,
@@ -29,6 +30,7 @@ export function ModelCredentialSettings() {
     kind: "success" | "warning" | "error";
     message: string;
   } | null>(null);
+  useNavigationGuard(Boolean(operation) || Boolean(!loading && status && (apiKey || provider !== (status.provider ?? "") || baseUrl !== (status.baseUrl ?? "") || model !== (status.model ?? ""))));
 
   async function refresh() {
     try {

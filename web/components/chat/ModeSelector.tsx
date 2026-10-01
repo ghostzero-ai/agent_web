@@ -25,11 +25,11 @@ export function ModeSelector({
         value={mode}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value as CoreModeId)}
-        className="max-w-24 rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs font-medium text-zinc-700 outline-none transition-colors hover:border-zinc-300 focus:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50 sm:max-w-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-zinc-600"
+        className="max-w-24 rounded-xl border border-[var(--workspace-border)] bg-[var(--workspace-active)] px-2 py-2 text-xs font-medium text-[var(--workspace-accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:max-w-none"
       >
         {modes.map((definition) => (
           <option key={definition.id} value={definition.id}>
-            {definition.label}
+            {definition.id === "entertainment" ? "娱乐（对话）" : definition.label}
           </option>
         ))}
       </select>

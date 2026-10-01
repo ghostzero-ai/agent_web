@@ -20,14 +20,15 @@ export function ChatComposer({
   onSend,
   onStop,
 }: ChatComposerProps) {
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter" && !loading) {
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !loading) {
+      event.preventDefault();
       onSend();
     }
   };
 
   return (
-    <footer className="border-t border-zinc-200 px-3 py-3 sm:px-6 sm:py-4 dark:border-zinc-800">
+    <footer className="shrink-0 border-t border-[var(--workspace-border)] bg-[var(--workspace-surface)] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-6 sm:pt-3">
       <div className="mx-auto mb-2 flex max-w-2xl items-center gap-1" aria-label="联网搜索模式">
         {([
           ["auto", "自动"],
@@ -42,7 +43,7 @@ export function ChatComposer({
             onClick={() => onSearchModeChange(mode)}
             className={`rounded-full px-3 py-1 text-xs transition-colors disabled:opacity-50 ${
               searchMode === mode
-                ? "bg-blue-600 text-white dark:bg-blue-500"
+                ? "bg-emerald-700 text-white dark:bg-emerald-600"
                 : "bg-zinc-100 text-zinc-500 hover:text-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
             }`}
           >
@@ -51,14 +52,15 @@ export function ChatComposer({
         ))}
       </div>
       <div className="mx-auto flex max-w-2xl gap-2 sm:gap-3">
-        <input
-          type="text"
+        <textarea
+          rows={2}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="请输入你的问题"
           disabled={loading}
-          className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-3 text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none disabled:opacity-50 sm:px-4 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+          aria-label="消息输入"
+          className="max-h-40 min-w-0 flex-1 resize-y rounded-2xl border border-[var(--workspace-border)] bg-[var(--workspace-bg)] px-3 py-3 text-base leading-6 text-[var(--workspace-ink)] placeholder-zinc-400 disabled:opacity-50 sm:px-4"
         />
         {loading ? (
           <button
@@ -72,12 +74,14 @@ export function ChatComposer({
           <button
             type="button"
             onClick={onSend}
-            className="shrink-0 rounded-lg bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 sm:px-5 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+            disabled={!value.trim()}
+            className="self-end shrink-0 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-40 sm:px-5"
           >
             发送
           </button>
         )}
       </div>
+      <p className="mx-auto mt-2 hidden max-w-2xl text-center text-[10px] text-zinc-400 sm:block">Enter 发送 · Shift + Enter 换行 · AI 的关键结论请核验</p>
     </footer>
   );
 }

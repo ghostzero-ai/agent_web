@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 import {
   confirmMemoryCandidate,
   listMemoryCandidates,
@@ -43,6 +44,7 @@ export function MemoryCandidateManager() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useNavigationGuard(busyId !== null || items.some((item) => item.status === "pending" && drafts[item.id] !== undefined && drafts[item.id] !== item.content));
 
   const load = useCallback(async () => {
     try {

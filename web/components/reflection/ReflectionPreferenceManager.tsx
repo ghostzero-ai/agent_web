@@ -8,6 +8,7 @@ import {
   type ReflectionStyle,
 } from "@/lib/api/reflectionPreferenceClient";
 import { appHref } from "@/lib/platform/appNavigation";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 
 type FormState = {
   enabled: boolean;
@@ -42,6 +43,7 @@ export function ReflectionPreferenceManager() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useNavigationGuard(saving || Boolean(preferences && form && JSON.stringify(form) !== JSON.stringify(formFrom(preferences))));
 
   useEffect(() => {
     let active = true;

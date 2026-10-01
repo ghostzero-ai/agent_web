@@ -1,103 +1,12 @@
 import type { ReactNode } from "react";
-import { AppLink } from "@/components/platform/AppLink";
 
-type ChatHeaderProps = {
-  onOpenSidebar?: () => void;
-  sidebarOpen?: boolean;
-  actions?: ReactNode;
-};
+type ChatHeaderProps = { onOpenSidebar?: () => void; sidebarOpen?: boolean; actions?: ReactNode };
 
-export function ChatHeader({
-  onOpenSidebar,
-  sidebarOpen = false,
-  actions,
-}: ChatHeaderProps) {
-  return (
-    <header className="flex items-center justify-between border-b border-zinc-200 px-3 py-3 sm:px-6 dark:border-zinc-800">
-      <div className="flex items-center gap-2">
-        {onOpenSidebar && (
-          <button
-            type="button"
-            onClick={onOpenSidebar}
-            className="inline-flex size-9 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 md:hidden dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white"
-            aria-label="打开对话列表"
-            aria-controls="mobile-session-drawer"
-            aria-expanded={sidebarOpen}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              className="size-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            >
-              <path d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        )}
-        <h1 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
-          AI 对话
-        </h1>
-      </div>
-      <nav className="flex items-center gap-2 text-xs font-medium text-zinc-500 sm:gap-4 dark:text-zinc-400">
-        {actions}
-        <AppLink
-          href="/persona"
-          className="hidden transition-colors hover:text-zinc-900 sm:inline dark:hover:text-zinc-200"
-        >
-          人格
-        </AppLink>
-        <AppLink
-          href="/voice"
-          className="hidden transition-colors hover:text-zinc-900 sm:inline dark:hover:text-zinc-200"
-        >
-          语音
-        </AppLink>
-        <AppLink
-          href="/proactivity"
-          className="hidden transition-colors hover:text-zinc-900 lg:inline dark:hover:text-zinc-200"
-        >
-          主动
-        </AppLink>
-        <AppLink
-          href="/plugins"
-          className="hidden transition-colors hover:text-zinc-900 lg:inline dark:hover:text-zinc-200"
-        >
-          插件
-        </AppLink>
-        <AppLink
-          href="/entertainment"
-          className="hidden transition-colors hover:text-zinc-900 lg:inline dark:hover:text-zinc-200"
-        >
-          娱乐
-        </AppLink>
-        <AppLink
-          href="/memory"
-          className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
-        >
-          记忆
-        </AppLink>
-        <AppLink
-          href="/inbox"
-          className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
-        >
-          收件箱
-        </AppLink>
-        <AppLink
-          href="/tasks"
-          className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
-        >
-          任务
-        </AppLink>
-        <AppLink
-          href="/api-key"
-          className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-200"
-        >
-          API 配置
-        </AppLink>
-      </nav>
-    </header>
-  );
+export function ChatHeader({ onOpenSidebar, sidebarOpen = false, actions }: ChatHeaderProps) {
+  return <div className="flex items-center gap-1 sm:gap-2">
+    {onOpenSidebar && <button type="button" onClick={onOpenSidebar} className="workspace-icon-button md:hidden" aria-label="打开对话列表" aria-controls="mobile-session-drawer" aria-expanded={sidebarOpen}>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 5h16v12H8l-4 3z" /></svg>
+    </button>}
+    {actions}
+  </div>;
 }

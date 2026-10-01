@@ -15,6 +15,7 @@ import type { GameRuleCheckRequest } from "@/lib/game/checks";
 import { GAME_DICE_SIDES, type GameDiceRequest } from "@/lib/game/dice";
 import type { GameState } from "@/lib/game/state";
 import { getFileExportAdapter } from "@/lib/platform/fileExport";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 
 type Props = {
   detail: GameSessionDetail;
@@ -117,6 +118,7 @@ export function GamePlayPanel({ detail, onChange, onError, onNotice }: Props) {
   const [checkDifficulty, setCheckDifficulty] = useState(10);
   const [checkPurpose, setCheckPurpose] = useState("规则检定");
   const [exporting, setExporting] = useState<"json" | "markdown" | null>(null);
+  useNavigationGuard(busy || Boolean(content.trim()), busy ? "游戏回合尚未完成；离开不会取消服务端处理，可返回查看结果。" : "有游戏行动尚未发送，离开后需要重新输入。");
   const byId = useMemo(() => new Map(turns.map((turn) => [turn.id, turn])), [turns]);
   const currentPath = useMemo(
     () => activePath(turns, activeLeafTurnId),

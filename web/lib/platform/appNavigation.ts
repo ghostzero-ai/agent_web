@@ -1,3 +1,5 @@
+import { requestNavigationPermission } from "./navigationGuard";
+
 export type AppNavigationMode = "path" | "hash";
 
 let navigationMode: AppNavigationMode = "path";
@@ -12,6 +14,7 @@ export function appHref(path: string): string {
 }
 
 export function navigateToAppPath(path: string): void {
+  if (!requestNavigationPermission()) return;
   const href = appHref(path);
   if (navigationMode === "hash") {
     window.location.hash = href.slice(1);

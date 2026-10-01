@@ -65,7 +65,7 @@ export function MessageList({
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-3xl space-y-7">
       {messages.map((message, index) => {
         const versions =
           message.role === "assistant" && message.id
@@ -89,20 +89,20 @@ export function MessageList({
             }`}
           >
             <div
-              className={`max-w-[80%] rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+              className={`min-w-0 rounded-2xl px-4 py-4 text-sm leading-7 whitespace-pre-wrap ${
                 message.role === "user"
-                  ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-black"
-                  : "border border-zinc-200 bg-white text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+                  ? "max-w-[88%] bg-[var(--workspace-active)] text-[var(--workspace-ink)] sm:max-w-[80%]"
+                  : "w-full border border-[var(--workspace-border)] bg-[var(--workspace-surface)] text-[var(--workspace-ink)]"
               }`}
             >
               <MarkdownMessage content={message.content} />
               {message.role === "assistant" &&
                 message.citations &&
                 message.citations.some((citation) => isSafeSourceUrl(citation.url)) && (
-                  <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
-                    <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                      参考来源
-                    </p>
+                  <details className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                    <summary className="mb-2 cursor-pointer text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                      参考来源（{message.citations.filter((citation) => isSafeSourceUrl(citation.url)).length}）
+                    </summary>
                     <div className="grid gap-2">
                       {message.citations
                         .filter((citation) => isSafeSourceUrl(citation.url))
@@ -126,7 +126,7 @@ export function MessageList({
                         </a>
                         ))}
                     </div>
-                  </div>
+                  </details>
                 )}
               {message.role === "assistant" && message.verification && (
                 <ResponseVerificationPanel
@@ -194,7 +194,7 @@ export function MessageList({
 
       {loading && (
         <div className="flex justify-start">
-          <div className="max-w-[80%] rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+          <div role="status" className="rounded-2xl border border-[var(--workspace-border)] bg-[var(--workspace-surface)] px-4 py-3 text-sm text-[var(--workspace-muted)]">
             AI 思考中...
           </div>
         </div>

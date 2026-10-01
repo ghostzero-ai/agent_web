@@ -1,26 +1,12 @@
-import { AppLink } from "@/components/platform/AppLink";
+import { AppShell } from "@/components/ui/AppShell";
 import { ReflectionPreferenceManager } from "@/components/reflection/ReflectionPreferenceManager";
 
 export const dynamic = "force-dynamic";
 
 export default function ReflectionPage() {
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <header className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 sm:px-6 dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold text-zinc-950 dark:text-zinc-50">思考问题</h1>
-          <p className="hidden text-xs text-zinc-500 sm:block">控制问题的目标、数量、挑战程度与避谈边界</p>
-        </div>
-        <nav className="flex shrink-0 gap-3 text-xs font-medium text-zinc-500 sm:gap-4 sm:text-sm">
-          <AppLink href="/plugins" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">插件</AppLink>
-          <AppLink href="/inbox" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">收件箱</AppLink>
-          <AppLink href="/tasks" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">任务</AppLink>
-          <AppLink href="/chat" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">对话</AppLink>
-        </nav>
-      </header>
-      <main className="px-4 py-6 sm:px-6 sm:py-10">
-        <ReflectionPreferenceManager />
-      </main>
-    </div>
+    <AppShell route="/reflection" title="思考问题" description="设置反思内容的目标与边界；对话模式在聊天页切换。">
+      <ReflectionPreferenceManager />
+    </AppShell>
   );
 }

@@ -1,5 +1,4 @@
 import type { Session } from "@/lib/config";
-import { AppLink } from "@/components/platform/AppLink";
 
 type SessionSidebarProps = {
   sessions: Session[];
@@ -103,8 +102,9 @@ export function SessionSidebar({
                       event.stopPropagation();
                       onDelete(session.id);
                     }}
-                    className={`shrink-0 rounded px-1.5 py-1 text-xs text-zinc-400 transition-opacity hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400 ${
-                      mobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    aria-label={`删除对话：${session.title}`}
+                    className={`min-w-11 shrink-0 rounded-lg px-1.5 py-1 text-xs text-zinc-400 transition-opacity hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400 ${
+                      mobile ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                     }`}
                     title="删除对话"
                   >
@@ -116,20 +116,7 @@ export function SessionSidebar({
           </div>
         )}
       </div>
-      <nav className="grid grid-cols-2 gap-2 border-t border-zinc-200 p-3 text-center text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
-        <AppLink
-          href="/entertainment"
-          className="rounded-lg bg-violet-50 px-2 py-2.5 text-violet-800 hover:bg-violet-100 dark:bg-violet-950/40 dark:text-violet-200 dark:hover:bg-violet-950"
-        >
-          娱乐模式
-        </AppLink>
-        <AppLink
-          href="/plugins"
-          className="rounded-lg bg-zinc-100 px-2 py-2.5 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-        >
-          活动插件
-        </AppLink>
-      </nav>
+      <p className="border-t border-zinc-200 p-4 text-xs leading-6 text-zinc-500 dark:border-zinc-800">历史保留分支；重新生成不会覆盖旧回答。</p>
     </aside>
   );
 }

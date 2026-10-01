@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/memoryClient";
 import type { MemoryCandidateKind } from "@/lib/api/memoryCandidateClient";
 import { getFileExportAdapter } from "@/lib/platform/fileExport";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 
 const KIND_LABELS: Record<MemoryCandidateKind, string> = {
   preference: "偏好",
@@ -53,6 +54,7 @@ export function MemoryManager() {
   const [status, setStatus] = useState<string | null>(null);
   const [showExpired, setShowExpired] = useState(false);
   const [snapshotAt] = useState(() => Date.now());
+  useNavigationGuard(busyId !== null || items.some((item) => drafts[item.id] && JSON.stringify(drafts[item.id]) !== JSON.stringify(draftFor(item))));
 
   const load = useCallback(async () => {
     try {

@@ -1,4 +1,5 @@
 "use client";
+import { Drawer } from "@/components/ui/Drawer";
 
 import {
   useEffect,
@@ -192,20 +193,6 @@ export function TimeWheelPicker({
     setOpen(true);
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
   return (
     <div>
       <span className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -225,16 +212,8 @@ export function TimeWheelPicker({
       </button>
 
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
-          role="presentation"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setOpen(false);
-          }}
-        >
+        <Drawer variant="sheet" id={`time-picker-${dialogTitleId}`} label="选择提醒时间" onClose={() => setOpen(false)}>
           <section
-            role="dialog"
-            aria-modal="true"
             aria-labelledby={dialogTitleId}
             className="w-full rounded-t-3xl bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 shadow-2xl sm:max-w-sm sm:rounded-3xl dark:bg-zinc-950"
           >
@@ -281,7 +260,7 @@ export function TimeWheelPicker({
               上下循环滚动选择时间
             </p>
           </section>
-        </div>
+        </Drawer>
       )}
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { NativeTaskNotificationSettings } from "@/components/notifications/NativeTaskNotificationSettings";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 import {
   deletePushSubscription,
   enableWebPush,
@@ -25,6 +26,7 @@ export function NotificationSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useNavigationGuard(busy || Boolean(state && form && JSON.stringify(form) !== JSON.stringify(state.preferences)));
 
   const reload = useCallback(async () => {
     const loaded = await getPushState();

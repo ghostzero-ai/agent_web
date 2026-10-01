@@ -315,11 +315,6 @@ test("mobile chat uses a collapsible conversation drawer", async ({ page }) => {
   await openDrawer.click();
   await expect(page.getByRole("dialog", { name: "对话列表" })).toBeVisible();
   await expect(
-    page.getByRole("dialog", { name: "对话列表" }).getByRole("link", {
-      name: "娱乐模式",
-    }),
-  ).toHaveAttribute("href", "/entertainment");
-  await expect(
     page.getByRole("dialog", { name: "对话列表" }).getByText("新对话", {
       exact: true,
     }),
@@ -328,6 +323,9 @@ test("mobile chat uses a collapsible conversation drawer", async ({ page }) => {
     .getByRole("button", { name: "关闭对话列表", exact: true })
     .click();
   await expect(page.getByRole("dialog", { name: "对话列表" })).toHaveCount(0);
+  await page.getByRole("button", { name: "打开模式与导航" }).click();
+  await expect(page.getByRole("dialog", { name: "模式与导航" }).getByRole("link", { name: "娱乐模式" })).toHaveAttribute("href", "/entertainment");
+  await page.getByRole("button", { name: "关闭模式与导航" }).click();
 });
 
 test("persists the selected conversation mode across reloads", async ({ page }) => {
@@ -575,12 +573,14 @@ test("persists and restores visible response verification", async ({ page }) => 
   await composer.fill("今天人工智能产业有什么最新消息？");
   await composer.press("Enter");
 
+  await page.getByText("参考来源（1）", { exact: true }).click();
   await expect(page.getByText("人工智能产业最新报告", { exact: false })).toBeVisible();
   await expect(
     page.getByText("回答规则检查：规则检查未发现明显问题", { exact: true }),
   ).toBeVisible();
 
   await page.reload();
+  await page.getByText("参考来源（1）", { exact: true }).click();
   await expect(page.getByText("人工智能产业最新报告", { exact: false })).toBeVisible();
   await expect(
     page.getByText("回答规则检查：规则检查未发现明显问题", { exact: true }),

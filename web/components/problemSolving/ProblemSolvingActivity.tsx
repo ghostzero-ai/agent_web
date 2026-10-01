@@ -1,4 +1,5 @@
 "use client";
+import { useNavigationGuard } from "@/components/platform/useNavigationGuard";
 
 import { useEffect, useMemo, useState } from "react";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
@@ -93,6 +94,7 @@ export function ProblemSolvingActivity() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useNavigationGuard(busy || Boolean(title.trim() || problemText.trim() || image || (userAnswer.trim() && userAnswer.trim() !== latestAttempt?.userAnswer)));
 
   const selectedStrategy = useMemo(
     () => STRATEGIES.find((item) => item.id === strategy) ?? STRATEGIES[0],

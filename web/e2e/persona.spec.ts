@@ -47,5 +47,6 @@ test("edits a structured Persona Profile on mobile", async ({ page }) => {
   await page.getByRole("button", { name: "保存人格设置" }).click();
   await expect(page.getByRole("status")).toContainText("下一次模型回答会使用新设置");
   await expect(page.getByLabel("助手称呼")).toHaveValue("小知");
-  await expect(page.getByRole("link", { name: "对话" })).toHaveAttribute("href", "/chat");
+  await page.getByRole("button", { name: "打开模式与导航" }).click();
+  await expect(page.getByRole("dialog", { name: "模式与导航" }).getByRole("link", { name: "对话空间" })).toHaveAttribute("href", "/chat");
 });

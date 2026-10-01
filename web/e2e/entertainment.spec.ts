@@ -243,6 +243,7 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
   await page.getByRole("button", { name: "创建独立游戏会话" }).click();
 
   await expect(page.getByRole("status")).toContainText("虚构内容不会进入普通记忆");
+  await page.getByText("世界设定与角色卡", { exact: true }).click();
   await expect(page.getByLabel("角色名称").first()).toHaveValue("林舟");
   await page.getByLabel("叙事语调").fill("温暖但保留悬念");
   await page.getByRole("button", { name: "保存世界设定" }).click();
@@ -264,6 +265,7 @@ test("creates and edits an isolated GameSession on mobile", async ({ page }) => 
   await expect(page.getByText("场景：酒馆吧台")).toBeVisible();
   await expect(page.getByText("物品：火漆线索 × 1")).toBeVisible();
   await expect(page.getByText("场景事实：老板认出了火漆")).toBeVisible();
+  await page.getByText("检查点与恢复", { exact: true }).click();
   await page.getByLabel("检查点名称").fill("进入钟楼前");
   await page.getByLabel("备注").fill("保留酒馆线索");
   await page.getByRole("button", { name: "保存检查点" }).click();

@@ -9,9 +9,12 @@ import {
 import { AppLink } from "@/components/platform/AppLink";
 import { NativeNotificationBridge } from "@/components/platform/NativeNotificationBridge";
 import { apiFetch, getApiBaseUrl } from "@/lib/api/clientRuntime";
+import { requestNavigationPermission } from "@/lib/platform/navigationGuard";
 
 type MobileRoute =
+  | "/"
   | "/chat"
+  | "/study"
   | "/tasks"
   | "/inbox"
   | "/reading"
@@ -29,7 +32,9 @@ type MobileRoute =
   | "/api-key";
 
 const ROUTES: Record<MobileRoute, LazyExoticComponent<ComponentType>> = {
+  "/": lazy(() => import("@/app/page")),
   "/chat": lazy(() => import("@/app/chat/page")),
+  "/study": lazy(() => import("@/app/study/page")),
   "/tasks": lazy(() => import("@/app/tasks/page")),
   "/inbox": lazy(() => import("@/app/inbox/page")),
   "/reading": lazy(() => import("@/app/reading/page")),
@@ -61,7 +66,15 @@ export function MobileApp() {
 
   useEffect(() => {
     if (!window.location.hash) window.history.replaceState(null, "", "#/chat");
-    const updateRoute = () => setRoute(currentRoute());
+    let previousHash = window.location.hash;
+    const updateRoute = () => {
+      if (!requestNavigationPermission()) {
+        window.history.replaceState(null, "", previousHash);
+        return;
+      }
+      previousHash = window.location.hash;
+      setRoute(currentRoute());
+    };
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
@@ -69,13 +82,13 @@ export function MobileApp() {
   const Page = ROUTES[route as MobileRoute];
 
   return (
-    <>
+    <div className="mobile-host">
       <NativeNotificationBridge />
       <ServerConnectionStatus />
       <Suspense fallback={<MobilePageLoading />}>
         {Page ? <Page /> : <UnknownMobileRoute />}
       </Suspense>
-    </>
+    </div>
   );
 }
 
@@ -105,7 +118,7 @@ function ServerConnectionStatus() {
   if (state === "online") return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[70] mx-auto flex max-w-lg items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50/95 px-4 py-3 text-sm text-amber-950 shadow-xl backdrop-blur dark:border-amber-800 dark:bg-amber-950/95 dark:text-amber-100">
+    <div role="status" className="relative z-30 mx-3 my-2 flex shrink-0 items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
       <div className="min-w-0">
         <p className="font-medium">
           {state === "checking" ? "正在连接笔记本服务端…" : "本地界面可用，服务端暂时离线"}

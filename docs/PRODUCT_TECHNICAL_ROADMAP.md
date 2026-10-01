@@ -1798,9 +1798,9 @@ Phase 5.6 的编号保留，但不再作为 Phase 7/Phase 6 的前置条件。�
 | M2.2 | 服务端 Huawei Provider | 主动聊天、新闻与书籍复用 Inbox + Huawei Push |
 | M3.x | ArkTS + ArkWeb HAP | 替换平台 Adapter，不重写共享服务端和产品逻辑 |
 
-### 收尾优化：R1 Token 成本（实施中）与 R2 全模式 UI（待开发）
+### 收尾优化：R1 Token 成本（首轮交付）与 R2 全模式 UI（实现与自动验收交付）
 
-前置收尾任务为 R1 Token/缓存优化、R2 全模式 UI/导航优化；实际执行顺序以 `PRODUCT_MAINLINE_GUIDE.md` 为准，技术拆分与验收见 `EXPERIENCE_AND_COST_OPTIMIZATION_PLAN.md`。R1.1/R1.2 与 R1.3 首轮预算已实现，使用记录见 `TOKEN_COST_GUIDE.md`；真实费用/质量对照与长对话摘要仍未完成，R1 未封版，R2 尚未开发。
+前置收尾任务为 R1 Token/缓存优化、R2 全模式 UI/导航优化；实际执行顺序以用户最新指令及 `PRODUCT_MAINLINE_GUIDE.md` 为准，技术拆分与验收见 `EXPERIENCE_AND_COST_OPTIMIZATION_PLAN.md`。R1 首轮已实现但收益/摘要未封版；R2 的导航、共享视觉、18 页面壳和草稿保护已实现，规范见 `UI_NAVIGATION_GUIDE.md`，自动验证和交付结果见 `reports/R2_UI_REPORT.md`。真机/视觉验收保留，不以 Web 或本地 Bundle 测试替代华为验证。
 
 | 收尾 Sprint | 内容 | 验收 |
 |---|---|---|
@@ -1998,7 +1998,7 @@ Phase 0–2 已完成，后续采用 Core Track 与 Mobile Track 并行但一次
 5. 实现搜索、引用、Verifier 和评测，先保证专业回答。
 6. 在可靠搜索与引用之上实现新闻、书籍和 Reflection，而不是使用无来源生成。
 
-当前优先级遵循产品主线指导。Core 3.1–3.5、Phase 4.1–4.4、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1–6.5 已完成。首个娱乐规则包沿用 Plugin API v1，在不修改 GameSession 核心循环的前提下完成配置/草稿/确认流程。下一步先完成 R1 Token/缓存优化与 R2 全模式 UI/导航优化（详见 `EXPERIENCE_AND_COST_OPTIMIZATION_PLAN.md`），再评估语音/移动发布需求、完成保留的真机验收，并准备作品集交付；Phase 5.6 仍集中安排在发布前，不横向扩张插件市场或 Agent 框架。
+当前优先级遵循产品主线指导。Core 3.1–3.5、Phase 4.1–4.4、Phase 5.1–5.5、Phase 7.1–7.5 与 Phase 6.1–6.5 已完成。首个娱乐规则包沿用 Plugin API v1，在不修改 GameSession 核心循环的前提下完成配置/草稿/确认流程。R1 首轮及 R2 实现/自动验证已交付；下一步保留 R1 收益/摘要与 R2 真机/视觉验收（详见 `EXPERIENCE_AND_COST_OPTIMIZATION_PLAN.md`），再评估语音/移动发布需求，并准备作品集交付；Phase 5.6 仍集中安排在发布前，不横向扩张插件市场或 Agent 框架。
 7. 完成新闻、书籍与 Reflection 的最小闭环后，实现 MemoryCandidate、Persona、Voice Profile 和 TTS；语音始终作为文字结果的可失败表达层。
 8. 背书与解题已验证 Capability Gateway 并冻结 Plugin API 1.0.0；后续新 Activity 只增加注册操作，不回退到直接依赖核心内部实现。
 9. 独立 GameSession 已建立；后续角色扮演与 AI 跑团必须继续使用该边界，禁止把虚构状态混入普通长期记忆；娱乐规则包用于继续验证 v1 的兼容扩展能力。

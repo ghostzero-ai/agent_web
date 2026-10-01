@@ -1,25 +1,12 @@
-import { AppLink } from "@/components/platform/AppLink";
+import { AppShell } from "@/components/ui/AppShell";
 import { ReadingProfileManager } from "@/components/reading/ReadingProfileManager";
 
 export const dynamic = "force-dynamic";
 
 export default function ReadingPage() {
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <header className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 sm:px-6 dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold text-zinc-950 dark:text-zinc-50">阅读画像</h1>
-          <p className="hidden text-xs text-zinc-500 sm:block">让书籍推荐匹配你的主题、难度、目标和时间预算</p>
-        </div>
-        <nav className="flex shrink-0 gap-3 text-xs font-medium text-zinc-500 sm:gap-4 sm:text-sm">
-          <AppLink href="/inbox" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">收件箱</AppLink>
-          <AppLink href="/tasks" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">任务</AppLink>
-          <AppLink href="/chat" className="transition-colors hover:text-zinc-950 dark:hover:text-zinc-100">对话</AppLink>
-        </nav>
-      </header>
-      <main className="px-4 py-6 sm:px-6 sm:py-10">
-        <ReadingProfileManager />
-      </main>
-    </div>
+    <AppShell route="/reading" title="阅读画像" description="告诉知伴你想读什么；推荐内容会进入收件箱。">
+      <ReadingProfileManager />
+    </AppShell>
   );
 }
