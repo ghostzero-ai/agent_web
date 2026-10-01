@@ -86,6 +86,15 @@ function repository(overrides: Partial<GameSessionRepositoryPort> = {}): GameSes
 }
 
 describe("GameTurnService", () => {
+  it("keeps the reusable branch prefix before changing snapshots and trusted dice", () => {
+    const left = gamePromptMessages(detail, rightId, "问题一", { ...baseState, scene: "甲" });
+    const right = gamePromptMessages(detail, rightId, "问题二", { ...baseState, scene: "乙" });
+    expect(left.slice(0, -2)).toEqual(right.slice(0, -2));
+    expect(left.at(-2)?.role).toBe("system");
+    expect(left.at(-2)?.content).toContain("Game state snapshot");
+    expect(left.at(-1)).toEqual({ role: "user", content: "问题一" });
+    expect(left.at(-2)?.content).not.toEqual(right.at(-2)?.content);
+  });
   it("selects only the ancestors of the chosen branch", () => {
     expect(gameTurnPath(detail.turns, rightId).map((turn) => turn.id)).toEqual([
       rootId,

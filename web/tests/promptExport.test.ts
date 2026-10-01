@@ -33,7 +33,7 @@ describe("Prompt export", () => {
     );
     expect(document.envelope).toMatchObject({
       runId: envelope.runId,
-      composerVersion: "phase-5.3/v1",
+      composerVersion: "r1/cache-friendly-v1",
     });
     expect(JSON.stringify(document)).not.toContain("apiKey");
   });

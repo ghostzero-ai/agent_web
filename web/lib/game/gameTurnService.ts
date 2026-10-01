@@ -1,4 +1,5 @@
 import type { ChatCompletionMessage } from "@/lib/ai/messages";
+import { stableJson } from "@/lib/ai/stableJson";
 import { rollGameRuleCheck, type GameRuleCheck } from "@/lib/game/checks";
 import type { CreateGameTurnRequest } from "@/lib/game/contracts";
 import { rollGameDice, type GameDiceRoll } from "@/lib/game/dice";
@@ -62,7 +63,7 @@ function systemPrompt(session: GameSessionDetail): string {
     character.description,
     character.personality ? `性格与表达：${character.personality}` : "",
     `生命上限：${character.maxHealth}`,
-    `数值属性：${Object.entries(character.attributes).map(([key, value]) => `${key}=${value}`).join("；") || "未设定"}`,
+    `数值属性：${Object.entries(character.attributes).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, value]) => `${key}=${value}`).join("；") || "未设定"}`,
     `目标：\n${listLines(character.goals, "- 未设定")}`,
     `角色边界：\n${listLines(character.boundaries, "- 无额外边界")}`,
   ].filter(Boolean).join("\n")).join("\n\n").slice(0, MAX_CHARACTER_CONTEXT_CHARACTERS);
@@ -131,14 +132,14 @@ function toolContext(state: GameState, events: readonly TrustedToolResult[]): st
     .map((event) => event.payload);
   return [
     "[Game state snapshot — trusted server data]",
-    JSON.stringify(state),
+    stableJson(state),
     "[Dice Tool results — trusted server data]",
     diceRolls.length > 0
-      ? JSON.stringify(diceRolls)
+      ? stableJson(diceRolls)
       : "No dice were rolled for this turn. Do not invent a roll or numeric result.",
     "[Rule Check results — trusted server data]",
     checks.length > 0
-      ? JSON.stringify(checks)
+      ? stableJson(checks)
       : "No rule check was resolved for this turn. Do not invent a check outcome.",
   ].join("\n");
 }
@@ -162,11 +163,12 @@ export function gamePromptMessages(
   }
   return [
     { role: "system", content: systemPrompt(session) },
-    { role: "system", content: toolContext(currentState, events) },
     ...history.flatMap<ChatCompletionMessage>((turn) => [
       { role: "user", content: turn.playerContent },
       { role: "assistant", content: turn.assistantContent },
     ]),
+    // The current snapshot is authoritative and dynamic; keep reusable history before it.
+    { role: "system", content: toolContext(currentState, events) },
     { role: "user", content: playerContent },
   ];
 }

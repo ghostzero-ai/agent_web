@@ -5,7 +5,7 @@ import {
 } from "@/lib/ai/messages";
 
 export const PROMPT_ENVELOPE_SCHEMA_VERSION = 1 as const;
-export const PROMPT_COMPOSER_VERSION = "phase-5.3/v1" as const;
+export const PROMPT_COMPOSER_VERSION = "r1/cache-friendly-v1" as const;
 
 export type PromptTrigger = "send" | "retry";
 
@@ -21,7 +21,7 @@ export type PromptEnvelope = {
     activeLeafId: string | null;
   };
   composer: {
-    version: typeof PROMPT_COMPOSER_VERSION;
+    version: typeof PROMPT_COMPOSER_VERSION | "phase-5.2/v1" | "phase-5.3/v1";
     layerOrder: Array<PromptMessage["source"]>;
   };
   provider: ModelRequestMetadata;
@@ -63,8 +63,8 @@ const LAYER_VERSIONS: Record<PromptMessage["source"], string> = {
   mode: "mode-registry/v1",
   citation: "citation-policy/v1",
   persona: "persona-profile/v1",
-  memory: "memory-context/v1",
-  "web-search": "web-search-context/v1",
+  memory: "memory-context/v2",
+  "web-search": "web-search-context/v2",
   conversation: "conversation-tree/v2",
 };
 
