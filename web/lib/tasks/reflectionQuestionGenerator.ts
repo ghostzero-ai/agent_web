@@ -312,6 +312,7 @@ export function createReflectionQuestionGenerator(dependencies: {
       const generated = await dependencies.agent.generate(
         promptFor(topic, context, preferences),
         signal,
+        { business: "reflection" },
       );
       const candidates = parseCandidates(generated.content);
       const questions = selectReflectionQuestions(

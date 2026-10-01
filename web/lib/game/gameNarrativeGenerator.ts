@@ -1,9 +1,9 @@
 import type { ChatCompletionMessage } from "@/lib/ai/messages";
 import {
   ModelProviderError,
-  OpenAICompatibleProvider,
   type ModelProvider,
 } from "@/lib/ai/server/modelProvider";
+import { createMeasuredProvider } from "@/lib/ai/server/measuredProvider";
 import { resolveModelProviderConfig } from "@/lib/ai/server/modelCredentialService";
 import { ModelConfigError, type ModelProviderConfig } from "@/lib/ai/server/modelConfig";
 
@@ -41,7 +41,7 @@ type Dependencies = {
 export function createGameNarrativeGenerator(
   dependencies: Dependencies = {
     getConfig: resolveModelProviderConfig,
-    createProvider: (config) => new OpenAICompatibleProvider(config),
+    createProvider: createMeasuredProvider,
   },
 ): GameNarrativeGeneratorPort {
   return {
@@ -68,7 +68,7 @@ export function createGameNarrativeGenerator(
       try {
         for await (const event of dependencies
           .createProvider(config)
-          .stream({ messages }, providerSignal)) {
+          .stream({ messages, business: "game" }, providerSignal)) {
           if (event.type !== "delta") continue;
           content += event.text;
           if (content.length > MAX_GAME_RESULT_LENGTH) {

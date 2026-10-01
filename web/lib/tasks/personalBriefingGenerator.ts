@@ -328,6 +328,7 @@ export function createPersonalBriefingGenerator(dependencies: {
       const generated = await dependencies.agent.generate(
         evidencePrompt(topic, dateLabel, citations),
         signal,
+        { business: "news" },
       );
       const citedIds = validateGeneratedContent(generated.content, citations);
       const citedSources = citations.filter((citation) => citedIds.has(citation.id));

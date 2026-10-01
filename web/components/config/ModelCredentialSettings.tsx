@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { ModelUsagePanel } from "./ModelUsagePanel";
 import {
   deleteModelCredential,
   getModelCredentialStatus,
@@ -306,6 +307,8 @@ export function ModelCredentialSettings() {
           )}
         </div>
       </form>
+
+      <ModelUsagePanel />
 
       <p className="text-xs leading-5 text-zinc-500">
         当前版本面向 localhost 与 Tailscale 私有访问，尚无应用登录；不要通过公网

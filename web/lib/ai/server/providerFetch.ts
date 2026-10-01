@@ -36,9 +36,11 @@ export async function fetchWithTransientDnsRetry(
   url: string,
   init: RequestInit,
   signal?: AbortSignal,
+  onAttempt?: () => void,
 ): Promise<Response> {
   for (let attempt = 0; ; attempt += 1) {
     try {
+      onAttempt?.();
       return await fetcher(url, init);
     } catch (error) {
       const delay = DNS_RETRY_DELAYS_MS[attempt];

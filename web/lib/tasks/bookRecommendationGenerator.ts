@@ -253,6 +253,7 @@ export function createBookRecommendationGenerator(dependencies: {
       const generated = await dependencies.agent.generate(
         evidencePrompt(topic, dateLabel, profile, citations),
         signal,
+        { business: "books" },
       );
       const citedIds = validateGeneratedContent(generated.content, citations);
       const citedSources = citations.filter((citation) => citedIds.has(citation.id));

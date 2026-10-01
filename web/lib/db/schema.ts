@@ -16,6 +16,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { ResponseVerification } from "@/lib/ai/messages";
+import type { ModelCallTelemetry } from "@/lib/ai/modelUsage";
 import type { GameRuleCheck } from "@/lib/game/checks";
 import type { GameDiceRoll } from "@/lib/game/dice";
 import type {
@@ -25,6 +26,16 @@ import type {
 } from "@/lib/game/state";
 
 export const conversationMode = pgEnum("conversation_mode", CORE_MODE_IDS);
+
+export const modelUsageCalls = pgTable("model_usage_calls", {
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  telemetry: jsonb("telemetry").$type<ModelCallTelemetry>().notNull(),
+}, (table) => [
+  index("model_usage_calls_user_started_idx").on(table.userId, table.startedAt),
+  check("model_usage_calls_telemetry_object", sql`jsonb_typeof(${table.telemetry}) = 'object'`),
+]);
 
 export const messageRole = pgEnum("message_role", [
   "system",

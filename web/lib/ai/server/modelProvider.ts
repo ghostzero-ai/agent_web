@@ -1,8 +1,10 @@
 import type { ChatCompletionMessage } from "@/lib/ai/messages";
 import type { ModelProviderConfig } from "./modelConfig";
 import { fetchWithTransientDnsRetry } from "./providerFetch";
+import { estimateTokenCost, parseTokenUsage, readTokenPrices, type ModelBusiness, type ModelCallTelemetry, type TokenUsage } from "@/lib/ai/modelUsage";
 
 export type ModelStreamRequest = {
+  business?: ModelBusiness;
   messages: Array<
     | ChatCompletionMessage
     | {
@@ -17,7 +19,7 @@ export type ModelStreamRequest = {
 
 export type ModelStreamEvent =
   | { type: "delta"; text: string }
-  | { type: "done" };
+  | { type: "done"; usage?: TokenUsage; finishReason?: string };
 
 export interface ModelProvider {
   stream(
@@ -103,12 +105,62 @@ function parseEventData(frame: string): string | null {
 }
 
 export class OpenAICompatibleProvider implements ModelProvider {
-  constructor(private readonly config: ModelProviderConfig) {}
+  constructor(
+    private readonly config: ModelProviderConfig,
+    private readonly record?: (call: ModelCallTelemetry) => Promise<void>,
+  ) {}
 
   async *stream(
     request: ModelStreamRequest,
     signal?: AbortSignal,
   ): AsyncIterable<ModelStreamEvent> {
+    const started = Date.now();
+    const state: { attempts: number; usage: TokenUsage | null; finishReason: string | null } = { attempts: 0, usage: null, finishReason: null };
+    let firstTokenMs: number | null = null;
+    let status: ModelCallTelemetry["status"] = "cancelled";
+    let errorCode: string | null = null;
+    try {
+      for await (const event of this.streamRaw(request, signal, state)) {
+        if (event.type === "delta" && firstTokenMs === null) firstTokenMs = Date.now() - started;
+        if (event.type === "done") status = "completed";
+        yield event;
+      }
+    } catch (error) {
+      status = signal?.aborted ? "cancelled" : "failed";
+      errorCode = error instanceof ModelProviderError ? error.code : (signal?.aborted ? "ABORTED" : "NETWORK_ERROR");
+      throw error;
+    } finally {
+      if (this.record) {
+        const providerOrigin = new URL(this.config.baseUrl).origin;
+        const price = readTokenPrices(process.env.AI_TOKEN_PRICES_JSON).find((entry) => entry.providerOrigin === providerOrigin && entry.model === this.config.model) ?? null;
+        try {
+          await this.record({
+            id: crypto.randomUUID(), business: request.business ?? "chat", providerOrigin,
+            model: this.config.model, startedAt: new Date(started).toISOString(), status,
+            attempts: state.attempts, durationMs: Date.now() - started, firstTokenMs,
+            usage: state.usage, finishReason: state.finishReason, errorCode,
+            price, estimatedCost: estimateTokenCost(state.usage, price),
+          });
+        } catch {
+          console.warn("[model-usage] Could not persist usage metadata.");
+        }
+      }
+    }
+  }
+
+  private async *streamRaw(
+    request: ModelStreamRequest,
+    signal: AbortSignal | undefined,
+    state: { attempts: number; usage: TokenUsage | null; finishReason: string | null },
+  ): AsyncIterable<ModelStreamEvent> {
+    const observe = (payload: unknown) => {
+      const usage = parseTokenUsage(payload);
+      if (usage) state.usage = usage;
+      const choices = (payload as { choices?: Array<{ finish_reason?: unknown }> })?.choices;
+      const reason = choices?.[0]?.finish_reason;
+      if (typeof reason === "string" && ["stop", "length", "content_filter", "tool_calls", "function_call", "insufficient_system_resource"].includes(reason)) state.finishReason = reason;
+    };
+    const completion = (): ModelStreamEvent => ({ type: "done", ...(state.usage ? { usage: state.usage } : {}), ...(state.finishReason ? { finishReason: state.finishReason } : {}) });
     let response: Response;
     try {
       response = await fetchWithTransientDnsRetry(
@@ -124,10 +176,13 @@ export class OpenAICompatibleProvider implements ModelProvider {
             model: this.config.model,
             messages: request.messages,
             stream: true,
+            // Only the verified official endpoint is opted in automatically.
+            ...(new URL(this.config.baseUrl).hostname === "api.deepseek.com" ? { stream_options: { include_usage: true } } : {}),
           }),
           signal,
         },
         signal,
+        () => { state.attempts++; },
       );
     } catch (error) {
       if (signal?.aborted) throw error;
@@ -142,7 +197,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
-      const text = extractText(await response.json());
+      const payload: unknown = await response.json();
+      observe(payload);
+      const text = extractText(payload);
       if (!text) {
         throw new ModelProviderError(
           "PROVIDER_INVALID_RESPONSE",
@@ -151,7 +208,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
         );
       }
       yield { type: "delta", text };
-      yield { type: "done" };
+      yield completion();
       return;
     }
 
@@ -197,6 +254,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
               false,
             );
           }
+          observe(payload);
           const text = extractText(payload);
           if (text) yield { type: "delta", text };
         }
@@ -207,6 +265,6 @@ export class OpenAICompatibleProvider implements ModelProvider {
       reader.releaseLock();
     }
 
-    yield { type: "done" };
+    yield completion();
   }
 }

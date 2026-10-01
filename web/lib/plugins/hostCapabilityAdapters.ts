@@ -180,7 +180,7 @@ export const FIRST_PARTY_MODEL_OPERATIONS: readonly ControlledModelOperation[] =
     }),
     async execute(input, generator) {
       const request = memorizationModelRequestSchema.parse(input);
-      const generated = await generator.generate(evaluationPrompt(request));
+      const generated = await generator.generate(evaluationPrompt(request), undefined, { business: "memorization" });
       const result = memorizationModelResultSchema.parse(jsonObject(generated.content));
       return { ...result, model: generated.model };
     },
@@ -196,8 +196,8 @@ export const FIRST_PARTY_MODEL_OPERATIONS: readonly ControlledModelOperation[] =
       const request = problemResponseRequestSchema.parse(input);
       const prompt = problemResponsePrompt(request);
       const generated = request.imageDataUrl
-        ? await generator.generateWithImage?.(prompt, request.imageDataUrl)
-        : await generator.generate(prompt);
+        ? await generator.generateWithImage?.(prompt, request.imageDataUrl, undefined, { business: "problem-solving" })
+        : await generator.generate(prompt, undefined, { business: "problem-solving" });
       if (!generated) throw new Error("The configured model generator does not support images.");
       const result = problemResponseResultSchema.parse(jsonObject(generated.content));
       return { ...result, model: generated.model };
@@ -212,7 +212,7 @@ export const FIRST_PARTY_MODEL_OPERATIONS: readonly ControlledModelOperation[] =
     }),
     async execute(input, generator) {
       const request = problemReviewCardRequestSchema.parse(input);
-      const generated = await generator.generate(reviewCardPrompt(request));
+      const generated = await generator.generate(reviewCardPrompt(request), undefined, { business: "review-card" });
       const result = problemReviewCardResultSchema.parse(jsonObject(generated.content));
       return { ...result, model: generated.model };
     },

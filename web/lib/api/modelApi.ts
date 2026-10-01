@@ -11,9 +11,9 @@ import {
 } from "@/lib/ai/server/modelCredentialService";
 import {
   ModelProviderError,
-  OpenAICompatibleProvider,
   type ModelProvider,
 } from "@/lib/ai/server/modelProvider";
+import { createMeasuredProvider } from "@/lib/ai/server/measuredProvider";
 import { getDatabase } from "@/lib/db/client";
 import {
   createPromptRunRepository,
@@ -391,7 +391,7 @@ export function getModelApi() {
   return createModelApi({
     getConfig: resolveModelProviderConfig,
     getStatus: resolveModelProviderStatus,
-    createProvider: (config) => new OpenAICompatibleProvider(config),
+    createProvider: createMeasuredProvider,
     runs: createPromptRunRepository(database),
     memories: createMemoryRepository(database),
     persona: createPersonaProfileRepository(database),

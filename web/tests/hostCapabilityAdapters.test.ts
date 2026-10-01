@@ -109,7 +109,7 @@ describe("Phase 7.3 host capability adapters", () => {
       response: "先想一想加法的含义。",
       model: "vision-model",
     });
-    expect(generateWithImage).toHaveBeenCalledWith(expect.stringContaining("只给一个"), imageDataUrl);
+    expect(generateWithImage).toHaveBeenCalledWith(expect.stringContaining("只给一个"), imageDataUrl, undefined, { business: "problem-solving" });
     expect(() => adapter.prepare({
       operation: "problem-solving.respond",
       input: {

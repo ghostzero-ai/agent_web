@@ -69,6 +69,48 @@ describe("server model configuration", () => {
 });
 
 describe("OpenAICompatibleProvider", () => {
+  it("captures usage-only chunks, official stream options and a privacy-safe call record", async () => {
+    const record = vi.fn().mockResolvedValue(undefined);
+    const fetcher = vi.fn().mockResolvedValue(new Response([
+      'data: {"choices":[{"delta":{"content":"回答"},"finish_reason":"stop"}]}',
+      'data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":10,"prompt_cache_hit_tokens":80,"prompt_cache_miss_tokens":20}}',
+      'data: [DONE]',
+    ].join("\n\n"), { headers: { "content-type": "text/event-stream" } }));
+    vi.stubGlobal("fetch", fetcher);
+    const provider = new OpenAICompatibleProvider({ apiKey: "server-secret", baseUrl: "https://api.deepseek.com", model: "mock" }, record);
+    const events = [];
+    for await (const event of provider.stream({ messages: [{ role: "user", content: "private question" }], business: "news" })) events.push(event);
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toMatchObject({ stream_options: { include_usage: true } });
+    expect(events.at(-1)).toMatchObject({ type: "done", finishReason: "stop", usage: { cachedInputTokens: 80 } });
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(record.mock.calls[0][0]).toMatchObject({ business: "news", status: "completed", attempts: 1, estimatedCost: null, usage: { inputTokens: 100 } });
+    expect(JSON.stringify(record.mock.calls)).not.toMatch(/server-secret|private question|回答/u);
+  });
+
+  it("does not add provider-specific options to unknown compatible endpoints", async () => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ choices: [{ message: { content: "ok" } }] }));
+    vi.stubGlobal("fetch", fetcher);
+    const record = vi.fn().mockResolvedValue(undefined);
+    for await (const event of new OpenAICompatibleProvider({ apiKey: "key", baseUrl: "https://provider.example/v1", model: "mock" }, record).stream({ messages: [] })) void event;
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).not.toHaveProperty("stream_options");
+    expect(record.mock.calls[0][0]).toMatchObject({ usage: null, status: "completed" });
+  });
+
+  it("records failures and consumer cancellation without blocking on telemetry errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("private upstream", { status: 429 })));
+    const record = vi.fn().mockResolvedValue(undefined);
+    const provider = new OpenAICompatibleProvider({ apiKey: "key", baseUrl: "https://provider.example", model: "mock" }, record);
+    await expect((async () => { for await (const event of provider.stream({ messages: [] })) void event; })()).rejects.toMatchObject({ code: "PROVIDER_RATE_LIMITED" });
+    expect(record.mock.calls[0][0]).toMatchObject({ status: "failed", errorCode: "PROVIDER_RATE_LIMITED", usage: null });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response('data: {"choices":[{"delta":{"content":"partial"}}]}\n\ndata: [DONE]\n\n', { headers: { "content-type": "text/event-stream" } })));
+    for await (const event of provider.stream({ messages: [] })) { if (event.type === "delta") break; }
+    expect(record.mock.calls[1][0]).toMatchObject({ status: "cancelled", usage: null });
+    record.mockRejectedValue(new Error("private database details"));
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    for await (const event of provider.stream({ messages: [] })) void event;
+    expect(console.warn).toHaveBeenCalledWith("[model-usage] Could not persist usage metadata.");
+  });
+
   it("retries a transient DNS lookup failure before streaming", async () => {
     const dnsError = Object.assign(new TypeError("fetch failed"), {
       cause: { code: "EAI_AGAIN" },

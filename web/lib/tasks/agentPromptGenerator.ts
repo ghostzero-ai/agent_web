@@ -1,9 +1,10 @@
 import type { ChatCompletionMessage } from "@/lib/ai/messages";
 import {
   ModelProviderError,
-  OpenAICompatibleProvider,
   type ModelProvider,
 } from "@/lib/ai/server/modelProvider";
+import { createMeasuredProvider } from "@/lib/ai/server/measuredProvider";
+import type { ModelBusiness } from "@/lib/ai/modelUsage";
 import {
   resolveModelProviderConfig,
 } from "@/lib/ai/server/modelCredentialService";
@@ -24,11 +25,12 @@ export type AgentPromptResult = {
 };
 
 export interface AgentPromptGeneratorPort {
-  generate(prompt: string, signal?: AbortSignal): Promise<AgentPromptResult>;
+  generate(prompt: string, signal?: AbortSignal, options?: { business: ModelBusiness }): Promise<AgentPromptResult>;
   generateWithImage?(
     prompt: string,
     imageDataUrl: string,
     signal?: AbortSignal,
+    options?: { business: ModelBusiness },
   ): Promise<AgentPromptResult>;
 }
 
@@ -76,12 +78,13 @@ function promptMessagesWithImage(prompt: string, imageDataUrl: string) {
 export function createAgentPromptGenerator(
   dependencies: AgentPromptGeneratorDependencies = {
     getConfig: resolveModelProviderConfig,
-    createProvider: (config) => new OpenAICompatibleProvider(config),
+    createProvider: createMeasuredProvider,
   },
 ): AgentPromptGeneratorPort {
   const generateMessages = async (
     messages: Parameters<ModelProvider["stream"]>[0]["messages"],
     signal?: AbortSignal,
+    options?: { business: ModelBusiness },
   ): Promise<AgentPromptResult> => {
     let config: ModelProviderConfig;
     try {
@@ -105,7 +108,7 @@ export function createAgentPromptGenerator(
     try {
       for await (const event of dependencies
         .createProvider(config)
-        .stream({ messages }, providerSignal)) {
+        .stream({ messages, business: options?.business ?? "agent-task" }, providerSignal)) {
         if (event.type !== "delta") continue;
         content += event.text;
         if (content.length > MAX_AGENT_RESULT_LENGTH) {
@@ -142,11 +145,11 @@ export function createAgentPromptGenerator(
   };
 
   return {
-    async generate(prompt, signal) {
-      return generateMessages(promptMessages(prompt), signal);
+    async generate(prompt, signal, options) {
+      return generateMessages(promptMessages(prompt), signal, options);
     },
-    async generateWithImage(prompt, imageDataUrl, signal) {
-      return generateMessages(promptMessagesWithImage(prompt, imageDataUrl), signal);
+    async generateWithImage(prompt, imageDataUrl, signal, options) {
+      return generateMessages(promptMessagesWithImage(prompt, imageDataUrl), signal, options);
     },
   };
 }

@@ -49,7 +49,7 @@ describe("database migrations", () => {
     async () => {
       const migrations = await loadMigrations();
 
-      expect(migrations).toHaveLength(27);
+      expect(migrations).toHaveLength(28);
       expect(migrations.every((migration) => migration.down !== null)).toBe(
         true,
       );
@@ -77,6 +77,7 @@ describe("database migrations", () => {
         "memory_usages",
         "messages",
         "model_credentials",
+        "model_usage_calls",
         "notification_deliveries",
         "notification_preferences",
         "persona_profiles",
@@ -547,6 +548,9 @@ describe("database migrations", () => {
       await pglite.query(`DELETE FROM inbox_items WHERE id = $1`, [agentInbox.rows[0].id]);
       await pglite.query(`DELETE FROM scheduled_tasks WHERE id = $1`, [agentTask.rows[0].id]);
       await expect(rollbackDatabase(database, migrations)).resolves.toBe(
+        migrations[27].id,
+      );
+      await expect(rollbackDatabase(database, migrations)).resolves.toBe(
         migrations[26].id,
       );
       const phase64AfterRollback = await pglite.query<{ name: string }>(`
@@ -853,6 +857,7 @@ describe("database migrations", () => {
         migrations[24].id,
         migrations[25].id,
         migrations[26].id,
+        migrations[27].id,
       ]);
     },
     15_000,
@@ -906,6 +911,7 @@ describe("database migrations", () => {
       migrations[24].id,
       migrations[25].id,
       migrations[26].id,
+      migrations[27].id,
     ]);
     const rows = await pglite.query<{ provider: string; model: string }>(
       `SELECT provider, model FROM model_credentials WHERE user_id = $1`,
